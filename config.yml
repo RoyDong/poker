@@ -11,6 +11,10 @@ template:
     ext: html
 
 
+static_file:
+    prefix: assets
+    dir: static
+
 session:
     prefix: session/
     keyname: gmvcsession
