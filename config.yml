@@ -12,8 +12,8 @@ template:
 
 
 static_file:
-    prefix: assets
-    dir: static
+    prefix: /assets
+    dir: static/
 
 session:
     prefix: session/
