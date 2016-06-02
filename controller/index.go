@@ -19,5 +19,14 @@ func init()  {
         }
         return r.JsonResponse(data)
     }, "/json")
+
+
+    gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
+        q := map[string]interface{}{
+            "aaa": "sss",
+            "value": wsm.Query["a"],
+        }
+        wsm.Send("name", q, nil)
+    }
 }
 
