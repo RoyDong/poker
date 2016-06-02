@@ -1,0 +1,29 @@
+name: gmvc
+env: prod
+
+
+server:
+    host: "0.0.0.0"
+    port: 10086
+
+template:
+    dir: template
+    ext: html
+
+
+session:
+    prefix: session/
+    keyname: gmvcsession
+    expires: 30
+    redis:
+        ip: 192.168.1.31
+        port: 6379
+        timeout: 3000
+
+
+redis:
+    main:
+        ip: 192.168.1.31
+        port: 6379
+        timeout: 3
+
