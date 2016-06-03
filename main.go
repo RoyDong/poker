@@ -8,7 +8,6 @@ import (
 
 func main() {
 
-    gmvc.Init()
 
 
     gmvc.Run()
