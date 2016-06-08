@@ -24,6 +24,10 @@ session:
         port: 6379
         timeout: 3000
 
+log:
+    access: log/access.log
+    error: log/error.log
+
 
 redis:
     main:
