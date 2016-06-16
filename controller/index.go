@@ -2,7 +2,7 @@ package controller
 
 import "github.com/roydong/gmvc"
 
-func init()  {
+func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
 
         name, _ := r.String("$1")
@@ -25,7 +25,6 @@ func init()  {
         val, _ := r.Session.Get("aaa").Str()
 
         data := map[string]string{
-            "aaa": "aaa",
             "name": "Roy",
             "sex": "男",
             "sess": val,

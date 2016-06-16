@@ -18,7 +18,7 @@ static_file:
 session:
     prefix: session/
     keyname: gmvcsession
-    expires: 30
+    expires: 3600
     redis:
         ip: 192.168.1.31
         port: 6379
@@ -26,7 +26,7 @@ session:
 
 log:
     access: log/access.log
-    error: log/error.log
+    info: log/info.log
 
 
 redis:
@@ -35,3 +35,18 @@ redis:
         port: 6379
         timeout: 3
 
+
+
+
+exchange:
+    okcoin:
+        api_key: ab081d44-4731-464c-865f-738dd374a272
+        api_secret: 7913AE52329F81C3D27B64539AE623CF
+
+    huobi:
+        api_key: 2b43a808-0e036065-2161d25b-05e3e
+        api_secret: 993a56dc-a3450ff5-8fe36841-20cc5
+
+    haobtc:
+        api_key: 77852487-b2a1-4b48-ab69-ff1dff6306bf
+        api_secret: 70e82ec1-e441-4443-bc4c-d3f470c7979d
