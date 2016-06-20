@@ -8,7 +8,7 @@ import (
     "strconv"
 )
 
-type OKCoin struct {
+type OKCoinCom struct {
 
     apiHost   string
     apiKey    string
@@ -17,10 +17,10 @@ type OKCoin struct {
 }
 
 
-func NewOKCoin() *OKCoin {
-    ok := &OKCoin{}
+func NewOKCoinCom() *OKCoinCom {
+    ok := &OKCoinCom{}
 
-    conf := gmvc.Store.Tree("config.market.okcoin")
+    conf := gmvc.Store.Tree("config.market.okcoincom")
     ok.apiHost, _ = conf.String("api_host")
     ok.apiKey, _ = conf.String("api_key")
     ok.apiSecret, _ = conf.String("api_secret")
@@ -29,50 +29,50 @@ func NewOKCoin() *OKCoin {
 }
 
 
-func (ok *OKCoin)Buy() {
+func (ok *OKCoinCom)Buy() {
 
 }
 
 
-func (ok *OKCoin)Sell() {
+func (ok *OKCoinCom)Sell() {
 
 }
 
 
-func (ok *OKCoin)Ticker() Ticker {
-    q := map[string]interface{}{"symbol": "btc_cny"}
-    rs := ok.Call("ticker.do", q, nil)
+func (ok *OKCoinCom)Ticker() Ticker {
+    q := map[string]interface{}{"symbol": "btc_usd", "contract_type": "quarter"}
+    rs := ok.Call("future_ticker.do", q, nil)
     t := Ticker{}
 
     date, _ := rs["date"].(string)
 
     rs = rs["ticker"].(map[string]interface{})
-    high, _ := rs["high"].(string)
-    low,  _ := rs["low"].(string)
-    sell, _ := rs["sell"].(string)
-    buy,  _ := rs["buy"].(string)
-    last, _ := rs["last"].(string)
-    vol,  _ := rs["vol"].(string)
+    t.High, _ = rs["high"].(float64)
+    t.Low,  _ = rs["low"].(float64)
+    t.Sell, _ = rs["sell"].(float64)
+    t.Buy,  _ = rs["buy"].(float64)
+    t.Last, _ = rs["last"].(float64)
+    t.Vol,  _ = rs["vol"].(float64)
 
-    t.High, _ = strconv.ParseFloat(high, 10)
-    t.Low,  _ = strconv.ParseFloat(low, 10)
-    t.Sell, _ = strconv.ParseFloat(sell, 10)
-    t.Buy,  _ = strconv.ParseFloat(buy, 10)
-    t.Last, _ = strconv.ParseFloat(last, 10)
-    t.Vol,  _ = strconv.ParseFloat(vol, 10)
     t.Time, _ = strconv.ParseInt(date, 10, 0)
 
     return t
 }
 
+func (ok *OKCoinCom)Index() float64 {
+    q := map[string]interface{}{"symbol": "btc_usd"}
+    rs := ok.Call("future_index.do", q, nil)
+    return rs["future_index"].(float64)
+}
 
-func (ok *OKCoin)UserInfo() interface{} {
+
+func (ok *OKCoinCom)UserInfo() interface{} {
     q := map[string]interface{}{}
     return ok.Call("userinfo.do", nil, q)
 }
 
 
-func (ok *OKCoin)Call(api string, query, params map[string]interface{}) map[string]interface{} {
+func (ok *OKCoinCom)Call(api string, query, params map[string]interface{}) map[string]interface{} {
     if params != nil {
         params["api_key"] = ok.apiKey
         params["secret_key"] = ok.apiSecret
@@ -95,7 +95,7 @@ func (ok *OKCoin)Call(api string, query, params map[string]interface{}) map[stri
     var rs map[string]interface{}
     err = json.Unmarshal(body, &rs)
     if err != nil {
-        gmvc.Logger.Println("okcoin: api error not json" + string(body))
+        gmvc.Logger.Println("okcoin: api error not json")
     }
 
     return rs

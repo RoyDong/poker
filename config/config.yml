@@ -16,13 +16,14 @@ static_file:
     dir: static/
 
 session:
+    enabled: 0
     prefix: session/
     keyname: gmvcsession
     expires: 3600
     redis:
         ip: 192.168.1.31
         port: 6379
-        timeout: 3000
+        timeout: 3
 
 log:
     access: log/access.log
@@ -38,14 +39,22 @@ redis:
 
 
 
-exchange:
+market:
     okcoin:
+        api_host: https://www.okcoin.cn/api/v1/
         api_key: ab081d44-4731-464c-865f-738dd374a272
         api_secret: 7913AE52329F81C3D27B64539AE623CF
 
+    okcoincom:
+        api_host: https://www.okcoin.com/api/v1/
+        api_key: 2ccfd744-f2ef-4071-886e-d8ed29d2a76e
+        api_secret: 4A5650E14E6EF708DA7191E95B7CCB84
+
     huobi:
-        api_key: 2b43a808-0e036065-2161d25b-05e3e
-        api_secret: 993a56dc-a3450ff5-8fe36841-20cc5
+        market_host: http://api.huobi.com/
+        api_host: https://api.huobi.com/apiv3/
+        api_key: 4017e547-d2f580c5-1e92b800-1effd
+        api_secret: 127c93f7-433b47e0-f5b025e4-6a50d
 
     haobtc:
         api_key: 77852487-b2a1-4b48-ab69-ff1dff6306bf

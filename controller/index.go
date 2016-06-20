@@ -1,6 +1,9 @@
 package controller
 
-import "github.com/roydong/gmvc"
+import (
+    "github.com/roydong/gmvc"
+    "github.com/roydong/poker/service/market"
+)
 
 func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
@@ -21,17 +24,31 @@ func init() {
 
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        okcoin := market.NewOKCoin()
 
-        val, _ := r.Session.Get("aaa").Str()
+        v := okcoin.Ticker()
 
-        data := map[string]string{
-            "name": "Roy",
-            "sex": "男",
-            "sess": val,
-        }
-        return r.JsonResponse(data)
+        huobi := market.NewHuobi()
+
+        h := huobi.Ticker()
+
+
+        return r.JsonResponse([]float64{v.Last, h.Last, v.Last - h.Last})
     }, "/json")
 
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        okcoin := market.NewOKCoinCom()
+
+        v := okcoin.Ticker()
+
+        i := okcoin.Index()
+
+        p := (v.Last - i) / i
+
+
+        return r.JsonResponse([]float64{v.Last, i, p * 100})
+    }, "/okcoin_premium")
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
         val, _ := wsm.String("a")
