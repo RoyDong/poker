@@ -65,6 +65,14 @@ func (ok *OKCoin)Ticker() Ticker {
     return t
 }
 
+/*
+func (ok *OKCoin)SyncTicker(interval time.Millisecond) {
+    for t := time.Tick(interval) {
+        ticker := ok.Ticker()
+
+    }
+}
+*/
 
 func (ok *OKCoin)UserInfo() interface{} {
     q := map[string]interface{}{}

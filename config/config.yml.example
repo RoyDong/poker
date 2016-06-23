@@ -42,15 +42,10 @@ market:
 
     okcoincom:
         api_host: https://www.okcoin.com/api/v1/
-        api_key: 2ccfd744-f2ef-4071-886e-d8ed29d2a76e
-        api_secret: 4A5650E14E6EF708DA7191E95B7CCB84
 
     huobi:
         market_host: http://api.huobi.com/
         api_host: https://api.huobi.com/apiv3/
-        api_key: 4017e547-d2f580c5-1e92b800-1effd
-        api_secret: 127c93f7-433b47e0-f5b025e4-6a50d
 
     haobtc:
-        api_key: 77852487-b2a1-4b48-ab69-ff1dff6306bf
-        api_secret: 70e82ec1-e441-4443-bc4c-d3f470c7979d
+        api_host: https://api.huobi.com/apiv3/

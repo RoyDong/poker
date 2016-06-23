@@ -46,8 +46,8 @@ func init() {
 
         p := (v.Last - i) / i
 
+        return r.JsonResponse([]float64{v.Last, i, gmvc.Round(p, 4) * 100})
 
-        return r.JsonResponse([]float64{v.Last, i, p * 100})
     }, "/okcoin_premium")
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
