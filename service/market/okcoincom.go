@@ -75,9 +75,7 @@ func (ok *OKCoinCom)UserInfo() interface{} {
 func (ok *OKCoinCom)Call(api string, query, params map[string]interface{}) map[string]interface{} {
     if params != nil {
         params["api_key"] = ok.apiKey
-        params["secret_key"] = ok.apiSecret
-        params["sign"] = strings.ToUpper(createSignature(params))
-        delete(params, "secret_key")
+        params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
     }
 
     resp, err := CallRest(ok.apiHost + api, query, params)

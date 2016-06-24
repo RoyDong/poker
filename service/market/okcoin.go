@@ -3,24 +3,21 @@ package market
 import (
     "strings"
     "github.com/roydong/gmvc"
-    "encoding/json"
     "io/ioutil"
     "strconv"
+    "errors"
 )
 
 type OKCoin struct {
-
     apiHost   string
     apiKey    string
     apiSecret string
-
 }
 
 
-func NewOKCoin() *OKCoin {
-    ok := &OKCoin{}
-
+func newOKCoin() *OKCoin {
     conf := gmvc.Store.Tree("config.market.okcoin")
+    ok := &OKCoin{}
     ok.apiHost, _ = conf.String("api_host")
     ok.apiKey, _ = conf.String("api_key")
     ok.apiSecret, _ = conf.String("api_secret")
@@ -29,31 +26,49 @@ func NewOKCoin() *OKCoin {
 }
 
 
-func (ok *OKCoin)Buy() {
+func (ok *OKCoin)Buy(price float64) error {
+    p := map[string]interface{}{
+        "symbol": "btc_cny",
+        "type": "buy_market",
+        "price": price,
+    }
 
+    rs := ok.Call("trade.do", nil, p)
+    if rs == nil {
+        return errors.New("okcoin buy error")
+    }
+    return nil
 }
 
 
-func (ok *OKCoin)Sell() {
+func (ok *OKCoin)Sell(amount float64) error {
+    p := map[string]interface{}{
+        "symbol": "btc_cny",
+        "type": "sell_market",
+        "amount": amount,
+    }
 
+    rs := ok.Call("trade.do", nil, p)
+    if rs == nil {
+        return errors.New("okcoin sell error")
+    }
+    return nil
 }
 
 
-func (ok *OKCoin)Ticker() Ticker {
-    q := map[string]interface{}{"symbol": "btc_cny"}
-    rs := ok.Call("ticker.do", q, nil)
-    t := Ticker{}
+func (ok *OKCoin) LastTicker() *Ticker {
+    rs := ok.Call("ticker.do", map[string]interface{}{"symbol": "btc_cny"}, nil)
 
-    date, _ := rs["date"].(string)
+    date, _ := rs.String("date")
+    rst     := rs.Tree("ticker")
+    high, _ := rst.String("high")
+    low,  _ := rst.String("low")
+    sell, _ := rst.String("sell")
+    buy,  _ := rst.String("buy")
+    last, _ := rst.String("last")
+    vol,  _ := rst.String("vol")
 
-    rs = rs["ticker"].(map[string]interface{})
-    high, _ := rs["high"].(string)
-    low,  _ := rs["low"].(string)
-    sell, _ := rs["sell"].(string)
-    buy,  _ := rs["buy"].(string)
-    last, _ := rs["last"].(string)
-    vol,  _ := rs["vol"].(string)
-
+    t        := &Ticker{}
     t.High, _ = strconv.ParseFloat(high, 10)
     t.Low,  _ = strconv.ParseFloat(low, 10)
     t.Sell, _ = strconv.ParseFloat(sell, 10)
@@ -65,27 +80,28 @@ func (ok *OKCoin)Ticker() Ticker {
     return t
 }
 
-/*
-func (ok *OKCoin)SyncTicker(interval time.Millisecond) {
-    for t := time.Tick(interval) {
-        ticker := ok.Ticker()
+func (ok *OKCoin) GetBalance() (float64, float64) {
+    rs := ok.Call("userinfo.do", nil, map[string]interface{}{})
 
+    free := rs.Tree("info.funds.free")
+    if free == nil {
+        return 0, 0
     }
+
+    btc, _ := free.String("btc")
+    cny, _ := free.String("cny")
+
+    b, _ := strconv.ParseFloat(btc, 10)
+    c, _ := strconv.ParseFloat(cny, 10)
+
+    return b,c
 }
-*/
-
-func (ok *OKCoin)UserInfo() interface{} {
-    q := map[string]interface{}{}
-    return ok.Call("userinfo.do", nil, q)
-}
 
 
-func (ok *OKCoin)Call(api string, query, params map[string]interface{}) map[string]interface{} {
+func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.Tree {
     if params != nil {
         params["api_key"] = ok.apiKey
-        params["secret_key"] = ok.apiSecret
-        params["sign"] = strings.ToUpper(createSignature(params))
-        delete(params, "secret_key")
+        params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
     }
 
     resp, err := CallRest(ok.apiHost + api, query, params)
@@ -100,13 +116,18 @@ func (ok *OKCoin)Call(api string, query, params map[string]interface{}) map[stri
         gmvc.Logger.Println("okcoin: api error")
     }
 
-    var rs map[string]interface{}
-    err = json.Unmarshal(body, &rs)
+    tree := gmvc.NewTree()
+    err = tree.LoadJson("", body, false)
     if err != nil {
-        gmvc.Logger.Println("okcoin: api error not json" + string(body))
+        gmvc.Logger.Println("okcoin: api error not json")
     }
 
-    return rs
+    if _, has := tree.Int("error_code"); has {
+        gmvc.Logger.Println("okcoin: api error not json" + string(body))
+        return nil
+    }
+
+    return tree
 }
 
 

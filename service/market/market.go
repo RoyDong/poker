@@ -1,58 +1,22 @@
 package market
 
 import (
-    "net/http"
-    "fmt"
-    "strings"
-    "net/url"
-    "sort"
     "github.com/roydong/gmvc"
+    "container/list"
+    "time"
 )
 
-func CallRest(api string, query map[string]interface{}, data map[string]interface{}) (*http.Response, error) {
-    if query != nil {
-        api = api + "?" + BuildHttpQuery(query)
-    }
+var maxTickerNum = 200
 
-    if data == nil {
-        return http.Get(api)
-    }
+type exchanger interface {
+    Sell(amount float64) error
 
-    form := url.Values{}
-    for k, v := range data {
-        form.Set(k, fmt.Sprintf("%v", v))
-    }
+    Buy(price float64) error
 
-    return http.PostForm(api, form)
+    LastTicker() *Ticker
+
+    GetBalance() (float64, float64)
 }
-
-func BuildHttpQuery(data map[string]interface{}) string {
-    query := make([]string, 0, len(data))
-    for k, v := range data {
-        query = append(query, fmt.Sprintf("%v=%v", k, v))
-    }
-    return strings.Join(query, "&")
-}
-
-
-
-func createSignature(params map[string]interface{}) string {
-    var keys []string
-
-    for k := range params {
-        keys = append(keys, k)
-    }
-
-    sort.Strings(keys)
-
-    sigs := make([]string, 0, len(keys))
-    for _, k := range keys {
-        sigs = append(sigs, fmt.Sprintf("%v=%v", k, params[k]))
-    }
-
-    return gmvc.MD5(strings.Join(sigs, "&"))
-}
-
 
 type Ticker struct {
     High float64
@@ -63,3 +27,93 @@ type Ticker struct {
     Vol  float64
     Time int64
 }
+
+type Market struct {
+    exchanger
+
+    name string
+    tickers map[int64]*Ticker
+    tickerList *list.List
+    maxTickerNum int
+
+    recentTotalPrince float64
+    recentAverage float64
+
+    btc float64
+    cny float64
+}
+
+
+func NewMarket(name string) *Market {
+    m := &Market{
+        name: name,
+        maxTickerNum: maxTickerNum,
+        recentTotalPrince: 0,
+        recentAverage: 0,
+    }
+
+    switch m.name {
+    case "okcoin":
+        m.exchanger = newOKCoin()
+    case "huobi":
+        m.exchanger = newHuobi()
+    default:
+        gmvc.Logger.Fatalln("invalid market " + m.name)
+    }
+
+    m.tickers = make(map[int64]*Ticker)
+    m.tickerList = list.New()
+
+    return m
+}
+
+func (m *Market) addTicker(t *Ticker) {
+    m.tickerList.PushFront(t)
+    m.tickers[t.Time] = t
+    m.recentTotalPrince += t.Last
+    if m.tickerList.Len() > m.maxTickerNum {
+        el := m.tickerList.Back()
+        m.tickerList.Remove(el)
+        back, _ := el.Value.(Ticker)
+        m.recentTotalPrince -= back.Last
+        delete(m.tickers, back.Time)
+    }
+
+    m.recentAverage = m.recentTotalPrince / float64(m.tickerList.Len())
+
+    //gmvc.Logger.Println(fmt.Sprintf("%v: %v, %.2f, %.2f, %v", m.name, m.tickerList.Len(), m.recentAverage, t.Last, t.Time))
+}
+
+func (m *Market) TickerByTime(t int64) *Ticker {
+    return m.tickers[t]
+}
+
+func (m *Market) BackTicker() *Ticker {
+    if el := m.tickerList.Back(); el != nil {
+        return el.Value.(*Ticker)
+    }
+    return nil
+}
+
+func (m *Market) FrontTicker() *Ticker {
+    if el := m.tickerList.Front(); el != nil {
+        return el.Value.(*Ticker)
+    }
+    return nil
+}
+
+func (m *Market) SyncTicker(interval time.Duration) {
+    for _ = range time.Tick(interval) {
+        ticker := m.LastTicker()
+        m.addTicker(ticker)
+    }
+}
+
+func (m *Market) SyncBalance() {
+    m.btc, m.cny = m.GetBalance()
+}
+
+func (m *Market) Balance() (float64, float64) {
+    return m.btc, m.cny
+}
+
