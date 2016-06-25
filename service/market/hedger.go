@@ -257,7 +257,7 @@ func (hg *Hedger) openLong(long *Market) error {
     delta := 0.0;
 
     if long.name == "okcoin" {
-        delta = long.originBtc - long.btc
+        delta = 0.005
     }
     cny := (hg.tradeAmount + delta) * long.FrontTicker().Last
     err := long.Buy(cny)
@@ -289,7 +289,7 @@ func (hg *Hedger) closePosition() {
 
     gmvc.Logger.Println("")
 
-    hg.zuo.SyncBalance()
+    //hg.zuo.SyncBalance()
 
     total := hg.zuo.cny + hg.you.cny + hg.zuo.btc * hg.zuo.FrontTicker().Last + hg.you.btc * hg.you.FrontTicker().Last
     btc := hg.zuo.btc + hg.you.btc
@@ -310,7 +310,7 @@ func (hg *Hedger) closeShort() error {
     delta := 0.0;
 
     if hg.short.name == "okcoin" {
-        delta = hg.short.originBtc - hg.short.btc
+        delta = 0.005
     }
     cny := (hg.tradeAmount + delta) * hg.short.FrontTicker().Last
     err := hg.short.Buy(cny)
