@@ -41,6 +41,8 @@ type Market struct {
 
     btc float64
     cny float64
+
+    originBtc float64
 }
 
 

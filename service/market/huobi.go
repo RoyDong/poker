@@ -119,11 +119,7 @@ func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tr
         gmvc.Logger.Println("huobi: api error not json" + string(body))
     }
 
-    if _, has := params["amount"]; has {
-        gmvc.Logger.Println("huobi: " + string(body))
-    }
-
-    if code, _ := tree.Int("code"); code > 0 {
+    if code, _ := tree.Float64("code"); code > 0 {
         gmvc.Logger.Println("huobi: api error not json" + string(body))
         return nil
     }
@@ -151,7 +147,7 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
         gmvc.Logger.Println("huobi: api error not json" + string(body))
     }
 
-    if code, _ := tree.Int("code"); code > 0 {
+    if code, _ := tree.Float64("code"); code > 0 {
         gmvc.Logger.Println("huobi: api error not json" + string(body))
         return nil
     }

@@ -39,13 +39,13 @@ func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         okcoin := market.NewMarket("okcoin")
 
-        b, c := okcoin.Balance()
+        b, c := okcoin.GetBalance()
 
         huobi := market.NewMarket("huobi")
 
-        b1, c1 := huobi.Balance()
+        b1, c1 := huobi.GetBalance()
 
-        return r.JsonResponse([]float64{b, c, b1, c1})
+        return r.JsonResponse([]float64{b, c, b1, c1, c + c1})
     }, "/balance")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
@@ -59,11 +59,13 @@ func init() {
     }, "/trade_hb")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        okcoin := market.NewMarket("okcoin")
 
-        okcoin.Buy(50)
+        tree := gmvc.NewTree()
+        tree.LoadJson("", []byte(`{"code":1,"msg":"服务器繁忙","message":"服务器繁忙"}`), false)
 
-        return r.TextResponse("done")
+        gmvc.Logger.Println(tree.Float64("code"))
+
+        return r.TextResponse("aa")
 
     }, "/trade_ok")
 
@@ -92,6 +94,7 @@ func init() {
         return r.TextResponse("done")
 
     }, "/sync_ticker")
+
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
         val, _ := wsm.String("a")
