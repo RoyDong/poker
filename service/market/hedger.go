@@ -263,8 +263,9 @@ func (hg *Hedger) openShort(short *Market) error {
     if !hg.test {
         err = short.Sell(hg.tradeAmount)
     }
-    cny := hg.tradeAmount * short.FrontTicker().Last
-    gmvc.Logger.Println(fmt.Sprintf("   short: %v sell %.2f btc, + %.2f cny", short.name, hg.tradeAmount, cny))
+    last := short.FrontTicker().Last
+    cny := hg.tradeAmount * last
+    gmvc.Logger.Println(fmt.Sprintf("   short: %v sell %.2f btc, + %.2f cny", short.name, hg.tradeAmount, last))
     hg.short = short
 
     hg.btc -= hg.tradeAmount
@@ -280,17 +281,18 @@ func (hg *Hedger) openLong(long *Market) error {
     if long.name == "okcoin" {
         delta = 0.005
     }
-    cny := (hg.tradeAmount + delta) * long.FrontTicker().Last
+    last := long.FrontTicker().Last
+    cny := (hg.tradeAmount + delta) * last
 
     var err error
     if !hg.test {
         err = long.Buy(cny)
     }
-    gmvc.Logger.Println(fmt.Sprintf("   long: %v buy %.2f btc, - %.2f cny", long.name, hg.tradeAmount, cny))
+    gmvc.Logger.Println(fmt.Sprintf("   long: %v buy %.2f btc, - %.2f cny", long.name, hg.tradeAmount, last))
     hg.long = long
 
     hg.btc += hg.tradeAmount
-    hg.cny -= cny
+    hg.cny -= hg.tradeAmount * last
 
     return err
 }
@@ -336,16 +338,17 @@ func (hg *Hedger) closeShort() error {
     if hg.short.name == "okcoin" {
         delta = 0.005
     }
-    cny := (hg.tradeAmount + delta) * hg.short.FrontTicker().Last
+    last := hg.short.FrontTicker().Last
+    cny := (hg.tradeAmount + delta) * last
     var err error
     if !hg.test {
         err = hg.short.Buy(cny)
     }
 
-    gmvc.Logger.Println(fmt.Sprintf("   short: %v buy %.2f btc, - %.2f cny", hg.short.name, hg.tradeAmount, cny))
+    gmvc.Logger.Println(fmt.Sprintf("   short: %v buy %.2f btc, - %.2f cny", hg.short.name, hg.tradeAmount, last))
 
     hg.btc += hg.tradeAmount
-    hg.cny -= cny
+    hg.cny -= hg.tradeAmount * last
 
     return err
 }
@@ -355,8 +358,9 @@ func (hg *Hedger) closeLong() error {
     if !hg.test {
         err = hg.long.Sell(hg.tradeAmount)
     }
-    cny := hg.tradeAmount * hg.long.FrontTicker().Last
-    gmvc.Logger.Println(fmt.Sprintf("   long: %v sell %.2f btc, + %.2f cny", hg.long.name, hg.tradeAmount, cny))
+    last := hg.long.FrontTicker().Last
+    cny := hg.tradeAmount * last
+    gmvc.Logger.Println(fmt.Sprintf("   long: %v sell %.2f btc, + %.2f cny", hg.long.name, hg.tradeAmount, last))
 
     hg.btc -= hg.tradeAmount
     hg.cny += cny
