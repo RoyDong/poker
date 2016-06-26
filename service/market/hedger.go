@@ -262,6 +262,9 @@ func (hg *Hedger) openShort(short *Market) error {
     var err error
     if !hg.test {
         err = short.Sell(hg.tradeAmount)
+        if err != nil {
+            return err
+        }
     }
     last := short.FrontTicker().Last
     cny := hg.tradeAmount * last
@@ -287,6 +290,9 @@ func (hg *Hedger) openLong(long *Market) error {
     var err error
     if !hg.test {
         err = long.Buy(cny)
+        if err != nil {
+            return err
+        }
     }
     gmvc.Logger.Println(fmt.Sprintf("   long: %v buy %.2f btc, - %.2f cny", long.name, hg.tradeAmount, last))
     hg.long = long
@@ -343,6 +349,9 @@ func (hg *Hedger) closeShort() error {
     var err error
     if !hg.test {
         err = hg.short.Buy(cny)
+        if err != nil {
+            return err
+        }
     }
 
     gmvc.Logger.Println(fmt.Sprintf("   short: %v buy %.2f btc, - %.2f cny", hg.short.name, hg.tradeAmount, last))
@@ -357,6 +366,9 @@ func (hg *Hedger) closeLong() error {
     var err error
     if !hg.test {
         err = hg.long.Sell(hg.tradeAmount)
+        if err != nil {
+            return err
+        }
     }
     last := hg.long.FrontTicker().Last
     cny := hg.tradeAmount * last
