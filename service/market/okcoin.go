@@ -6,6 +6,7 @@ import (
     "io/ioutil"
     "strconv"
     "errors"
+    "fmt"
 )
 
 type OKCoin struct {
@@ -15,7 +16,7 @@ type OKCoin struct {
 }
 
 
-func newOKCoin() *OKCoin {
+func NewOKCoin() *OKCoin {
     conf := gmvc.Store.Tree("config.market.okcoin")
     ok := &OKCoin{}
     ok.apiHost, _ = conf.String("api_host")
@@ -58,6 +59,9 @@ func (ok *OKCoin)Sell(amount float64) error {
 
 func (ok *OKCoin) LastTicker() *Ticker {
     rs := ok.Call("ticker.do", map[string]interface{}{"symbol": "btc_cny"}, nil)
+    if rs == nil {
+        return nil
+    }
 
     date, _ := rs.String("date")
     rst     := rs.Tree("ticker")
@@ -78,6 +82,38 @@ func (ok *OKCoin) LastTicker() *Ticker {
     t.Time, _ = strconv.ParseInt(date, 10, 0)
 
     return t
+}
+
+func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
+    query := map[string]interface{}{
+        "symbol": "btc_cny",
+        "size": 50,
+        "merge": 0,
+    }
+
+    rs := ok.Call("depth.do", query, nil)
+    if rs == nil {
+        return nil, nil
+    }
+
+    var l int
+    ask := make([][]float64, 0, l)
+    l = rs.NodeNum("asks")
+    for i := 0; i < l; i++ {
+        price, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 0))
+        amount, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 1))
+        ask = append(ask, []float64{price, amount})
+    }
+
+    bid := make([][]float64, 0, l)
+    l = rs.NodeNum("bids")
+    for i := 0; i < l; i++ {
+        price, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 0))
+        amount, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 1))
+        bid = append(bid, []float64{price, amount})
+    }
+
+    return ask, bid
 }
 
 func (ok *OKCoin) GetBalance() (float64, float64) {

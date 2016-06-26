@@ -19,7 +19,7 @@ type Huobi struct {
 }
 
 
-func newHuobi() *Huobi {
+func NewHuobi() *Huobi {
     conf := gmvc.Store.Tree("config.market.huobi")
     hb := &Huobi{}
     hb.marketHost, _ = conf.String("market_host")
@@ -76,6 +76,32 @@ func (hb *Huobi) LastTicker() *Ticker {
     t.Time, _ = strconv.ParseInt(time, 10, 0)
 
     return t
+}
+
+func (hb *Huobi) GetDepth() ([][]float64, [][]float64) {
+    rs := hb.CallMarket("staticmarket/detail_btc_json.js", nil, nil)
+    if rs == nil {
+        return nil, nil
+    }
+
+    var l int
+    ask := make([][]float64, 0, l)
+    l = rs.NodeNum("sells")
+    for i := l - 1; i >= 0; i-- {
+        price, _ := rs.Float64(fmt.Sprintf("sells.%v.price", i))
+        amount, _ := rs.Float64(fmt.Sprintf("sells.%v.amount", i))
+        ask = append(ask, []float64{price, amount})
+    }
+
+    bid := make([][]float64, 0, l)
+    l = rs.NodeNum("buys")
+    for i := 0; i < l; i++ {
+        price, _ := rs.Float64(fmt.Sprintf("buys.%v.price", i))
+        amount, _ := rs.Float64(fmt.Sprintf("buys.%v.amount", i))
+        bid = append(bid, []float64{price, amount})
+    }
+
+    return ask, bid
 }
 
 func (hb *Huobi) GetBalance() (float64, float64) {

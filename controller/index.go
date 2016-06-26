@@ -24,17 +24,28 @@ func init() {
 
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        okcoin := market.NewMarket("okcoin")
-
-        v := okcoin.LastTicker()
-
         huobi := market.NewMarket("huobi")
+        okcoin := market.NewOKCoin()
 
-        h := huobi.LastTicker()
+        oka, okb := okcoin.GetDepth()
+        hba, hbb := huobi.GetDepth()
+
+        a := map[string][][]float64{
+            "ok_ask": oka,
+            "ok_bid": okb,
+
+            "hb_ask": hba,
+            "hb_bid": hbb,
+        }
+
+        huobi.UpdateDepth()
 
 
-        return r.JsonResponse([]float64{v.Last, h.Last, v.Last - h.Last})
-    }, "/json")
+        p := huobi.GetBuyPrice(2)
+        gmvc.Logger.Println(p, hba)
+
+        return r.JsonResponse(a)
+    }, "/depth")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         okcoin := market.NewMarket("okcoin")

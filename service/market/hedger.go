@@ -67,7 +67,7 @@ func NewHedger(zuo, you *Market) *Hedger {
         zuo: zuo,
         you: you,
 
-        tradeAmount: 0.4,
+        tradeAmount: 0.01,
         minTradeMargin: 5,
 
         minMargin: math.Inf(1),
@@ -85,14 +85,13 @@ func NewHedger(zuo, you *Market) *Hedger {
 
     conf := gmvc.Store.Tree("config.hedger")
     hg.minTradeMargin, _ = conf.Float64("min_trade_margin")
+    hg.tradeAmount, _ = conf.Float64("trade_amount")
     t, _ := conf.Int("test")
     if t > 0 {
         hg.test = true
     } else {
         hg.test = false
     }
-
-    gmvc.Logger.Println(hg.test, hg.minTradeMargin)
 
     return hg
 }
@@ -102,9 +101,6 @@ func (hg *Hedger) Start() {
 
     hg.tradeNum = 0
     hg.started = time.Now()
-
-    hg.zuo.originBtc = hg.zuo.btc
-    hg.you.originBtc = hg.you.btc
 
     btc := hg.zuo.btc + hg.you.btc
     cny := hg.zuo.cny + hg.you.cny
@@ -204,61 +200,80 @@ func (hg *Hedger) getMaxMargin() (int64, float64) {
 
 
 func (hg *Hedger) arbitrage() {
-    for now := range time.Tick(1 * time.Second) {
-        if hg.marginList.Len() < 20 {
+    for _ = range time.Tick(1 * time.Second) {
+        if hg.marginList.Len() < 10 {
             continue
         }
 
-        zuoTicker := hg.zuo.FrontTicker()
-        youTicker := hg.you.FrontTicker()
-
-        if math.Abs(float64(zuoTicker.Time - now.Unix())) > 20 || math.Abs(float64(youTicker.Time - now.Unix())) > 20 {
-            gmvc.Logger.Println("time is more than 20s")
-            return
-        }
-
-        margin := youTicker.Last - zuoTicker.Last
-
         if hg.state == STATE_CLOSE {
-            if margin - hg.avgMargin >= hg.minTradeMargin && hg.maxMargin - margin <= hg.minTradeMargin / 10 {
-                hg.openPosition(hg.you, hg.zuo)
+            hg.zuo.UpdateDepth()
+            hg.you.UpdateDepth()
 
-            } else if hg.avgMargin - margin >= hg.minTradeMargin && margin - hg.minMargin <= hg.minTradeMargin / 10 {
-                hg.openPosition(hg.zuo, hg.you)
-
+            if len(hg.zuo.lastAsks) == 0 || len(hg.you.lastAsks) == 0 {
+                return
             }
-        } else if math.Abs(margin - hg.avgMargin) <= hg.minTradeMargin / 10 {
-            hg.closePosition()
-        }
 
+            zuoBuyPrice := hg.zuo.GetBuyPrice(hg.tradeAmount)
+            zuoSellPrice := hg.zuo.GetSellPrice(hg.tradeAmount)
+
+            youBuyPrice := hg.you.GetBuyPrice(hg.tradeAmount)
+            youSellPrice := hg.you.GetSellPrice(hg.tradeAmount)
+
+            margin := youSellPrice - zuoBuyPrice
+            gmvc.Logger.Println(fmt.Sprintf("try open: margin=%.2f(you as short) max=%.2f", margin, hg.maxMargin))
+            if margin - hg.avgMargin >= hg.minTradeMargin && hg.maxMargin - margin <= hg.minTradeMargin / 10 {
+                hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
+                return
+            }
+
+
+            margin = youBuyPrice - zuoSellPrice
+            gmvc.Logger.Println(fmt.Sprintf("try open: margin=%.2f(zuo as short) min=%.2f", margin, hg.minMargin))
+            if hg.avgMargin - margin >= hg.minTradeMargin && margin - hg.minMargin <= hg.minTradeMargin / 10 {
+                hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
+                return
+            }
+        } else {
+            hg.short.UpdateDepth()
+            hg.long.UpdateDepth()
+
+            shortBuyPrice := hg.short.GetBuyPrice(hg.tradeAmount)
+            longSellPrice := hg.long.GetSellPrice(hg.tradeAmount)
+
+            margin := shortBuyPrice - longSellPrice
+            gmvc.Logger.Println(fmt.Sprintf("try close: margin=%.2f(short - long) avg=%2.f", margin, hg.avgMargin))
+            if math.Abs(margin - hg.avgMargin) <= hg.minTradeMargin / 10 {
+                hg.closePosition(shortBuyPrice, longSellPrice)
+            }
+        }
     }
 }
 
 
-func (hg *Hedger) openPosition(short, long *Market) {
+func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Market, longBuyPrice float64) {
     gmvc.Logger.Println("open position:")
 
     if short.name == "huobi" {
-        err := hg.openShort(short)
+        err := hg.openShort(short, shortSellPrice)
         if err != nil {
             return
         }
 
-        hg.openLong(long)
+        hg.openLong(long, longBuyPrice)
     } else {
-        err := hg.openLong(long)
+        err := hg.openLong(long, longBuyPrice)
         if err != nil {
             return
         }
 
-        hg.openShort(short)
+        hg.openShort(short, shortSellPrice)
     }
 
     gmvc.Logger.Println("")
     hg.state = STATE_OPEN
 }
 
-func (hg *Hedger) openShort(short *Market) error {
+func (hg *Hedger) openShort(short *Market, sellPrice float64) error {
     var err error
     if !hg.test {
         err = short.Sell(hg.tradeAmount)
@@ -266,9 +281,8 @@ func (hg *Hedger) openShort(short *Market) error {
             return err
         }
     }
-    last := short.FrontTicker().Last
-    cny := hg.tradeAmount * last
-    gmvc.Logger.Println(fmt.Sprintf("   short: %v sell %.2f btc, + %.2f cny", short.name, hg.tradeAmount, last))
+    cny := hg.tradeAmount * sellPrice
+    gmvc.Logger.Println(fmt.Sprintf("   short: %v sell %.2f btc, + %.2f cny", short.name, hg.tradeAmount, sellPrice))
     hg.short = short
 
     hg.btc -= hg.tradeAmount
@@ -278,14 +292,13 @@ func (hg *Hedger) openShort(short *Market) error {
     return err
 }
 
-func (hg *Hedger) openLong(long *Market) error {
+func (hg *Hedger) openLong(long *Market, buyPrice float64) error {
     delta := 0.0;
 
     if long.name == "okcoin" {
         delta = 0.005
     }
-    last := long.FrontTicker().Last
-    cny := (hg.tradeAmount + delta) * last
+    cny := (hg.tradeAmount + delta) * buyPrice
 
     var err error
     if !hg.test {
@@ -294,33 +307,33 @@ func (hg *Hedger) openLong(long *Market) error {
             return err
         }
     }
-    gmvc.Logger.Println(fmt.Sprintf("   long: %v buy %.2f btc, - %.2f cny", long.name, hg.tradeAmount, last))
+    gmvc.Logger.Println(fmt.Sprintf("   long: %v buy %.2f btc, - %.2f cny", long.name, hg.tradeAmount, buyPrice))
     hg.long = long
 
     hg.btc += hg.tradeAmount
-    hg.cny -= hg.tradeAmount * last
+    hg.cny -= hg.tradeAmount * buyPrice
 
     return err
 }
 
 
-func (hg *Hedger) closePosition() {
+func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     gmvc.Logger.Println("close position:")
 
     if hg.short.name == "huobi" {
-        err := hg.closeShort()
+        err := hg.closeShort(buyPrice)
         if err != nil {
             return
         }
 
-        hg.closeLong()
+        hg.closeLong(sellPrice)
     } else {
-        err := hg.closeLong()
+        err := hg.closeLong(sellPrice)
         if err != nil {
             return
         }
 
-        hg.closeShort()
+        hg.closeShort(buyPrice)
     }
 
     gmvc.Logger.Println("")
@@ -331,21 +344,20 @@ func (hg *Hedger) closePosition() {
     now := time.Now()
     gmvc.Logger.Println(fmt.Sprintf("info: %v min, %v rounds, %v", (now.Unix() - hg.started.Unix()) / 60, hg.tradeNum, now.Format("15:04:05")))
     gmvc.Logger.Println(
-        fmt.Sprintf("   Total(%.4fB, %.2f￥), %v(%.4fB, %.2f￥), %v(%.4fB, %.2f￥)",
+        fmt.Sprintf("   Total(%.4f, %.2), %v(%.4f, %.2f), %v(%.4f, %.2f)",
         hg.btc, hg.cny, hg.zuo.name, hg.zuo.btc, hg.zuo.cny, hg.you.name, hg.you.btc, hg.you.cny))
     gmvc.Logger.Println("")
 
     hg.state = STATE_CLOSE
 }
 
-func (hg *Hedger) closeShort() error {
+func (hg *Hedger) closeShort(price float64) error {
     delta := 0.0;
 
     if hg.short.name == "okcoin" {
         delta = 0.005
     }
-    last := hg.short.FrontTicker().Last
-    cny := (hg.tradeAmount + delta) * last
+    cny := (hg.tradeAmount + delta) * price
     var err error
     if !hg.test {
         err = hg.short.Buy(cny)
@@ -354,15 +366,15 @@ func (hg *Hedger) closeShort() error {
         }
     }
 
-    gmvc.Logger.Println(fmt.Sprintf("   short: %v buy %.2f btc, - %.2f cny", hg.short.name, hg.tradeAmount, last))
+    gmvc.Logger.Println(fmt.Sprintf("   short: %v buy %.2f btc, - %.2f cny", hg.short.name, hg.tradeAmount, price))
 
     hg.btc += hg.tradeAmount
-    hg.cny -= hg.tradeAmount * last
+    hg.cny -= hg.tradeAmount * price
 
     return err
 }
 
-func (hg *Hedger) closeLong() error {
+func (hg *Hedger) closeLong(price float64) error {
     var err error
     if !hg.test {
         err = hg.long.Sell(hg.tradeAmount)
@@ -370,9 +382,8 @@ func (hg *Hedger) closeLong() error {
             return err
         }
     }
-    last := hg.long.FrontTicker().Last
-    cny := hg.tradeAmount * last
-    gmvc.Logger.Println(fmt.Sprintf("   long: %v sell %.2f btc, + %.2f cny", hg.long.name, hg.tradeAmount, last))
+    cny := hg.tradeAmount * price
+    gmvc.Logger.Println(fmt.Sprintf("   long: %v sell %.2f btc, + %.2f cny", hg.long.name, hg.tradeAmount, price))
 
     hg.btc -= hg.tradeAmount
     hg.cny += cny

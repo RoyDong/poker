@@ -15,6 +15,8 @@ type exchanger interface {
 
     LastTicker() *Ticker
 
+    GetDepth() ([][]float64, [][]float64)
+
     GetBalance() (float64, float64)
 }
 
@@ -42,7 +44,8 @@ type Market struct {
     btc float64
     cny float64
 
-    originBtc float64
+    lastAsks [][]float64
+    lastBids [][]float64
 }
 
 
@@ -56,9 +59,9 @@ func NewMarket(name string) *Market {
 
     switch m.name {
     case "okcoin":
-        m.exchanger = newOKCoin()
+        m.exchanger = NewOKCoin()
     case "huobi":
-        m.exchanger = newHuobi()
+        m.exchanger = NewHuobi()
     default:
         gmvc.Logger.Fatalln("invalid market " + m.name)
     }
@@ -109,6 +112,36 @@ func (m *Market) SyncTicker(interval time.Duration) {
         ticker := m.LastTicker()
         m.addTicker(ticker)
     }
+}
+
+func (m *Market) GetSellPrice(amount float64) float64 {
+    var sum, price float64
+    for _, bid := range m.lastBids {
+        price = bid[0]
+        return price
+        sum += bid[1]
+        if sum >= amount {
+            break
+        }
+    }
+    return price
+}
+
+func (m *Market) GetBuyPrice(amount float64) float64 {
+    var sum, price float64
+    for _, ask := range m.lastAsks {
+        price = ask[0]
+        return price
+        sum += ask[1]
+        if sum >= amount {
+            break
+        }
+    }
+    return price
+}
+
+func (m *Market) UpdateDepth() {
+    m.lastAsks, m.lastBids = m.GetDepth()
 }
 
 func (m *Market) SyncBalance() {
