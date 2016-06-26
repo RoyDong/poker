@@ -58,6 +58,7 @@ type Hedger struct {
 
     cny         float64
     btc         float64
+    test        bool
 }
 
 
@@ -81,6 +82,17 @@ func NewHedger(zuo, you *Market) *Hedger {
 
     zuo.SyncBalance()
     you.SyncBalance()
+
+    conf := gmvc.Store.Tree("config.hedger")
+    hg.minTradeMargin, _ = conf.Float64("min_trade_margin")
+    t, _ := conf.Int("test")
+    if t > 0 {
+        hg.test = true
+    } else {
+        hg.test = false
+    }
+
+    gmvc.Logger.Println(hg.test, hg.minTradeMargin)
 
     return hg
 }
@@ -248,7 +260,9 @@ func (hg *Hedger) openPosition(short, long *Market) {
 
 func (hg *Hedger) openShort(short *Market) error {
     var err error
-    err = short.Sell(hg.tradeAmount)
+    if !hg.test {
+        err = short.Sell(hg.tradeAmount)
+    }
     cny := hg.tradeAmount * short.FrontTicker().Last
     gmvc.Logger.Println(fmt.Sprintf("   short: %v sell %.2f btc, + %.2f cny", short.name, hg.tradeAmount, cny))
     hg.short = short
@@ -269,7 +283,9 @@ func (hg *Hedger) openLong(long *Market) error {
     cny := (hg.tradeAmount + delta) * long.FrontTicker().Last
 
     var err error
-    err = long.Buy(cny)
+    if !hg.test {
+        err = long.Buy(cny)
+    }
     gmvc.Logger.Println(fmt.Sprintf("   long: %v buy %.2f btc, - %.2f cny", long.name, hg.tradeAmount, cny))
     hg.long = long
 
@@ -322,7 +338,9 @@ func (hg *Hedger) closeShort() error {
     }
     cny := (hg.tradeAmount + delta) * hg.short.FrontTicker().Last
     var err error
-    err = hg.short.Buy(cny)
+    if !hg.test {
+        err = hg.short.Buy(cny)
+    }
 
     gmvc.Logger.Println(fmt.Sprintf("   short: %v buy %.2f btc, - %.2f cny", hg.short.name, hg.tradeAmount, cny))
 
@@ -334,7 +352,9 @@ func (hg *Hedger) closeShort() error {
 
 func (hg *Hedger) closeLong() error {
     var err error
-    err = hg.long.Sell(hg.tradeAmount)
+    if !hg.test {
+        err = hg.long.Sell(hg.tradeAmount)
+    }
     cny := hg.tradeAmount * hg.long.FrontTicker().Last
     gmvc.Logger.Println(fmt.Sprintf("   long: %v sell %.2f btc, + %.2f cny", hg.long.name, hg.tradeAmount, cny))
 
