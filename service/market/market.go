@@ -114,11 +114,13 @@ func (m *Market) SyncTicker(interval time.Duration) {
     }
 }
 
+/*
+根据深度获得需要卖出amount数量的btc需要的价位,即获取对应的买单价(bid price)
+ */
 func (m *Market) GetSellPrice(amount float64) float64 {
     var sum, price float64
     for _, bid := range m.lastBids {
         price = bid[0]
-        return price
         sum += bid[1]
         if sum >= amount {
             break
@@ -127,11 +129,13 @@ func (m *Market) GetSellPrice(amount float64) float64 {
     return price
 }
 
+/*
+根据深度获得需要买入amount数量的btc需要的价位,即获取对应的卖单价(ask price)
+ */
 func (m *Market) GetBuyPrice(amount float64) float64 {
     var sum, price float64
     for _, ask := range m.lastAsks {
         price = ask[0]
-        return price
         sum += ask[1]
         if sum >= amount {
             break

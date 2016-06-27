@@ -205,45 +205,69 @@ func (hg *Hedger) arbitrage() {
             continue
         }
 
+        hg.zuo.UpdateDepth()
+        hg.you.UpdateDepth()
+
+        if len(hg.zuo.lastAsks) == 0 || len(hg.you.lastAsks) == 0 {
+            continue
+        }
+
+        zuoBuyPrice := hg.zuo.GetBuyPrice(hg.tradeAmount)
+        zuoSellPrice := hg.zuo.GetSellPrice(hg.tradeAmount)
+
+        youBuyPrice := hg.you.GetBuyPrice(hg.tradeAmount)
+        youSellPrice := hg.you.GetSellPrice(hg.tradeAmount)
+
+        var margin float64
+        var tradeMarginGap = hg.minTradeMargin / 10
+
         if hg.state == STATE_CLOSE {
-            hg.zuo.UpdateDepth()
-            hg.you.UpdateDepth()
 
-            if len(hg.zuo.lastAsks) == 0 || len(hg.you.lastAsks) == 0 {
-                return
-            }
+            //尝试判断是否可以右手做空(左手多), 以右手的最近买单价 - 左手的卖单价(margin)和(min max avg)相关参数比较
+            margin = youSellPrice - zuoBuyPrice
+            log.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
 
-            zuoBuyPrice := hg.zuo.GetBuyPrice(hg.tradeAmount)
-            zuoSellPrice := hg.zuo.GetSellPrice(hg.tradeAmount)
-
-            youBuyPrice := hg.you.GetBuyPrice(hg.tradeAmount)
-            youSellPrice := hg.you.GetSellPrice(hg.tradeAmount)
-
-            margin := youSellPrice - zuoBuyPrice
-            gmvc.Logger.Println(fmt.Sprintf("try open: margin=%.2f(you as short) max=%.2f", margin, hg.maxMargin))
-            if margin - hg.avgMargin >= hg.minTradeMargin && hg.maxMargin - margin <= hg.minTradeMargin / 10 {
+            //满足最小差价条件,并且超过最大差价
+            if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin - tradeMarginGap {
+                gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
                 hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
-                return
+                continue
             }
 
-
+            //尝试判断是否可以左手做空(右手多), 以右手的最近卖单价 - 左手的买单价(margin)和(min max avg)相关参数比较
             margin = youBuyPrice - zuoSellPrice
-            gmvc.Logger.Println(fmt.Sprintf("try open: margin=%.2f(zuo as short) min=%.2f", margin, hg.minMargin))
-            if hg.avgMargin - margin >= hg.minTradeMargin && margin - hg.minMargin <= hg.minTradeMargin / 10 {
+            log.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
+
+            //满足最小差价条件,并且低于最小差价
+            if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin + tradeMarginGap {
+                gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
                 hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
-                return
+                continue
             }
+
         } else {
-            hg.short.UpdateDepth()
-            hg.long.UpdateDepth()
 
-            shortBuyPrice := hg.short.GetBuyPrice(hg.tradeAmount)
-            longSellPrice := hg.long.GetSellPrice(hg.tradeAmount)
+            //如果是右手做空
+            if (hg.short.name == hg.you.name) {
+                margin = youBuyPrice - zuoSellPrice
+                log.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
 
-            margin := shortBuyPrice - longSellPrice
-            gmvc.Logger.Println(fmt.Sprintf("try close: margin=%.2f(short - long) avg=%2.f", margin, hg.avgMargin))
-            if math.Abs(margin - hg.avgMargin) <= hg.minTradeMargin / 10 {
-                hg.closePosition(shortBuyPrice, longSellPrice)
+                //差价低于平均差价即可平仓
+                if margin <= hg.avgMargin + tradeMarginGap {
+                    gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
+                    hg.closePosition(youBuyPrice, zuoSellPrice)
+                }
+
+            //如果是左手做空的
+            } else {
+                margin = youSellPrice - zuoBuyPrice
+                log.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
+
+                //差价高于平均差价即可平仓
+                if margin >= hg.avgMargin - tradeMarginGap {
+                    gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
+                    hg.closePosition(zuoBuyPrice, youSellPrice)
+                }
             }
         }
     }
@@ -344,7 +368,7 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     now := time.Now()
     gmvc.Logger.Println(fmt.Sprintf("info: %v min, %v rounds, %v", (now.Unix() - hg.started.Unix()) / 60, hg.tradeNum, now.Format("15:04:05")))
     gmvc.Logger.Println(
-        fmt.Sprintf("   Total(%.4f, %.2), %v(%.4f, %.2f), %v(%.4f, %.2f)",
+        fmt.Sprintf("   Total(%.4f, %.2f), %v(%.4f, %.2f), %v(%.4f, %.2f)",
         hg.btc, hg.cny, hg.zuo.name, hg.zuo.btc, hg.zuo.cny, hg.you.name, hg.you.btc, hg.you.cny))
     gmvc.Logger.Println("")
 

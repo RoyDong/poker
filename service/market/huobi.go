@@ -87,7 +87,7 @@ func (hb *Huobi) GetDepth() ([][]float64, [][]float64) {
     var l int
     ask := make([][]float64, 0, l)
     l = rs.NodeNum("sells")
-    for i := l - 1; i >= 0; i-- {
+    for i := 0; i < l; i++ {
         price, _ := rs.Float64(fmt.Sprintf("sells.%v.price", i))
         amount, _ := rs.Float64(fmt.Sprintf("sells.%v.amount", i))
         ask = append(ask, []float64{price, amount})

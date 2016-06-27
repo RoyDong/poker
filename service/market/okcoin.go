@@ -99,7 +99,7 @@ func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
     var l int
     ask := make([][]float64, 0, l)
     l = rs.NodeNum("asks")
-    for i := 0; i < l; i++ {
+    for i := l - 1; i >= 0; i-- {
         price, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 0))
         amount, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 1))
         ask = append(ask, []float64{price, amount})
