@@ -6,7 +6,7 @@ import (
     "time"
 )
 
-var maxTickerNum = 200
+var maxTickerNum = 300
 
 type exchanger interface {
     Sell(amount float64) error
@@ -62,6 +62,9 @@ func NewMarket(name string) *Market {
         m.exchanger = NewOKCoin()
     case "huobi":
         m.exchanger = NewHuobi()
+    case "haobtc":
+        m.exchanger = NewHaobtc()
+
     default:
         gmvc.Logger.Fatalln("invalid market " + m.name)
     }
@@ -73,6 +76,9 @@ func NewMarket(name string) *Market {
 }
 
 func (m *Market) addTicker(t *Ticker) {
+    if t == nil {
+        return
+    }
     m.tickerList.PushFront(t)
     m.tickers[t.Time] = t
     m.recentTotalPrince += t.Last
@@ -145,7 +151,11 @@ func (m *Market) GetBuyPrice(amount float64) float64 {
 }
 
 func (m *Market) UpdateDepth() {
-    m.lastAsks, m.lastBids = m.GetDepth()
+    lastAsks, lastBids := m.GetDepth()
+    if len(lastAsks) > 0 && len(lastBids) > 0 {
+        m.lastAsks = lastAsks
+        m.lastBids = lastBids
+    }
 }
 
 func (m *Market) SyncBalance() {

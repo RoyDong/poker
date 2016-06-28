@@ -5,20 +5,22 @@ import (
     "github.com/roydong/gmvc"
     "io/ioutil"
     "strconv"
-    "errors"
     "fmt"
 )
 
-type OKCoin struct {
+type OKFuture struct {
+
     apiHost   string
     apiKey    string
     apiSecret string
+
 }
 
 
-func NewOKCoin() *OKCoin {
-    conf := gmvc.Store.Tree("config.market.okcoin")
-    ok := &OKCoin{}
+func NewOKFuture() *OKFuture {
+    ok := &OKFuture{}
+
+    conf := gmvc.Store.Tree("config.market.okfuture")
     ok.apiHost, _ = conf.String("api_host")
     ok.apiKey, _ = conf.String("api_key")
     ok.apiSecret, _ = conf.String("api_secret")
@@ -27,71 +29,49 @@ func NewOKCoin() *OKCoin {
 }
 
 
-func (ok *OKCoin)Buy(price float64) error {
-    p := map[string]interface{}{
-        "symbol": "btc_cny",
-        "type": "buy_market",
-        "price": price,
-    }
+func (ok *OKFuture) Buy(price float64) error {
 
-    rs := ok.Call("trade.do", nil, p)
-    if rs == nil {
-        return errors.New("okcoin buy error")
-    }
     return nil
 }
 
 
-func (ok *OKCoin)Sell(amount float64) error {
-    p := map[string]interface{}{
-        "symbol": "btc_cny",
-        "type": "sell_market",
-        "amount": amount,
-    }
+func (ok *OKFuture) Sell(amount float64) error {
 
-    rs := ok.Call("trade.do", nil, p)
-    if rs == nil {
-        return errors.New("okcoin sell error")
-    }
     return nil
 }
 
 
-func (ok *OKCoin) LastTicker() *Ticker {
-    rs := ok.Call("ticker.do", map[string]interface{}{"symbol": "btc_cny"}, nil)
+func (ok *OKFuture) LastTicker() *Ticker {
+    q := map[string]interface{}{"symbol": "btc_usd", "contract_type": "quarter"}
+    rs := ok.Call("future_ticker.do", q, nil)
     if rs == nil {
         return nil
     }
 
-    date, _ := rs.String("date")
-    rst     := rs.Tree("ticker")
-    high, _ := rst.String("high")
-    low,  _ := rst.String("low")
-    sell, _ := rst.String("sell")
-    buy,  _ := rst.String("buy")
-    last, _ := rst.String("last")
-    vol,  _ := rst.String("vol")
+    rst := rs["ticker"].(map[string]interface{})
+    date, _ := rs["date"].(string)
 
     t        := &Ticker{}
-    t.High, _ = strconv.ParseFloat(high, 10)
-    t.Low,  _ = strconv.ParseFloat(low, 10)
-    t.Sell, _ = strconv.ParseFloat(sell, 10)
-    t.Buy,  _ = strconv.ParseFloat(buy, 10)
-    t.Last, _ = strconv.ParseFloat(last, 10)
-    t.Vol,  _ = strconv.ParseFloat(vol, 10)
+    t.High, _ = rst["high"].(float64)
+    t.Low,  _ = rst["low"].(float64)
+    t.Sell, _ = rst["sell"].(float64)
+    t.Buy,  _ = rst["buy"].(float64)
+    t.Last, _ = rst["last"].(float64)
+    t.Vol,  _ = rst["vol"].(float64)
     t.Time, _ = strconv.ParseInt(date, 10, 0)
 
     return t
 }
 
-func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
+func (ok *OKFuture) GetDepth() ([][]float64, [][]float64) {
     query := map[string]interface{}{
-        "symbol": "btc_cny",
+        "symbol": "btc_usd",
         "size": 50,
         "merge": 0,
+        "contract_type": "quarter",
     }
 
-    rs := ok.Call("depth.do", query, nil)
+    rs := ok.Call("future_depth.do", query, nil)
     if rs == nil {
         return nil, nil
     }
@@ -116,9 +96,16 @@ func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
     return ask, bid
 }
 
-func (ok *OKCoin) GetBalance() (float64, float64) {
-    rs := ok.Call("userinfo.do", nil, map[string]interface{}{})
+func (ok *OKFuture) Index() float64 {
+    q := map[string]interface{}{"symbol": "btc_usd"}
+    rs := ok.Call("future_index.do", q, nil)
+    return rs["future_index"].(float64)
+}
 
+
+func (ok *OKFuture) GetBalance() (float64, float64) {
+    rs := ok.Call("future_userinfo_4fix.do", nil, map[string]interface{}{})
+    return 0, 0
     free := rs.Tree("info.funds.free")
     if free == nil {
         return 0, 0
@@ -134,7 +121,7 @@ func (ok *OKCoin) GetBalance() (float64, float64) {
 }
 
 
-func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.Tree {
+func (ok *OKFuture)Call(api string, query, params map[string]interface{}) *gmvc.Tree {
     if params != nil {
         params["api_key"] = ok.apiKey
         params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
@@ -142,25 +129,25 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
 
     resp, err := CallRest(ok.apiHost + api, query, params)
     if err != nil {
-        gmvc.Logger.Println("okcoin: api " + api + "error")
+        gmvc.Logger.Println("okfuture: api " + api + "error")
         return nil
     }
 
     defer resp.Body.Close()
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
-        gmvc.Logger.Println("okcoin: api error")
+        gmvc.Logger.Println("okfuture: api error")
     }
 
     tree := gmvc.NewTree()
     err = tree.LoadJson("", body, false)
     if err != nil {
-        gmvc.Logger.Println("okcoin: api error not json")
+        gmvc.Logger.Println("okfuture: api error not json" + string(body))
         return nil
     }
 
     if _, has := tree.Int("error_code"); has {
-        gmvc.Logger.Println("okcoin: api error not json" + string(body))
+        gmvc.Logger.Println("okfuture: api error")
         return nil
     }
 

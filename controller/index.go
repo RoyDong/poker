@@ -25,10 +25,13 @@ func init() {
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         huobi := market.NewMarket("huobi")
-        okcoin := market.NewOKCoin()
+        okcoin := market.NewMarket("okcoin")
+        haobtc := market.NewMarket("haobtc")
 
         oka, okb := okcoin.GetDepth()
         hba, hbb := huobi.GetDepth()
+
+        hta, htb := haobtc.GetDepth()
 
         a := map[string][][]float64{
             "ok_ask": oka,
@@ -36,16 +39,21 @@ func init() {
 
             "hb_ask": hba,
             "hb_bid": hbb,
+
+            "ht_ask": hta,
+            "ht_bid": htb,
         }
-
-        huobi.UpdateDepth()
-
-
-        p := huobi.GetBuyPrice(2)
-        gmvc.Logger.Println(p, hba)
 
         return r.JsonResponse(a)
     }, "/depth")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        haobtc := market.NewMarket("haobtc")
+
+        ticker := haobtc.LastTicker()
+
+        return r.JsonResponse(ticker)
+    }, "/ticker")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         okcoin := market.NewMarket("okcoin")
@@ -56,18 +64,32 @@ func init() {
 
         b1, c1 := huobi.GetBalance()
 
-        return r.JsonResponse([]float64{b, c, b1, c1, c + c1})
+        haobtc := market.NewMarket("haobtc")
+
+        b2, c2 := haobtc.GetBalance()
+
+        return r.JsonResponse([]float64{b, c, b1, c1, b2, c2, c + c1 + c2})
     }, "/balance")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         huobi := market.NewMarket("huobi")
 
-        huobi.Sell(0.02)
+        //huobi.Sell(0.02)
         huobi.Buy(50)
 
         return r.TextResponse("done")
 
     }, "/trade_hb")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        haobtc := market.NewMarket("haobtc")
+
+        haobtc.Sell(0.02)
+        haobtc.Buy(50)
+
+        return r.TextResponse("done")
+
+    }, "/trade_ht")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
 
@@ -82,7 +104,7 @@ func init() {
 
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        okcoin := market.NewOKCoinCom()
+        okcoin := market.NewOKContact()
 
         v := okcoin.Ticker()
 
@@ -96,7 +118,6 @@ func init() {
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         okcoin := market.NewMarket("okcoin")
-
         huobi := market.NewMarket("huobi")
 
         hg := market.NewHedger(okcoin, huobi)
@@ -104,7 +125,18 @@ func init() {
 
         return r.TextResponse("done")
 
-    }, "/sync_ticker")
+    }, "/okcoin_huobi")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        okcoin := market.NewMarket("okcoin")
+        haobtc := market.NewMarket("haobtc")
+
+        hg := market.NewHedger(okcoin, haobtc)
+        hg.Start()
+
+        return r.TextResponse("done")
+
+    }, "/okcoin_haobtc")
 
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {

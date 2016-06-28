@@ -14,26 +14,15 @@ const (
     STATE_CLOSE = 2
 )
 
-type marketPosition struct {
-
-}
-
 type Hedger struct {
     zuo *Market
     you *Market
 
     short *Market
-
     long *Market
 
     tradeAmount float64
     minTradeMargin float64
-
-    zuoProfit float64
-    youProfit float64
-    totalProfit float64
-
-
 
     minMargin     float64
     minMarginTime int64
@@ -51,8 +40,6 @@ type Hedger struct {
     stoped        bool
     state         int
 
-    timeDelta     int64
-
     started       time.Time
     tradeNum      int
 
@@ -66,9 +53,6 @@ func NewHedger(zuo, you *Market) *Hedger {
     hg := &Hedger{
         zuo: zuo,
         you: you,
-
-        tradeAmount: 0.01,
-        minTradeMargin: 5,
 
         minMargin: math.Inf(1),
         maxMargin: math.Inf(-1),
@@ -109,10 +93,8 @@ func (hg *Hedger) Start() {
 
     go hg.zuo.SyncTicker(1 * time.Second)
     go hg.you.SyncTicker(1 * time.Second)
-
     go hg.updateMargins()
     go hg.arbitrage()
-
 }
 
 func (hg *Hedger) Stop() {
