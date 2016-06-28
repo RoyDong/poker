@@ -145,8 +145,8 @@ func (hg *Hedger) updateMargins() {
 
         hg.avgMargin = hg.totalMargin / float64(hg.marginList.Len())
 
-        log.Println(fmt.Sprintf("minMargin: %.2f, maxMargin: %.2f, avgMargin: %.2f, lastMargin: %.2f",
-                                        hg.minMargin, hg.maxMargin, hg.avgMargin, margin))
+        log.Println(fmt.Sprintf("%.2f <- %.2f -> %.2f, lastMargin: %.2f(%.2f)",
+                                        hg.minMargin - hg.avgMargin, hg.avgMargin,  hg.maxMargin - hg.avgMargin, margin, margin - hg.avgMargin))
     }
 }
 
@@ -207,7 +207,7 @@ func (hg *Hedger) arbitrage() {
 
             //尝试判断是否可以右手做空(左手多), 以右手的最近买单价 - 左手的卖单价(margin)和(min max avg)相关参数比较
             margin = youSellPrice - zuoBuyPrice
-            log.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
+            log.Println(fmt.Sprintf("youSell - zuoBuy %.2f(%.2f)", margin, margin - hg.avgMargin))
 
             //满足最小差价条件,并且超过最大差价
             if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin - tradeMarginGap {
@@ -218,7 +218,7 @@ func (hg *Hedger) arbitrage() {
 
             //尝试判断是否可以左手做空(右手多), 以右手的最近卖单价 - 左手的买单价(margin)和(min max avg)相关参数比较
             margin = youBuyPrice - zuoSellPrice
-            log.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
+            log.Println(fmt.Sprintf("youBuy - zuoSell %.2f(%.2f)", margin, margin - hg.avgMargin))
 
             //满足最小差价条件,并且低于最小差价
             if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin + tradeMarginGap {

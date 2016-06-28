@@ -27,11 +27,14 @@ func init() {
         huobi := market.NewMarket("huobi")
         okcoin := market.NewMarket("okcoin")
         haobtc := market.NewMarket("haobtc")
+        okfut := market.NewMarket("okfuture")
 
         oka, okb := okcoin.GetDepth()
         hba, hbb := huobi.GetDepth()
 
         hta, htb := haobtc.GetDepth()
+
+        ofa, ofb := okfut.GetDepth()
 
         a := map[string][][]float64{
             "ok_ask": oka,
@@ -42,6 +45,9 @@ func init() {
 
             "ht_ask": hta,
             "ht_bid": htb,
+
+            "of_ask": ofa,
+            "of_bid": ofb,
         }
 
         return r.JsonResponse(a)
@@ -104,15 +110,15 @@ func init() {
 
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        okcoin := market.NewOKContact()
+        ok := market.NewOKFuture("quarter")
 
-        v := okcoin.Ticker()
+        v := ok.LastTicker()
 
-        i := okcoin.Index()
+        i := ok.Index()
 
-        p := (v.Last - i) / i
+        p := (v.Last * ok.ExchangeRate() - i) / i
 
-        return r.JsonResponse([]float64{v.Last, i, gmvc.Round(p, 4) * 100})
+        return r.JsonResponse([]float64{v.Last * ok.ExchangeRate(), i, gmvc.Round(p, 4) * 100})
 
     }, "/okcoin_premium")
 
@@ -137,6 +143,24 @@ func init() {
         return r.TextResponse("done")
 
     }, "/okcoin_haobtc")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        hg := market.NewHedger(market.NewMarket("okcoin"), market.NewMarket("okfuture"))
+        hg.Start()
+
+        return r.TextResponse("done")
+
+    }, "/okcoin_future")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        week := market.NewMarket("okfuture_thisweek")
+        quarter := market.NewMarket("okfuture_quarter")
+        hg := market.NewHedger(week, quarter)
+        hg.Start()
+
+        return r.TextResponse("done")
+
+    }, "/week_quarter")
 
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
