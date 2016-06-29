@@ -302,7 +302,7 @@ func (hg *Hedger) openLong(long *Market, buyPrice float64) error {
     delta := 0.0;
 
     if long.name == "okcoin" {
-        delta = 0.005
+        delta = 0.003
     }
     cny := (hg.tradeAmount + delta) * buyPrice
 
@@ -361,7 +361,7 @@ func (hg *Hedger) closeShort(price float64) error {
     delta := 0.0;
 
     if hg.short.name == "okcoin" {
-        delta = 0.005
+        delta = 0.003
     }
     cny := (hg.tradeAmount + delta) * price
     var err error
