@@ -91,6 +91,9 @@ func (hb *Huobi) OrderInfo(id int64) *Order {
     if int64(typ) == 3 {
         order.Price = order.Amount
         order.Amount = 0
+        if order.DealAmount > 0 && order.AvgPrice > 0 {
+            order.DealAmount = order.DealAmount / order.AvgPrice
+        }
     }
 
     order.Created = time.Now().Unix()
@@ -101,6 +104,10 @@ func (hb *Huobi) OrderInfo(id int64) *Order {
 
 func (hb *Huobi) LastTicker() *Ticker {
     rs := hb.CallMarket("staticmarket/ticker_btc_json.js", nil, nil)
+    if rs == nil {
+        return nil
+    }
+
     rst := rs.Tree("ticker")
     t := &Ticker{}
     t.High, _ = rst.Float64("high")
