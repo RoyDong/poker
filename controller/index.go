@@ -3,6 +3,7 @@ package controller
 import (
     "github.com/roydong/gmvc"
     "github.com/roydong/poker/service/market"
+    "fmt"
 )
 
 func init() {
@@ -80,12 +81,24 @@ func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         huobi := market.NewMarket("huobi")
 
-        //huobi.Sell(0.02)
-        huobi.Buy(50)
+        //id := huobi.Buy(50)
+        id := huobi.Sell(0.01)
 
-        return r.TextResponse("done")
+        return r.TextResponse(fmt.Sprintf("order_id: %v", id))
 
     }, "/trade_hb")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        name, _ := r.String("name")
+        huobi := market.NewMarket(name)
+
+        id, _ := r.Int64("id")
+
+        order := huobi.OrderInfo(id)
+
+        return r.JsonResponse(order)
+
+    }, "/order_info")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         haobtc := market.NewMarket("haobtc")
@@ -99,12 +112,12 @@ func init() {
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
 
-        tree := gmvc.NewTree()
-        tree.LoadJson("", []byte(`{"code":1,"msg":"服务器繁忙","message":"服务器繁忙"}`), false)
+        ok := market.NewMarket("okcoin")
 
-        gmvc.Logger.Println(tree.Float64("code"))
+        //id := ok.Buy(50)
+        id := ok.Sell(0.01)
 
-        return r.TextResponse("aa")
+        return r.JsonResponse(id)
 
     }, "/trade_ok")
 

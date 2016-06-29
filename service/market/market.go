@@ -9,9 +9,11 @@ import (
 var maxTickerNum = 300
 
 type exchanger interface {
-    Sell(amount float64) error
+    Sell(amount float64) int64
 
-    Buy(price float64) error
+    Buy(price float64) int64
+
+    OrderInfo(id int64) *Order
 
     LastTicker() *Ticker
 
@@ -28,6 +30,25 @@ type Ticker struct {
     Last float64
     Vol  float64
     Time int64
+}
+
+const (
+    OrderStatusCreated = iota
+    OrderStatusDealing
+    OrderStatusComplete
+)
+
+type Order struct {
+    Id int64
+    Type string
+    Amount float64
+    Price float64
+    Created int64
+
+    DealAmount float64
+    AvgPrice float64
+    Status int
+    Fee float64
 }
 
 type Market struct {
@@ -63,13 +84,13 @@ func NewMarket(name string) *Market {
     case "huobi":
         m.exchanger = NewHuobi()
     case "haobtc":
-        m.exchanger = NewHaobtc()
+        //m.exchanger = NewHaobtc()
     case "okfuture_thisweek":
-        m.exchanger = NewOKFuture("this_week")
+        //m.exchanger = NewOKFuture("this_week")
     case "okfuture_nextweek":
-        m.exchanger = NewOKFuture("next_week")
+        //m.exchanger = NewOKFuture("next_week")
     case "okfuture_quarter":
-        m.exchanger = NewOKFuture("quarter")
+        //m.exchanger = NewOKFuture("quarter")
 
     default:
         gmvc.Logger.Fatalln("invalid market " + m.name)

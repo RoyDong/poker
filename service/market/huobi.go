@@ -7,7 +7,6 @@ import (
     "time"
     "strconv"
     "fmt"
-    "errors"
 )
 
 type Huobi struct {
@@ -31,7 +30,7 @@ func NewHuobi() *Huobi {
 }
 
 
-func (hb *Huobi) Buy(price float64) error {
+func (hb *Huobi) Buy(price float64) int64 {
     q := map[string]interface{}{
         "method": "buy_market",
         "coin_type": 1,
@@ -40,13 +39,14 @@ func (hb *Huobi) Buy(price float64) error {
 
     rs := hb.Call("", nil, q)
     if rs == nil {
-        return errors.New("huobi buy error")
+        return 0
     }
-    return nil
+    id, _ := rs.Float64("id")
+    return int64(id)
 }
 
 
-func (hb *Huobi) Sell(amount float64) error {
+func (hb *Huobi) Sell(amount float64) int64 {
     q := map[string]interface{}{
         "method": "sell_market",
         "coin_type": 1,
@@ -55,9 +55,47 @@ func (hb *Huobi) Sell(amount float64) error {
 
     rs := hb.Call("", nil, q)
     if rs == nil {
-        return errors.New("huobi sell error")
+        return 0
     }
-    return nil
+    id, _ := rs.Float64("id")
+    return int64(id)
+}
+
+
+func (hb *Huobi) OrderInfo(id int64) *Order {
+    params := map[string]interface{}{
+        "method": "order_info",
+        "coin_type": 1,
+        "id": id,
+    }
+
+    rs := hb.Call("", nil, params)
+    if rs == nil {
+        return nil
+    }
+
+    order := &Order{}
+    order.Id = id
+
+    amount,     _ := rs.String("order_amount")
+    price,      _ := rs.String("order_price")
+    dealAmount, _ := rs.String("processed_amount")
+    avgPrice,   _ := rs.String("processed_price")
+
+    order.Amount,     _ = strconv.ParseFloat(amount, 10)
+    order.Price,      _ = strconv.ParseFloat(price, 10)
+    order.DealAmount, _ = strconv.ParseFloat(dealAmount, 10)
+    order.AvgPrice,   _ = strconv.ParseFloat(avgPrice, 10)
+
+    typ, _ := rs.Float64("type")
+    if int64(typ) == 3 {
+        order.Price = order.Amount
+        order.Amount = 0
+    }
+
+    order.Created = time.Now().Unix()
+
+    return order
 }
 
 
@@ -137,16 +175,18 @@ func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tr
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
         gmvc.Logger.Println("huobi: api error")
+        return nil
     }
 
     tree := gmvc.NewTree()
     err = tree.LoadJson("", body, false)
     if err != nil {
-        gmvc.Logger.Println("huobi: api error not json" + string(body))
+        gmvc.Logger.Println("huobi: api error not json")
+        return nil
     }
 
-    if code, _ := tree.Float64("code"); code > 0 {
-        gmvc.Logger.Println("huobi: api error not json" + string(body))
+    if tree.Get("code") != nil {
+        gmvc.Logger.Println("huobi: api error" + string(body))
         return nil
     }
 
@@ -165,16 +205,18 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
         gmvc.Logger.Println("huobi: api error")
+        return nil
     }
 
     tree := gmvc.NewTree()
     err = tree.LoadJson("", body, false)
     if err != nil {
-        gmvc.Logger.Println("huobi: api error not json" + string(body))
+        gmvc.Logger.Println("huobi: api error not json")
+        return nil
     }
 
-    if code, _ := tree.Float64("code"); code > 0 {
-        gmvc.Logger.Println("huobi: api error not json" + string(body))
+    if tree.Get("code") != nil {
+        gmvc.Logger.Println("huobi: api error" + string(body))
         return nil
     }
 

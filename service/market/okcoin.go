@@ -5,7 +5,6 @@ import (
     "github.com/roydong/gmvc"
     "io/ioutil"
     "strconv"
-    "errors"
     "fmt"
 )
 
@@ -27,7 +26,7 @@ func NewOKCoin() *OKCoin {
 }
 
 
-func (ok *OKCoin)Buy(price float64) error {
+func (ok *OKCoin)Buy(price float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
         "type": "buy_market",
@@ -36,13 +35,14 @@ func (ok *OKCoin)Buy(price float64) error {
 
     rs := ok.Call("trade.do", nil, p)
     if rs == nil {
-        return errors.New("okcoin buy error")
+        return 0
     }
-    return nil
+    id, _ := rs.Float64("order_id")
+    return int64(id)
 }
 
 
-func (ok *OKCoin)Sell(amount float64) error {
+func (ok *OKCoin)Sell(amount float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
         "type": "sell_market",
@@ -51,9 +51,40 @@ func (ok *OKCoin)Sell(amount float64) error {
 
     rs := ok.Call("trade.do", nil, p)
     if rs == nil {
-        return errors.New("okcoin sell error")
+        return 0
     }
-    return nil
+    id, _ := rs.Float64("order_id")
+    return int64(id)
+}
+
+func (ok *OKCoin) OrderInfo(id int64) *Order {
+    params := map[string]interface{}{
+        "symbol": "btc_cny",
+        "order_id": id,
+    }
+
+    rs := ok.Call("order_info.do", nil, params)
+    if rs == nil {
+        return nil
+    }
+
+    rst := rs.Tree("orders.0")
+    if rst == nil {
+        return nil
+    }
+
+    order := &Order{}
+    order.Id = id
+
+    order.Amount, _ = rst.Float64("amount")
+    order.Price, _ = rst.Float64("price")
+    order.DealAmount, _ = rst.Float64("deal_amount")
+    order.AvgPrice, _ = rst.Float64("avg_price")
+
+    t, _ := rst.Float64("create_date")
+    order.Created = int64(t)
+
+    return order
 }
 
 
@@ -150,6 +181,7 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
         gmvc.Logger.Println("okcoin: api error")
+        return nil
     }
 
     tree := gmvc.NewTree()
@@ -159,8 +191,8 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
         return nil
     }
 
-    if _, has := tree.Int("error_code"); has {
-        gmvc.Logger.Println("okcoin: api error not json" + string(body))
+    if tree.Get("error_code") != nil {
+        gmvc.Logger.Println("okcoin: api error " + string(body))
         return nil
     }
 

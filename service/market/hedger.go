@@ -260,15 +260,15 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
     gmvc.Logger.Println("open position:")
 
     if short.name == "huobi" {
-        err := hg.openShort(short, shortSellPrice)
-        if err != nil {
+        id := hg.openShort(short, shortSellPrice)
+        if id == 0 {
             return
         }
 
         hg.openLong(long, longBuyPrice)
     } else {
-        err := hg.openLong(long, longBuyPrice)
-        if err != nil {
+        id := hg.openLong(long, longBuyPrice)
+        if id == 0 {
             return
         }
 
@@ -279,26 +279,33 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
     hg.state = STATE_OPEN
 }
 
-func (hg *Hedger) openShort(short *Market, sellPrice float64) error {
-    var err error
+func (hg *Hedger) openShort(short *Market, sellPrice float64) int64 {
+    var id int64
     if !hg.test {
-        err = short.Sell(hg.tradeAmount)
-        if err != nil {
-            return err
+        id = short.Sell(hg.tradeAmount)
+        if id == 0 {
+            return id
+        }
+
+        order := short.OrderInfo(id)
+        if order != nil {
+            sellPrice = order.AvgPrice
         }
     }
+
     cny := hg.tradeAmount * sellPrice
     gmvc.Logger.Println(fmt.Sprintf("   short: %v sell %.2f btc, + %.2f cny", short.name, hg.tradeAmount, sellPrice))
+
     hg.short = short
 
     hg.btc -= hg.tradeAmount
     hg.cny += cny
 
 
-    return err
+    return id
 }
 
-func (hg *Hedger) openLong(long *Market, buyPrice float64) error {
+func (hg *Hedger) openLong(long *Market, buyPrice float64) int64 {
     delta := 0.0;
 
     if long.name == "okcoin" {
@@ -306,20 +313,28 @@ func (hg *Hedger) openLong(long *Market, buyPrice float64) error {
     }
     cny := (hg.tradeAmount + delta) * buyPrice
 
-    var err error
+    amount := hg.tradeAmount
+
+    var id int64
     if !hg.test {
-        err = long.Buy(cny)
-        if err != nil {
-            return err
+        id = long.Buy(cny)
+        if id == 0 {
+            return id
+        }
+
+        order := long.OrderInfo(id)
+        if order != nil {
+            buyPrice = order.AvgPrice
+            amount = order.DealAmount
         }
     }
     gmvc.Logger.Println(fmt.Sprintf("   long: %v buy %.2f btc, - %.2f cny", long.name, hg.tradeAmount, buyPrice))
     hg.long = long
 
-    hg.btc += hg.tradeAmount
-    hg.cny -= hg.tradeAmount * buyPrice
+    hg.btc += amount
+    hg.cny -= amount * buyPrice
 
-    return err
+    return id
 }
 
 
@@ -327,15 +342,15 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     gmvc.Logger.Println("close position:")
 
     if hg.short.name == "huobi" {
-        err := hg.closeShort(buyPrice)
-        if err != nil {
+        id := hg.closeShort(buyPrice)
+        if id == 0 {
             return
         }
 
         hg.closeLong(sellPrice)
     } else {
-        err := hg.closeLong(sellPrice)
-        if err != nil {
+        id := hg.closeLong(sellPrice)
+        if id == 0 {
             return
         }
 
@@ -357,35 +372,47 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     hg.state = STATE_CLOSE
 }
 
-func (hg *Hedger) closeShort(price float64) error {
+func (hg *Hedger) closeShort(price float64) int64 {
     delta := 0.0;
 
     if hg.short.name == "okcoin" {
         delta = 0.003
     }
     cny := (hg.tradeAmount + delta) * price
-    var err error
+    var amount = hg.tradeAmount
+    var id int64
     if !hg.test {
-        err = hg.short.Buy(cny)
-        if err != nil {
-            return err
+        id = hg.short.Buy(cny)
+        if id == 0 {
+            return id
+        }
+
+        order := hg.short.OrderInfo(id)
+        if order != nil {
+            price = order.AvgPrice
+            amount = order.DealAmount
         }
     }
 
     gmvc.Logger.Println(fmt.Sprintf("   short: %v buy %.2f btc, - %.2f cny", hg.short.name, hg.tradeAmount, price))
 
-    hg.btc += hg.tradeAmount
-    hg.cny -= hg.tradeAmount * price
+    hg.btc += amount
+    hg.cny -= amount * price
 
-    return err
+    return id
 }
 
-func (hg *Hedger) closeLong(price float64) error {
-    var err error
+func (hg *Hedger) closeLong(price float64) int64 {
+    var id int64
     if !hg.test {
-        err = hg.long.Sell(hg.tradeAmount)
-        if err != nil {
-            return err
+        id = hg.long.Sell(hg.tradeAmount)
+        if id == 0 {
+            return id
+        }
+
+        order := hg.long.OrderInfo(id)
+        if order != nil {
+            price = order.AvgPrice
         }
     }
     cny := hg.tradeAmount * price
@@ -394,7 +421,7 @@ func (hg *Hedger) closeLong(price float64) error {
     hg.btc -= hg.tradeAmount
     hg.cny += cny
 
-    return err
+    return id
 }
 
 
