@@ -43,6 +43,7 @@ type Hedger struct {
     started       time.Time
     tradeNum      int
 
+    tcny        float64
     cny         float64
     btc         float64
 }
@@ -56,7 +57,7 @@ func NewHedger(zuo, you *Market) *Hedger {
         minMargin: math.Inf(1),
         maxMargin: math.Inf(-1),
 
-        tickerNum: 60,
+        tickerNum: 200,
         margins: make(map[int64]float64),
         marginList: list.New(),
 
@@ -285,7 +286,8 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
     }
 
     hg.btc += lorder.DealAmount - hg.tradeAmount
-    hg.cny += sorder.DealAmount * sorder.AvgPrice - lorder.DealAmount * lorder.AvgPrice
+    hg.cny += sorder.AvgPrice - lorder.AvgPrice
+    hg.tcny += shortSellPrice - longBuyPrice
 
     gmvc.Logger.Println("open position:")
     gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.2f(%.2f) btc, + %.2f(%.2f) cny",
@@ -304,7 +306,7 @@ func (hg *Hedger) openShort(short *Market, sellPrice float64) int64 {
 func (hg *Hedger) openLong(long *Market, buyPrice float64) int64 {
     delta := 0.0;
     if long.name == "okcoin" {
-        delta = 0.003
+        delta = 0.006
     }
     id := long.Buy((hg.tradeAmount + delta) * buyPrice)
     hg.long = long
@@ -349,7 +351,8 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     }
 
     hg.btc += sorder.DealAmount - lorder.DealAmount
-    hg.cny += lorder.DealAmount * lorder.AvgPrice - sorder.DealAmount * sorder.AvgPrice
+    hg.cny += lorder.AvgPrice - sorder.AvgPrice
+    hg.tcny += sellPrice - buyPrice
 
     gmvc.Logger.Println("close position:")
     gmvc.Logger.Println(fmt.Sprintf("   short: %v + %.2f(%.2f) btc, - %.2f(%.2f) cny",
@@ -359,15 +362,15 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     gmvc.Logger.Println("")
 
     now := time.Now()
-    gmvc.Logger.Println(fmt.Sprintf("profit: %.4f btc, %.2f cny, %v min, %v round %v",
-        hg.btc, hg.cny, (now.Unix() - hg.started.Unix()) / 60, hg.tradeNum, now.Format("15:04:05")))
+    gmvc.Logger.Println(fmt.Sprintf("profit: %.4f btc, %.2f(%.2f) cny, %v min, %v round %v",
+        hg.btc, hg.tcny, hg.cny, (now.Unix() - hg.started.Unix()) / 60, hg.tradeNum, now.Format("15:04:05")))
     gmvc.Logger.Println("")
 }
 
 func (hg *Hedger) closeShort(price float64) int64 {
     delta := 0.0;
     if hg.short.name == "okcoin" {
-        delta = 0.003
+        delta = 0.006
     }
     return hg.short.Buy((hg.tradeAmount + delta) * price)
 }
