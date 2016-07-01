@@ -4,7 +4,6 @@ import (
     "strings"
     "github.com/roydong/gmvc"
     "io/ioutil"
-    "strconv"
     "fmt"
 )
 
@@ -94,23 +93,15 @@ func (ok *OKCoin) LastTicker() *Ticker {
         return nil
     }
 
-    date, _ := rs.String("date")
     rst     := rs.Tree("ticker")
-    high, _ := rst.String("high")
-    low,  _ := rst.String("low")
-    sell, _ := rst.String("sell")
-    buy,  _ := rst.String("buy")
-    last, _ := rst.String("last")
-    vol,  _ := rst.String("vol")
-
-    t        := &Ticker{}
-    t.High, _ = strconv.ParseFloat(high, 10)
-    t.Low,  _ = strconv.ParseFloat(low, 10)
-    t.Sell, _ = strconv.ParseFloat(sell, 10)
-    t.Buy,  _ = strconv.ParseFloat(buy, 10)
-    t.Last, _ = strconv.ParseFloat(last, 10)
-    t.Vol,  _ = strconv.ParseFloat(vol, 10)
-    t.Time, _ = strconv.ParseInt(date, 10, 0)
+    t         := &Ticker{}
+    t.Time, _ = rs.Int64("date")
+    t.High, _ = rst.Float64("high")
+    t.Low,  _ = rst.Float64("low")
+    t.Sell, _ = rst.Float64("sell")
+    t.Buy,  _ = rst.Float64("buy")
+    t.Last, _ = rst.Float64("last")
+    t.Vol,  _ = rst.Float64("vol")
 
     return t
 }
@@ -155,13 +146,10 @@ func (ok *OKCoin) GetBalance() (float64, float64) {
         return 0, 0
     }
 
-    btc, _ := free.String("btc")
-    cny, _ := free.String("cny")
+    btc, _ := free.Float64("btc")
+    cny, _ := free.Float64("cny")
 
-    b, _ := strconv.ParseFloat(btc, 10)
-    c, _ := strconv.ParseFloat(cny, 10)
-
-    return b,c
+    return btc,cny
 }
 
 
@@ -180,19 +168,19 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
     defer resp.Body.Close()
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
-        gmvc.Logger.Println("okcoin: api error")
+        gmvc.Logger.Println("okcoin: api " + api + "error")
         return nil
     }
 
     tree := gmvc.NewTree()
     err = tree.LoadJson("", body, false)
     if err != nil {
-        gmvc.Logger.Println("okcoin: api error not json")
+        gmvc.Logger.Println("okcoin: api " + api + "error")
         return nil
     }
 
     if tree.Get("error_code") != nil {
-        gmvc.Logger.Println("okcoin: api error " + string(body))
+        gmvc.Logger.Println("okcoin: api " + api + "error" + string(body))
         return nil
     }
 

@@ -55,9 +55,14 @@ func init() {
     }, "/depth")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        haobtc := market.NewMarket("haobtc")
+        haobtc := market.NewMarket("huobi")
 
         ticker := haobtc.LastTicker()
+
+        conf,_ := gmvc.Store.Int64("config.hedger.trade_amount")
+
+        ticker.Time = conf
+        ticker.Buy, _ = gmvc.Store.Float64("config.hedger.trade_amount")
 
         return r.JsonResponse(ticker)
     }, "/ticker")

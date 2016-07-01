@@ -147,7 +147,7 @@ func (hb *Haobtc) Call(api string, query, params map[string]interface{}) *gmvc.T
         return nil
     }
 
-    if _, has := tree.Int("error_code"); has {
+    if _, has := tree.Int64("error_code"); has {
         gmvc.Logger.Println("haobtc: api error " + string(body))
         return nil
     }

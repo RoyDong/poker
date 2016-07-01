@@ -5,7 +5,6 @@ import (
     "github.com/roydong/gmvc"
     "io/ioutil"
     "time"
-    "strconv"
     "fmt"
 )
 
@@ -76,16 +75,10 @@ func (hb *Huobi) OrderInfo(id int64) *Order {
 
     order := &Order{}
     order.Id = id
-
-    amount,     _ := rs.String("order_amount")
-    price,      _ := rs.String("order_price")
-    dealAmount, _ := rs.String("processed_amount")
-    avgPrice,   _ := rs.String("processed_price")
-
-    order.Amount,     _ = strconv.ParseFloat(amount, 10)
-    order.Price,      _ = strconv.ParseFloat(price, 10)
-    order.DealAmount, _ = strconv.ParseFloat(dealAmount, 10)
-    order.AvgPrice,   _ = strconv.ParseFloat(avgPrice, 10)
+    order.Amount,     _ = rs.Float64("order_amount")
+    order.Price,      _ = rs.Float64("order_price")
+    order.DealAmount, _ = rs.Float64("processed_amount")
+    order.AvgPrice,   _ = rs.Float64("processed_price")
 
     typ, _ := rs.Float64("type")
     if int64(typ) == 3 {
@@ -110,15 +103,13 @@ func (hb *Huobi) LastTicker() *Ticker {
 
     rst := rs.Tree("ticker")
     t := &Ticker{}
+    t.Time, _ = rs.Int64("time")
     t.High, _ = rst.Float64("high")
     t.Low,  _ = rst.Float64("low")
     t.Sell, _ = rst.Float64("sell")
     t.Buy,  _ = rst.Float64("buy")
     t.Last, _ = rst.Float64("last")
     t.Vol,  _ = rst.Float64("vol")
-
-    time, _ := rs.String("time")
-    t.Time, _ = strconv.ParseInt(time, 10, 0)
 
     return t
 }
@@ -155,13 +146,10 @@ func (hb *Huobi) GetBalance() (float64, float64) {
     }
 
     rs := hb.Call("", nil, q)
-    btc, _ := rs.String("available_btc_display")
-    cny, _ := rs.String("available_cny_display")
+    btc, _ := rs.Float64("available_btc_display")
+    cny, _ := rs.Float64("available_cny_display")
 
-    b, _ := strconv.ParseFloat(btc, 10)
-    c, _ := strconv.ParseFloat(cny, 10)
-
-    return b,c
+    return btc,cny
 }
 
 
@@ -211,19 +199,19 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
     defer resp.Body.Close()
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
-        gmvc.Logger.Println("huobi: api error")
+        gmvc.Logger.Println("huobi: api " + api + "error")
         return nil
     }
 
     tree := gmvc.NewTree()
     err = tree.LoadJson("", body, false)
     if err != nil {
-        gmvc.Logger.Println("huobi: api error not json")
+        gmvc.Logger.Println("huobi: api " + api + "error not json")
         return nil
     }
 
-    if tree.Get("code") != nil {
-        gmvc.Logger.Println("huobi: api error" + string(body))
+    if tree.Has("code") {
+        gmvc.Logger.Println("huobi: api " + api + "error" + string(body))
         return nil
     }
 

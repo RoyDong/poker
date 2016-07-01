@@ -178,7 +178,7 @@ func (ok *OKFuture)Call(api string, query, params map[string]interface{}) *gmvc.
         return nil
     }
 
-    if _, has := tree.Int("error_code"); has {
+    if _, has := tree.Int64("error_code"); has {
         gmvc.Logger.Println("okfuture: api error")
         return nil
     }

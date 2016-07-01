@@ -96,12 +96,16 @@ func (hg *Hedger) Stop() {
 }
 
 func (hg *Hedger) updateMargins() {
-    for now := range time.Tick(1 * time.Second) {
-        idx := now.Unix() - 5
+    for _ = range time.Tick(1 * time.Second) {
+        zuot := hg.zuo.FrontTicker()
+        yout := hg.you.FrontTicker()
+        idx := zuot.Time
+        if yout.Time < idx {
+            idx = yout.Time
+        }
 
         zuoTicker := hg.zuo.TickerByTime(idx)
         youTicker := hg.you.TickerByTime(idx)
-
         if zuoTicker == nil || youTicker == nil {
             continue
         }
@@ -131,12 +135,10 @@ func (hg *Hedger) updateMargins() {
             hg.minMargin = margin
             hg.minMarginTime = idx
         }
-
         if hg.maxMargin < margin {
             hg.maxMargin = margin
             hg.maxMarginTime = idx
         }
-
         hg.avgMargin = hg.totalMargin / float64(hg.marginList.Len())
 
         log.Println(fmt.Sprintf("%.2f <- %.2f -> %.2f, lastMargin: %.2f(%.2f)",
@@ -155,7 +157,6 @@ func (hg *Hedger) getMinMargin() (int64, float64) {
             min = v
         }
     }
-
     return idx, min
 }
 
@@ -170,7 +171,6 @@ func (hg *Hedger) getMaxMargin() (int64, float64) {
             max = v
         }
     }
-
     return idx, max
 }
 
@@ -183,7 +183,6 @@ func (hg *Hedger) arbitrage() {
 
         hg.zuo.UpdateDepth()
         hg.you.UpdateDepth()
-
         if len(hg.zuo.lastAsks) == 0 || len(hg.you.lastAsks) == 0 {
             continue
         }
@@ -270,6 +269,9 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
     //交易统计
     time.Sleep(2 * time.Second)
     sorder := short.OrderInfo(sid)
+    if sorder == nil {
+        return
+    }
     if sorder.DealAmount <= 0 {
         sorder.DealAmount = hg.tradeAmount
     }
@@ -278,6 +280,9 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
     }
 
     lorder := long.OrderInfo(lid)
+    if lorder == nil {
+        return
+    }
     if lorder.DealAmount <= 0 {
         lorder.DealAmount = hg.tradeAmount
     }
@@ -335,6 +340,10 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     //交易统计
     time.Sleep(2 * time.Second)
     sorder := hg.short.OrderInfo(sid)
+    if sorder == nil {
+        return
+    }
+
     if sorder.DealAmount <= 0 {
         sorder.DealAmount = hg.tradeAmount
     }
@@ -343,6 +352,10 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     }
 
     lorder := hg.long.OrderInfo(lid)
+    if lorder == nil {
+        return
+    }
+
     if lorder.DealAmount <= 0 {
         lorder.DealAmount = hg.tradeAmount
     }
@@ -363,7 +376,8 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
 
     now := time.Now()
     gmvc.Logger.Println(fmt.Sprintf("profit: %.4f btc, %.2f(%.2f) cny, %v min, %v round %v",
-        hg.btc, hg.tcny, hg.cny, (now.Unix() - hg.started.Unix()) / 60, hg.tradeNum, now.Format("15:04:05")))
+        hg.btc, hg.tcny * hg.tradeAmount, hg.cny * hg.tradeAmount,
+        (now.Unix() - hg.started.Unix()) / 60, hg.tradeNum, now.Format("15:04:05")))
     gmvc.Logger.Println("")
 }
 
