@@ -4,7 +4,6 @@ import (
     "errors"
     "fmt"
     "strings"
-    "io/ioutil"
     "github.com/roydong/gmvc"
     "time"
 )
@@ -128,27 +127,10 @@ func (hb *Haobtc) Call(api string, query, params map[string]interface{}) *gmvc.T
         params["sign"] = strings.ToUpper(createSignature(params, hb.apiSecret))
     }
 
-    resp, err := CallRest(hb.apiHost + api, query, params)
-    if err != nil {
-        gmvc.Logger.Println("haobtc: api " + api + "error")
-        return nil
-    }
-
-    defer resp.Body.Close()
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        gmvc.Logger.Println("haobtc: api error")
-    }
-
-    tree := gmvc.NewTree()
-    err = tree.LoadJson("", body, false)
-    if err != nil {
-        gmvc.Logger.Println("haobtc: api error not json" + string(body))
-        return nil
-    }
-
-    if _, has := tree.Int64("error_code"); has {
-        gmvc.Logger.Println("haobtc: api error " + string(body))
+    tree := CallRest(hb.apiHost + api, query, params)
+    if code, has := tree.Int64("error_code"); has {
+        msg, _ := tree.String("error_message")
+        gmvc.Logger.Println(fmt.Sprintf("haobtc: %v %s", code, msg))
         return nil
     }
 

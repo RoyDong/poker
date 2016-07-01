@@ -7,23 +7,48 @@ import (
     "strings"
     "sort"
     "github.com/roydong/gmvc"
+    "io/ioutil"
 )
 
-func CallRest(api string, query, data map[string]interface{}) (*http.Response, error) {
+func CallRest(api string, query, data map[string]interface{}) *gmvc.Tree {
     if query != nil {
         api = api + "?" + BuildHttpQuery(query)
     }
 
+    var resp *http.Response
+    var err error
     if data == nil {
-        return http.Get(api)
+         resp, err = http.Get(api)
+    } else {
+        form := url.Values{}
+        for k, v := range data {
+            form.Set(k, fmt.Sprintf("%v", v))
+        }
+        resp, err = http.PostForm(api, form)
+    }
+    defer resp.Body.Close()
+    if err != nil {
+        gmvc.Logger.Println("call " + api + "error")
+        return nil
     }
 
-    form := url.Values{}
-    for k, v := range data {
-        form.Set(k, fmt.Sprintf("%v", v))
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        gmvc.Logger.Println("call " + api + "error")
+        return nil
     }
 
-    return http.PostForm(api, form)
+    tree := gmvc.NewTree()
+    err = tree.LoadJson("", body, false)
+    if err != nil {
+        gmvc.Logger.Println("call " + api + "error not json")
+        return nil
+    }
+
+    gmvc.Logger.Println(string(body))
+
+
+    return tree
 }
 
 func BuildHttpQuery(data map[string]interface{}) string {

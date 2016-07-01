@@ -76,11 +76,7 @@ func init() {
 
         b1, c1 := huobi.GetBalance()
 
-        haobtc := market.NewMarket("haobtc")
-
-        b2, c2 := haobtc.GetBalance()
-
-        return r.JsonResponse([]float64{b, c, b1, c1, b2, c2, c + c1 + c2})
+        return r.JsonResponse([]float64{b, c, b1, c1, c + c1})
     }, "/balance")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {

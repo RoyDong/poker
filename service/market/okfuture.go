@@ -3,7 +3,6 @@ package market
 import (
     "strings"
     "github.com/roydong/gmvc"
-    "io/ioutil"
     "strconv"
     "fmt"
     "time"
@@ -159,27 +158,9 @@ func (ok *OKFuture)Call(api string, query, params map[string]interface{}) *gmvc.
         params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
     }
 
-    resp, err := CallRest(ok.apiHost + api, query, params)
-    if err != nil {
-        gmvc.Logger.Println("okfuture: api " + api + "error")
-        return nil
-    }
-
-    defer resp.Body.Close()
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        gmvc.Logger.Println("okfuture: api error")
-    }
-
-    tree := gmvc.NewTree()
-    err = tree.LoadJson("", body, false)
-    if err != nil {
-        gmvc.Logger.Println("okfuture: api error not json" + string(body))
-        return nil
-    }
-
-    if _, has := tree.Int64("error_code"); has {
-        gmvc.Logger.Println("okfuture: api error")
+    tree := CallRest(ok.apiHost + api, query, params)
+    if code, has := tree.Int64("error_code"); has {
+        gmvc.Logger.Println(fmt.Sprintf("okfuture: %v", code))
         return nil
     }
 

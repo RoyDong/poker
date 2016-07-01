@@ -3,7 +3,6 @@ package market
 import (
     "strings"
     "github.com/roydong/gmvc"
-    "io/ioutil"
     "fmt"
 )
 
@@ -159,31 +158,11 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
         params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
     }
 
-    resp, err := CallRest(ok.apiHost + api, query, params)
-    if err != nil {
-        gmvc.Logger.Println("okcoin: api " + api + "error")
+    tree := CallRest(ok.apiHost + api, query, params)
+    if code, has := tree.Int64("error_code"); has {
+        gmvc.Logger.Println(fmt.Sprintf("okcoin: %v %s", code))
         return nil
     }
-
-    defer resp.Body.Close()
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        gmvc.Logger.Println("okcoin: api " + api + "error")
-        return nil
-    }
-
-    tree := gmvc.NewTree()
-    err = tree.LoadJson("", body, false)
-    if err != nil {
-        gmvc.Logger.Println("okcoin: api " + api + "error")
-        return nil
-    }
-
-    if tree.Has("error_code") {
-        gmvc.Logger.Println("okcoin: api " + api + "error" + string(body))
-        return nil
-    }
-
     return tree
 }
 

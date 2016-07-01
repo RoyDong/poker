@@ -3,7 +3,6 @@ package market
 import (
     "strings"
     "github.com/roydong/gmvc"
-    "io/ioutil"
     "time"
     "fmt"
 )
@@ -160,28 +159,10 @@ func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tr
         params["sign"] = strings.ToLower(createSignature(params, hb.apiSecret))
     }
 
-    resp, err := CallRest(hb.apiHost + api, query, params)
-    if err != nil {
-        gmvc.Logger.Println("huobi: api " + api + "error")
-        return nil
-    }
-
-    defer resp.Body.Close()
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        gmvc.Logger.Println("huobi: api error")
-        return nil
-    }
-
-    tree := gmvc.NewTree()
-    err = tree.LoadJson("", body, false)
-    if err != nil {
-        gmvc.Logger.Println("huobi: api error not json")
-        return nil
-    }
-
-    if tree.Get("code") != nil {
-        gmvc.Logger.Println("huobi: api error" + string(body))
+    tree := CallRest(hb.apiHost + api, query, params)
+    if code, has := tree.Int64("code"); has {
+        msg, _ := tree.String("msg")
+        gmvc.Logger.Println(fmt.Sprintf("huobi: %v %s", code, msg))
         return nil
     }
 
@@ -190,31 +171,12 @@ func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tr
 
 
 func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *gmvc.Tree {
-    resp, err := CallRest(hb.marketHost + api, query, params)
-    if err != nil {
-        gmvc.Logger.Println("huobi: api " + api + "error")
+    tree := CallRest(hb.marketHost + api, query, params)
+    if code, has := tree.Int64("code"); has {
+        msg, _ := tree.String("message")
+        gmvc.Logger.Println(fmt.Sprintf("huobi: %v %s", code, msg))
         return nil
     }
-
-    defer resp.Body.Close()
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        gmvc.Logger.Println("huobi: api " + api + "error")
-        return nil
-    }
-
-    tree := gmvc.NewTree()
-    err = tree.LoadJson("", body, false)
-    if err != nil {
-        gmvc.Logger.Println("huobi: api " + api + "error not json")
-        return nil
-    }
-
-    if tree.Has("code") {
-        gmvc.Logger.Println("huobi: api " + api + "error" + string(body))
-        return nil
-    }
-
     return tree
 }
 
