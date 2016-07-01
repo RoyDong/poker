@@ -87,29 +87,23 @@ func (hg *Hedger) Start() {
 
     go hg.zuo.SyncTicker(1 * time.Second)
     go hg.you.SyncTicker(1 * time.Second)
-    go hg.updateMargins()
-    go hg.arbitrage()
+    go hg.updateMargins(1 * time.Second)
+    go hg.arbitrage(1 * time.Second)
 }
 
 func (hg *Hedger) Stop() {
     hg.stoped = true
 }
 
-func (hg *Hedger) updateMargins() {
-    for _ = range time.Tick(1 * time.Second) {
-        zuot := hg.zuo.FrontTicker()
-        yout := hg.you.FrontTicker()
-        idx := zuot.Time
-        if yout.Time < idx {
-            idx = yout.Time
-        }
-
-        zuoTicker := hg.zuo.TickerByTime(idx)
-        youTicker := hg.you.TickerByTime(idx)
+func (hg *Hedger) updateMargins(interval time.Duration) {
+    for _ = range time.Tick(interval) {
+        zuoTicker := hg.zuo.FrontTicker()
+        youTicker := hg.you.FrontTicker()
         if zuoTicker == nil || youTicker == nil {
             continue
         }
 
+        idx := zuoTicker.Time
         margin := youTicker.Last - zuoTicker.Last
         hg.totalMargin += margin
         hg.margins[idx] = margin
@@ -175,8 +169,8 @@ func (hg *Hedger) getMaxMargin() (int64, float64) {
 }
 
 
-func (hg *Hedger) arbitrage() {
-    for _ = range time.Tick(1 * time.Second) {
+func (hg *Hedger) arbitrage(interval time.Duration) {
+    for _ = range time.Tick(interval) {
         if hg.marginList.Len() < 10 {
             continue
         }

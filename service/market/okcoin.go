@@ -179,7 +179,7 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
         return nil
     }
 
-    if tree.Get("error_code") != nil {
+    if tree.Has("error_code") {
         gmvc.Logger.Println("okcoin: api " + api + "error" + string(body))
         return nil
     }
