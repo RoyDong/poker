@@ -7,18 +7,21 @@ import (
 )
 
 type OKCoin struct {
-    apiHost   string
+    httpHost   string
     apiKey    string
     apiSecret string
+
+    wsUrl string
 }
 
 
 func NewOKCoin() *OKCoin {
     conf := gmvc.Store.Tree("config.market.okcoin")
     ok := &OKCoin{}
-    ok.apiHost, _ = conf.String("api_host")
+    ok.httpHost, _ = conf.String("http_host")
     ok.apiKey, _ = conf.String("api_key")
     ok.apiSecret, _ = conf.String("api_secret")
+    ok.wsUrl, _ = conf.String("ws_url")
 
     return ok
 }
@@ -139,7 +142,6 @@ func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
 
 func (ok *OKCoin) GetBalance() (float64, float64) {
     rs := ok.Call("userinfo.do", nil, map[string]interface{}{})
-
     free := rs.Tree("info.funds.free")
     if free == nil {
         return 0, 0
@@ -158,7 +160,7 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
         params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
     }
 
-    tree := CallRest(ok.apiHost + api, query, params)
+    tree := CallRest(ok.httpHost + api, query, params)
     if code, has := tree.Int64("error_code"); has {
         gmvc.Logger.Println(fmt.Sprintf("okcoin: %v %s", code))
         return nil

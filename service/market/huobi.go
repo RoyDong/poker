@@ -9,9 +9,10 @@ import (
 
 type Huobi struct {
     marketHost string
-    apiHost    string
+    httpHost    string
     apiKey     string
     apiSecret  string
+    wsUrl string
 
 }
 
@@ -20,9 +21,10 @@ func NewHuobi() *Huobi {
     conf := gmvc.Store.Tree("config.market.huobi")
     hb := &Huobi{}
     hb.marketHost, _ = conf.String("market_host")
-    hb.apiHost, _ = conf.String("api_host")
+    hb.httpHost, _ = conf.String("http_host")
     hb.apiKey, _ = conf.String("api_key")
     hb.apiSecret, _ = conf.String("api_secret")
+    hb.wsUrl, _ = conf.String("ws_url")
 
     return hb
 }
@@ -151,7 +153,6 @@ func (hb *Huobi) GetBalance() (float64, float64) {
     return btc,cny
 }
 
-
 func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tree {
     if params != nil {
         params["access_key"] = hb.apiKey
@@ -159,7 +160,7 @@ func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tr
         params["sign"] = strings.ToLower(createSignature(params, hb.apiSecret))
     }
 
-    tree := CallRest(hb.apiHost + api, query, params)
+    tree := CallRest(hb.httpHost + api, query, params)
     if code, has := tree.Int64("code"); has {
         msg, _ := tree.String("msg")
         gmvc.Logger.Println(fmt.Sprintf("huobi: %v %s", code, msg))
@@ -168,7 +169,6 @@ func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tr
 
     return tree
 }
-
 
 func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *gmvc.Tree {
     tree := CallRest(hb.marketHost + api, query, params)
@@ -179,7 +179,6 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
     }
     return tree
 }
-
 
 
 

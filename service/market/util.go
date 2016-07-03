@@ -28,25 +28,22 @@ func CallRest(api string, query, data map[string]interface{}) *gmvc.Tree {
     }
     defer resp.Body.Close()
     if err != nil {
-        gmvc.Logger.Println("call " + api + "error")
+        gmvc.Logger.Println("call " + api + " error")
         return nil
     }
 
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
-        gmvc.Logger.Println("call " + api + "error")
+        gmvc.Logger.Println("call " + api + " error")
         return nil
     }
 
     tree := gmvc.NewTree()
     err = tree.LoadJson("", body, false)
     if err != nil {
-        gmvc.Logger.Println("call " + api + "error not json")
+        gmvc.Logger.Println("call " + api + " error not json")
         return nil
     }
-
-    gmvc.Logger.Println(string(body))
-
 
     return tree
 }
@@ -78,5 +75,7 @@ func createSignature(params map[string]interface{}, skey string) string {
 
     return gmvc.MD5(strings.Join(sigs, "&"))
 }
+
+
 
 

@@ -130,9 +130,9 @@ func init() {
 
         i := ok.Index()
 
-        p := (v.Last * ok.ExchangeRate() - i) / i
+        p := (v.Last - i) / i
 
-        return r.JsonResponse([]float64{v.Last * ok.ExchangeRate(), i, gmvc.Round(p, 4) * 100})
+        return r.JsonResponse([]float64{v.Last, i, gmvc.Round(p, 4) * 100})
 
     }, "/okcoin_premium")
 
@@ -175,6 +175,16 @@ func init() {
         return r.TextResponse("done")
 
     }, "/week_quarter")
+
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        huobi := market.NewHuobi()
+        huobi.WSConnect()
+
+        return r.TextResponse("done")
+
+    }, "/hb_ws")
+
 
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {

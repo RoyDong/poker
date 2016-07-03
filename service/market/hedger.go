@@ -188,8 +188,6 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
         youSellPrice := hg.you.GetSellPrice(hg.tradeAmount)
 
         var margin float64
-        var tradeMarginGap = hg.minTradeMargin / 10
-
         if hg.state == STATE_CLOSE {
 
             //尝试判断是否可以右手做空(左手多), 以右手的最近买单价 - 左手的卖单价(margin)和(min max avg)相关参数比较
@@ -197,7 +195,7 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
             log.Println(fmt.Sprintf("youSell - zuoBuy %.2f(%.2f)", margin, margin - hg.avgMargin))
 
             //满足最小差价条件,并且超过最大差价
-            if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin - tradeMarginGap {
+            if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin {
                 //gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
                 hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
                 continue
@@ -208,7 +206,7 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
             log.Println(fmt.Sprintf("youBuy - zuoSell %.2f(%.2f)", margin, margin - hg.avgMargin))
 
             //满足最小差价条件,并且低于最小差价
-            if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin + tradeMarginGap {
+            if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin {
                 //gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
                 hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
                 continue
@@ -222,7 +220,7 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
                 log.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
 
                 //差价低于平均差价即可平仓
-                if margin <= hg.avgMargin + tradeMarginGap {
+                if margin <= hg.avgMargin {
                     //gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
                     hg.closePosition(youBuyPrice, zuoSellPrice)
                 }
@@ -233,7 +231,7 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
                 //log.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
 
                 //差价高于平均差价即可平仓
-                if margin >= hg.avgMargin - tradeMarginGap {
+                if margin >= hg.avgMargin {
                     //gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
                     hg.closePosition(zuoBuyPrice, youSellPrice)
                 }

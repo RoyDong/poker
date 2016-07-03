@@ -12,7 +12,7 @@ var ExchangeRate float64
 
 type OKFuture struct {
 
-    apiHost   string
+    httpHost   string
     apiKey    string
     apiSecret string
 
@@ -24,7 +24,7 @@ func NewOKFuture(contractType string) *OKFuture {
     ok := &OKFuture{}
 
     conf := gmvc.Store.Tree("config.market.okfuture")
-    ok.apiHost, _ = conf.String("api_host")
+    ok.httpHost, _ = conf.String("http_host")
     ok.apiKey, _ = conf.String("api_key")
     ok.apiSecret, _ = conf.String("api_secret")
     ok.contractType = contractType
@@ -85,7 +85,7 @@ func (ok *OKFuture) LastTicker() *Ticker {
     t.Last, _ = rst.Float64("last")
     t.Vol,  _ = rst.Float64("vol")
 
-    t.Last = t.Last *ExchangeRate
+    t.Last = t.Last
 
     date, _  := rs.String("date")
     t.Time, _ = strconv.ParseInt(date, 10, 0)
@@ -158,7 +158,7 @@ func (ok *OKFuture)Call(api string, query, params map[string]interface{}) *gmvc.
         params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
     }
 
-    tree := CallRest(ok.apiHost + api, query, params)
+    tree := CallRest(ok.httpHost + api, query, params)
     if code, has := tree.Int64("error_code"); has {
         gmvc.Logger.Println(fmt.Sprintf("okfuture: %v", code))
         return nil
