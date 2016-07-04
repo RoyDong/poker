@@ -8,6 +8,8 @@ import (
     "log"
     "github.com/gorilla/websocket"
     "net/http"
+    "io/ioutil"
+    "net/url"
 )
 
 type Huobi struct {
@@ -189,8 +191,7 @@ func (hb *Huobi) WSConnect() {
         HandshakeTimeout: 3 * time.Second,
     }
 
-    conn, _, err := dialer.Dial("wss://hq.huobi.com:80", http.Header{})
-    log.Println(conn,err)
+
 
     /*
     data := map[string]interface{}{
@@ -209,6 +210,71 @@ func (hb *Huobi) WSConnect() {
 
     log.Println(rs, err)
     */
+
+
+    u, err := url.Parse("http://hq.huobi.com:80")
+
+    if err != nil {
+        log.Panicln(err)
+    }
+
+    // endpoint := parseEndpoint(u)
+    u.Path = fmt.Sprintf("/socket.io/%d/", 1)
+
+    url_ := u.String()
+    r, err := http.Get(url_)
+
+    if err != nil {
+        log.Println(err)
+    }
+
+    defer r.Body.Close()
+    if r.StatusCode != 200 {
+        log.Println("invalid status: " + r.Status)
+    }
+
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        log.Println(err)
+    }
+    parts := strings.SplitN(string(body), ":", 4)
+    if len(parts) != 4 {
+        log.Println("invalid handshake: " + string(body))
+    }
+    if !strings.Contains(parts[3], "websocket") {
+        log.Println("server does not support websockets")
+    }
+    sessionId := parts[0]
+    u.Scheme = "ws" + u.Scheme[4:]
+    u.Path = fmt.Sprintf("%swebsocket/%s", u.Path, sessionId)
+
+
+    header := http.Header{}
+    header.Add("Origin", url_)
+
+    conn, _, err := dialer.Dial(u.String(), nil)
+    //ws, err := websocket.Dial(u.String(), "", url_)
+
+    if err != nil {
+        log.Println(err)
+    }
+
+    //json.Unmarshal([]byte(str), &hs);
+
+    //	`{"name":"request","args":[{"symbolList":{"lastTimeLine":[{"symbolId":"ltccny","pushType":"pushLong"}]},"version":1,"msgType":"reqMsgSubscribe","requestIndex":1404103038520}]`
+
+    str := `5:::{"name":"request","args":[{"symbolList":{"lastTimeLine":[{"symbolId":"ltccny","pushType":"pushLong"}]},"version":1,"msgType":"reqMsgSubscribe","requestIndex":1404103038520}]`
+
+    err = conn.WriteMessage(websocket.TextMessage, []byte(str))
+    if err != nil {
+        log.Println(err)
+    }
+
+    typ, rst, err := conn.ReadMessage()
+
+    log.Println(typ, len(rst), err)
+
+    conn.Close()
 }
 
 
