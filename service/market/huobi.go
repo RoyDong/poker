@@ -6,10 +6,6 @@ import (
     "time"
     "fmt"
     "log"
-    "github.com/gorilla/websocket"
-    "net/http"
-    "io/ioutil"
-    "net/url"
 )
 
 type Huobi struct {
@@ -190,14 +186,13 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
 }
 
 func (hb *Huobi) WSConnect() {
+    io := NewSocketIO(3 * time.Second)
 
-    dialer := &websocket.Dialer{
-        HandshakeTimeout: 3 * time.Second,
-    }
+    err := io.Dial(hb.wsUrl)
+    log.Println(err)
 
 
 
-    /*
     data := map[string]interface{}{
         "symbolIdList": []string{"btccny"},
         "version": 1,
@@ -205,80 +200,15 @@ func (hb *Huobi) WSConnect() {
         "requestIndex": 100,
     }
 
-    err = conn.WriteJSON(data)
+    err = io.Emit("request", data)
     log.Println(err)
 
+    for {
 
-    var rs interface{}
-    err = conn.ReadJSON(&rs)
+        b, err := io.Read()
 
-    log.Println(rs, err)
-    */
-
-
-    u, err := url.Parse("http://hq.huobi.com:80")
-
-    if err != nil {
-        log.Panicln(err)
+        log.Println(err, string(b))
     }
-
-    // endpoint := parseEndpoint(u)
-    u.Path = fmt.Sprintf("/socket.io/%d/", 1)
-
-    url_ := u.String()
-    r, err := http.Get(url_)
-
-    if err != nil {
-        log.Println(err)
-    }
-
-    defer r.Body.Close()
-    if r.StatusCode != 200 {
-        log.Println("invalid status: " + r.Status)
-    }
-
-    body, err := ioutil.ReadAll(r.Body)
-    if err != nil {
-        log.Println(err)
-    }
-    parts := strings.SplitN(string(body), ":", 4)
-    if len(parts) != 4 {
-        log.Println("invalid handshake: " + string(body))
-    }
-    if !strings.Contains(parts[3], "websocket") {
-        log.Println("server does not support websockets")
-    }
-    sessionId := parts[0]
-    u.Scheme = "ws" + u.Scheme[4:]
-    u.Path = fmt.Sprintf("%swebsocket/%s", u.Path, sessionId)
-
-
-    header := http.Header{}
-    header.Add("Origin", url_)
-
-    conn, _, err := dialer.Dial(u.String(), nil)
-    //ws, err := websocket.Dial(u.String(), "", url_)
-
-    if err != nil {
-        log.Println(err)
-    }
-
-    //json.Unmarshal([]byte(str), &hs);
-
-    //	`{"name":"request","args":[{"symbolList":{"lastTimeLine":[{"symbolId":"ltccny","pushType":"pushLong"}]},"version":1,"msgType":"reqMsgSubscribe","requestIndex":1404103038520}]`
-
-    str := `5:::{"name":"request","args":[{"symbolList":{"lastTimeLine":[{"symbolId":"ltccny","pushType":"pushLong"}]},"version":1,"msgType":"reqMsgSubscribe","requestIndex":1404103038520}]`
-
-    err = conn.WriteMessage(websocket.TextMessage, []byte(str))
-    if err != nil {
-        log.Println(err)
-    }
-
-    typ, rst, err := conn.ReadMessage()
-
-    log.Println(typ, len(rst), err)
-
-    conn.Close()
 }
 
 

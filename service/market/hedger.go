@@ -373,9 +373,10 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     gmvc.Logger.Println("")
 
     now := time.Now()
+    d := time.Unix(now.Unix() - hg.started.Unix(), 0)
     gmvc.Logger.Println(fmt.Sprintf("profit: %.4f btc, %.2f(%.2f) cny, %v min, %v round %v",
         hg.btc, hg.tcny * hg.tradeAmount, hg.cny * hg.tradeAmount,
-        (now.Unix() - hg.started.Unix()) / 60, hg.tradeNum, now.Format("15:04:05")))
+        d.Format("15:04:05"), hg.tradeNum, now.Format("15:04:05")))
     gmvc.Logger.Println("")
 }
 
