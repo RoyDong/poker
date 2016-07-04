@@ -161,6 +161,10 @@ func (ok *OKCoin) Call(api string, query, params map[string]interface{}) *gmvc.T
     }
 
     tree := CallRest(ok.httpHost + api, query, params)
+    if tree == nil {
+        return nil
+    }
+
     if code, has := tree.Int64("error_code"); has {
         gmvc.Logger.Println(fmt.Sprintf("okcoin: %v %s", code))
         return nil

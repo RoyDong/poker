@@ -39,8 +39,7 @@ func CallRest(api string, query, data map[string]interface{}) *gmvc.Tree {
     }
 
     tree := gmvc.NewTree()
-    err = tree.LoadJson("", body, false)
-    if err != nil {
+    if err = tree.LoadJson("", body, false); err != nil {
         gmvc.Logger.Println("call " + api + " error not json")
         return nil
     }
