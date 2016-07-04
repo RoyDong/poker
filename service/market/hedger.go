@@ -172,12 +172,18 @@ func (hg *Hedger) getMaxMargin() (int64, float64) {
 func (hg *Hedger) arbitrage(interval time.Duration) {
     for _ = range time.Tick(interval) {
         if hg.marginList.Len() < 10 {
+            gmvc.Logger.Println("margin list is less than 10")
             continue
         }
 
         hg.zuo.UpdateDepth()
         hg.you.UpdateDepth()
-        if len(hg.zuo.lastAsks) == 0 || len(hg.you.lastAsks) == 0 {
+        if len(hg.zuo.lastAsks) == 0 {
+            gmvc.Logger.Println(hg.zuo.name + " depth is empty")
+            continue
+        }
+        if len(hg.you.lastAsks) == 0 {
+            gmvc.Logger.Println(hg.you.name + " depth is empty")
             continue
         }
 
