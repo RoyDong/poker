@@ -152,6 +152,10 @@ func (hb *Huobi) GetBalance() (float64, float64) {
     }
 
     rs := hb.Call("", nil, q)
+    if rs == nil {
+        return 0, 0
+    }
+    
     btc, _ := rs.Float64("available_btc_display")
     cny, _ := rs.Float64("available_cny_display")
 
