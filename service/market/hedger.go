@@ -135,8 +135,8 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
         }
         hg.avgMargin = hg.totalMargin / float64(hg.marginList.Len())
 
-        log.Println(fmt.Sprintf("%.2f <- %.2f -> %.2f, lastMargin: %.2f(%.2f)",
-            hg.minMargin - hg.avgMargin, hg.avgMargin,  hg.maxMargin - hg.avgMargin, margin, margin - hg.avgMargin))
+        log.Println(fmt.Sprintf("%.2f <- %.2f -> %.2f",
+            hg.minMargin - hg.avgMargin, hg.avgMargin,  hg.maxMargin - hg.avgMargin))
     }
 }
 
@@ -228,7 +228,7 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
             //如果是左手做空的
             } else {
                 margin = youSellPrice - zuoBuyPrice
-                //log.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
+                log.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
 
                 //差价高于平均差价即可平仓
                 if margin >= hg.avgMargin {
