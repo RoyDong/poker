@@ -5,6 +5,9 @@ import (
     "github.com/roydong/gmvc"
     "time"
     "fmt"
+    "log"
+    "github.com/gorilla/websocket"
+    "net/http"
 )
 
 type Huobi struct {
@@ -178,6 +181,34 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
         return nil
     }
     return tree
+}
+
+func (hb *Huobi) WSConnect() {
+
+    dialer := &websocket.Dialer{
+        HandshakeTimeout: 3 * time.Second,
+    }
+
+    conn, _, err := dialer.Dial("wss://hq.huobi.com:80", http.Header{})
+    log.Println(conn,err)
+
+    /*
+    data := map[string]interface{}{
+        "symbolIdList": []string{"btccny"},
+        "version": 1,
+        "msgType": "reqSymbolList",
+        "requestIndex": 100,
+    }
+
+    err = conn.WriteJSON(data)
+    log.Println(err)
+
+
+    var rs interface{}
+    err = conn.ReadJSON(&rs)
+
+    log.Println(rs, err)
+    */
 }
 
 
