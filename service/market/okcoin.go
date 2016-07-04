@@ -142,11 +142,11 @@ func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
 
 func (ok *OKCoin) GetBalance() (float64, float64) {
     rs := ok.Call("userinfo.do", nil, map[string]interface{}{})
-    free := rs.Tree("info.funds.free")
-    if free == nil {
+    if rs == nil {
         return 0, 0
     }
 
+    free := rs.Tree("info.funds.free")
     btc, _ := free.Float64("btc")
     cny, _ := free.Float64("cny")
 
