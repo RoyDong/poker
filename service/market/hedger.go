@@ -135,7 +135,7 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
         }
         hg.avgMargin = hg.totalMargin / float64(hg.marginList.Len())
 
-        log.Println(fmt.Sprintf("%.2f <- %.2f -> %.2f",
+        log.Println(fmt.Sprintf("%.2f <= %.2f => %.2f",
             hg.minMargin - hg.avgMargin, hg.avgMargin,  hg.maxMargin - hg.avgMargin))
     }
 }

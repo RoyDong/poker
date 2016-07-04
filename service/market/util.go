@@ -26,12 +26,12 @@ func CallRest(api string, query, data map[string]interface{}) *gmvc.Tree {
         }
         resp, err = http.PostForm(api, form)
     }
-    defer resp.Body.Close()
     if err != nil {
         gmvc.Logger.Println("call " + api + " error")
         return nil
     }
 
+    defer resp.Body.Close()
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
         gmvc.Logger.Println("call " + api + " error")
