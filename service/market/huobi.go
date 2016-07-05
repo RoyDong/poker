@@ -6,6 +6,7 @@ import (
     "time"
     "fmt"
     "log"
+    "github.com/roydong/poker/lib/socketio"
 )
 
 type Huobi struct {
@@ -186,12 +187,9 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
 }
 
 func (hb *Huobi) WSConnect() {
-    io := NewSocketIO(3 * time.Second)
-
+    io := socketio.NewSocket(3 * time.Second)
     err := io.Dial(hb.wsUrl)
     log.Println(err)
-
-
 
     data := map[string]interface{}{
         "symbolIdList": []string{"btccny"},
@@ -202,13 +200,6 @@ func (hb *Huobi) WSConnect() {
 
     err = io.Emit("request", data)
     log.Println(err)
-
-    for {
-
-        b, err := io.Read()
-
-        log.Println(err, string(b))
-    }
 }
 
 
