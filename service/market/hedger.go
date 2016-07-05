@@ -135,8 +135,8 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
         }
         hg.avgMargin = hg.totalMargin / float64(hg.marginList.Len())
 
-        log.Println(fmt.Sprintf("%.2f <= %.2f => %.2f",
-            hg.minMargin - hg.avgMargin, hg.avgMargin,  hg.maxMargin - hg.avgMargin))
+        log.Println(fmt.Sprintf("%.3f <= %.3f(%.3f) => %.3f",
+            hg.minMargin, hg.avgMargin, margin, hg.maxMargin))
     }
 }
 
@@ -202,8 +202,8 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
 
             //满足最小差价条件,并且超过最大差价
             if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin {
-                //gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
-                hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
+                gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
+                //hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
                 continue
             }
 
@@ -213,8 +213,8 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
 
             //满足最小差价条件,并且低于最小差价
             if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin {
-                //gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
-                hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
+                gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
+                //hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
                 continue
             }
 
@@ -227,8 +227,8 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
 
                 //差价低于平均差价即可平仓
                 if margin <= hg.avgMargin {
-                    //gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
-                    hg.closePosition(youBuyPrice, zuoSellPrice)
+                    gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
+                    //hg.closePosition(youBuyPrice, zuoSellPrice)
                 }
 
             //如果是左手做空的
@@ -238,8 +238,8 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
 
                 //差价高于平均差价即可平仓
                 if margin >= hg.avgMargin {
-                    //gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
-                    hg.closePosition(zuoBuyPrice, youSellPrice)
+                    gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
+                    //hg.closePosition(zuoBuyPrice, youSellPrice)
                 }
             }
         }

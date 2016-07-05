@@ -187,8 +187,7 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
 }
 
 func (hb *Huobi) WSConnect() {
-    io := socketio.NewSocket(3 * time.Second)
-    err := io.Dial(hb.wsUrl)
+    io, err := socketio.Dial(hb.wsUrl, 3 * time.Second)
     log.Println(err)
 
     data := map[string]interface{}{

@@ -159,7 +159,7 @@ func init() {
     }, "/okcoin_haobtc")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        hg := market.NewHedger(market.NewMarket("okcoin"), market.NewMarket("okfuture"))
+        hg := market.NewHedger(market.NewMarket("okcoin"), market.NewMarket("okfuture_quarter"))
         hg.Start()
 
         return r.TextResponse("done")

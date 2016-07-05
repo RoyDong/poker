@@ -3,7 +3,6 @@ package market
 import (
     "strings"
     "github.com/roydong/gmvc"
-    "strconv"
     "fmt"
     "time"
 )
@@ -35,12 +34,17 @@ func NewOKFuture(contractType string) *OKFuture {
     return ok
 }
 
-func (ok *OKFuture) Buy(price float64) error {
+func (ok *OKFuture) Buy(price float64) int64 {
 
-    return nil
+    return 0
 }
 
-func (ok *OKFuture) Sell(amount float64) error {
+func (ok *OKFuture) Sell(amount float64) int64 {
+
+    return 0
+}
+
+func (ok *OKFuture) OrderInfo(id int64) *Order {
 
     return nil
 }
@@ -84,11 +88,7 @@ func (ok *OKFuture) LastTicker() *Ticker {
     t.Buy,  _ = rst.Float64("buy")
     t.Last, _ = rst.Float64("last")
     t.Vol,  _ = rst.Float64("vol")
-
-    t.Last = t.Last
-
-    date, _  := rs.String("date")
-    t.Time, _ = strconv.ParseInt(date, 10, 0)
+    t.Time, _ = rs.Int64("date")
 
     return t
 }
@@ -112,7 +112,7 @@ func (ok *OKFuture) GetDepth() ([][]float64, [][]float64) {
     for i := l - 1; i >= 0; i-- {
         price, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 0))
         amount, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 1))
-        ask = append(ask, []float64{price * ExchangeRate, amount})
+        ask = append(ask, []float64{price, amount})
     }
 
     bid := make([][]float64, 0, l)
@@ -120,7 +120,7 @@ func (ok *OKFuture) GetDepth() ([][]float64, [][]float64) {
     for i := 0; i < l; i++ {
         price, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 0))
         amount, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 1))
-        bid = append(bid, []float64{price *ExchangeRate, amount})
+        bid = append(bid, []float64{price, amount})
     }
 
     return ask, bid
@@ -135,30 +135,22 @@ func (ok *OKFuture) Index() float64 {
 
 
 func (ok *OKFuture) GetBalance() (float64, float64) {
-    rs := ok.Call("future_userinfo_4fix.do", nil, map[string]interface{}{})
+    ok.Call("future_userinfo_4fix.do", nil, map[string]interface{}{})
     return 0, 0
-    free := rs.Tree("info.funds.free")
-    if free == nil {
-        return 0, 0
-    }
-
-    btc, _ := free.String("btc")
-    cny, _ := free.String("cny")
-
-    b, _ := strconv.ParseFloat(btc, 10)
-    c, _ := strconv.ParseFloat(cny, 10)
-
-    return b,c
 }
 
 
-func (ok *OKFuture)Call(api string, query, params map[string]interface{}) *gmvc.Tree {
+func (ok *OKFuture) Call(api string, query, params map[string]interface{}) *gmvc.Tree {
     if params != nil {
         params["api_key"] = ok.apiKey
         params["sign"] = strings.ToUpper(createSignature(params, ok.apiSecret))
     }
 
     tree := CallRest(ok.httpHost + api, query, params)
+    if tree == nil {
+        return nil
+    }
+
     if code, has := tree.Int64("error_code"); has {
         gmvc.Logger.Println(fmt.Sprintf("okfuture: %v", code))
         return nil
@@ -167,6 +159,7 @@ func (ok *OKFuture)Call(api string, query, params map[string]interface{}) *gmvc.
     return tree
 }
 
+func (ok *OKFuture)
 
 
 

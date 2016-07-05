@@ -19,51 +19,49 @@ type Socket struct {
     heartbeat time.Duration
 }
 
-func NewSocket(timeout time.Duration) *Socket {
-    io := &Socket{}
-    io.timeout = timeout
-    io.heartbeat = 10
-    return io
-}
 
-func (io *Socket) Dial(host string) error {
-    dialer := &websocket.Dialer{HandshakeTimeout: io.timeout}
+func Dial(host string, timeout time.Duration) (*Socket, error) {
+
+    dialer := &websocket.Dialer{HandshakeTimeout: timeout}
     u, err := url.Parse(host)
     if err != nil {
-        return err
+        return nil, err
     }
 
     u.Path = fmt.Sprintf("/socket.io/%d/", 1)
     resp, err := http.Get(u.String())
     if err != nil {
-        return err
+        return nil, err
     }
     defer resp.Body.Close()
     if resp.StatusCode != 200 {
-        return err
+        return nil, err
     }
 
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
-        return err
+        return nil, err
     }
 
     parts := strings.SplitN(string(body), ":", 4)
     if len(parts) != 4 {
-        return errors.New("invalid handshake: " + string(body))
+        return nil, errors.New("invalid handshake: " + string(body))
     }
 
     if !strings.Contains(parts[3], "websocket") {
-        return errors.New("server does not support websockets")
+        return nil, errors.New("server does not support websockets")
     }
 
     sessionId := parts[0]
     u.Scheme = "ws" + u.Scheme[4:]
     u.Path = fmt.Sprintf("%swebsocket/%s", u.Path, sessionId)
 
+    io := &Socket{}
+    io.timeout = timeout
+    io.heartbeat = 10
     io.conn, _, err = dialer.Dial(u.String(), nil)
     if err != nil {
-        return err
+        return nil, err
     }
 
     go io.readLoop()
@@ -76,7 +74,7 @@ func (io *Socket) Dial(host string) error {
         }
     }()
 
-    return nil
+    return io, nil
 }
 
 func (io *Socket) Emit(name string, data ...interface{}) error {
