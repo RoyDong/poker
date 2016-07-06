@@ -43,7 +43,7 @@ func (hb *Huobi) Buy(price float64) int64 {
     if rs == nil {
         return 0
     }
-    id, _ := rs.Float64("id")
+    id, _ := rs.Float("id")
     return int64(id)
 }
 
@@ -59,7 +59,7 @@ func (hb *Huobi) Sell(amount float64) int64 {
     if rs == nil {
         return 0
     }
-    id, _ := rs.Float64("id")
+    id, _ := rs.Float("id")
     return int64(id)
 }
 
@@ -78,12 +78,12 @@ func (hb *Huobi) OrderInfo(id int64) *Order {
 
     order := &Order{}
     order.Id = id
-    order.Amount,     _ = rs.Float64("order_amount")
-    order.Price,      _ = rs.Float64("order_price")
-    order.DealAmount, _ = rs.Float64("processed_amount")
-    order.AvgPrice,   _ = rs.Float64("processed_price")
+    order.Amount,     _ = rs.Float("order_amount")
+    order.Price,      _ = rs.Float("order_price")
+    order.DealAmount, _ = rs.Float("processed_amount")
+    order.AvgPrice,   _ = rs.Float("processed_price")
 
-    typ, _ := rs.Float64("type")
+    typ, _ := rs.Float("type")
     if int64(typ) == 3 {
         order.Price = order.Amount
         order.Amount = 0
@@ -107,12 +107,12 @@ func (hb *Huobi) LastTicker() *Ticker {
     rst := rs.Tree("ticker")
     t := &Ticker{}
     t.Time, _ = rs.Int64("time")
-    t.High, _ = rst.Float64("high")
-    t.Low,  _ = rst.Float64("low")
-    t.Sell, _ = rst.Float64("sell")
-    t.Buy,  _ = rst.Float64("buy")
-    t.Last, _ = rst.Float64("last")
-    t.Vol,  _ = rst.Float64("vol")
+    t.High, _ = rst.Float("high")
+    t.Low,  _ = rst.Float("low")
+    t.Sell, _ = rst.Float("sell")
+    t.Buy,  _ = rst.Float("buy")
+    t.Last, _ = rst.Float("last")
+    t.Vol,  _ = rst.Float("vol")
 
     return t
 }
@@ -127,16 +127,16 @@ func (hb *Huobi) GetDepth() ([][]float64, [][]float64) {
     ask := make([][]float64, 0, l)
     l = rs.NodeNum("sells")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float64(fmt.Sprintf("sells.%v.price", i))
-        amount, _ := rs.Float64(fmt.Sprintf("sells.%v.amount", i))
+        price, _ := rs.Float(fmt.Sprintf("sells.%v.price", i))
+        amount, _ := rs.Float(fmt.Sprintf("sells.%v.amount", i))
         ask = append(ask, []float64{price, amount})
     }
 
     bid := make([][]float64, 0, l)
     l = rs.NodeNum("buys")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float64(fmt.Sprintf("buys.%v.price", i))
-        amount, _ := rs.Float64(fmt.Sprintf("buys.%v.amount", i))
+        price, _ := rs.Float(fmt.Sprintf("buys.%v.price", i))
+        amount, _ := rs.Float(fmt.Sprintf("buys.%v.amount", i))
         bid = append(bid, []float64{price, amount})
     }
 
@@ -153,8 +153,8 @@ func (hb *Huobi) GetBalance() (float64, float64) {
         return 0, 0
     }
 
-    btc, _ := rs.Float64("available_btc_display")
-    cny, _ := rs.Float64("available_cny_display")
+    btc, _ := rs.Float("available_btc_display")
+    cny, _ := rs.Float("available_cny_display")
 
     return btc,cny
 }

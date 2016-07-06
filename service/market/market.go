@@ -32,12 +32,6 @@ type Ticker struct {
     Time int64
 }
 
-const (
-    OrderStatusCreated = iota
-    OrderStatusDealing
-    OrderStatusComplete
-)
-
 type Order struct {
     Id int64
     Type string

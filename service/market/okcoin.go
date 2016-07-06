@@ -38,7 +38,7 @@ func (ok *OKCoin)Buy(price float64) int64 {
     if rs == nil {
         return 0
     }
-    id, _ := rs.Float64("order_id")
+    id, _ := rs.Float("order_id")
     return int64(id)
 }
 
@@ -54,7 +54,7 @@ func (ok *OKCoin)Sell(amount float64) int64 {
     if rs == nil {
         return 0
     }
-    id, _ := rs.Float64("order_id")
+    id, _ := rs.Float("order_id")
     return int64(id)
 }
 
@@ -77,12 +77,12 @@ func (ok *OKCoin) OrderInfo(id int64) *Order {
     order := &Order{}
     order.Id = id
 
-    order.Amount, _ = rst.Float64("amount")
-    order.Price, _ = rst.Float64("price")
-    order.DealAmount, _ = rst.Float64("deal_amount")
-    order.AvgPrice, _ = rst.Float64("avg_price")
+    order.Amount, _ = rst.Float("amount")
+    order.Price, _ = rst.Float("price")
+    order.DealAmount, _ = rst.Float("deal_amount")
+    order.AvgPrice, _ = rst.Float("avg_price")
 
-    t, _ := rst.Float64("create_date")
+    t, _ := rst.Float("create_date")
     order.Created = int64(t)
 
     return order
@@ -98,12 +98,12 @@ func (ok *OKCoin) LastTicker() *Ticker {
     rst     := rs.Tree("ticker")
     t         := &Ticker{}
     t.Time, _ = rs.Int64("date")
-    t.High, _ = rst.Float64("high")
-    t.Low,  _ = rst.Float64("low")
-    t.Sell, _ = rst.Float64("sell")
-    t.Buy,  _ = rst.Float64("buy")
-    t.Last, _ = rst.Float64("last")
-    t.Vol,  _ = rst.Float64("vol")
+    t.High, _ = rst.Float("high")
+    t.Low,  _ = rst.Float("low")
+    t.Sell, _ = rst.Float("sell")
+    t.Buy,  _ = rst.Float("buy")
+    t.Last, _ = rst.Float("last")
+    t.Vol,  _ = rst.Float("vol")
 
     return t
 }
@@ -120,20 +120,19 @@ func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
         return nil, nil
     }
 
-    var l int
+    l := rs.NodeNum("asks")
     ask := make([][]float64, 0, l)
-    l = rs.NodeNum("asks")
     for i := l - 1; i >= 0; i-- {
-        price, _ := rs.Float64(fmt.Sprintf("asks.%v.0", i))
-        amount, _ := rs.Float64(fmt.Sprintf("asks.%v.1", i))
+        price, _ := rs.Float(fmt.Sprintf("asks.%v.0", i))
+        amount, _ := rs.Float(fmt.Sprintf("asks.%v.1", i))
         ask = append(ask, []float64{price, amount})
     }
 
-    bid := make([][]float64, 0, l)
     l = rs.NodeNum("bids")
+    bid := make([][]float64, 0, l)
     for i := 0; i < l; i++ {
-        price, _ := rs.Float64(fmt.Sprintf("bids.%v.0", i))
-        amount, _ := rs.Float64(fmt.Sprintf("bids.%v.1", i))
+        price, _ := rs.Float(fmt.Sprintf("bids.%v.0", i))
+        amount, _ := rs.Float(fmt.Sprintf("bids.%v.1", i))
         bid = append(bid, []float64{price, amount})
     }
 
@@ -147,8 +146,8 @@ func (ok *OKCoin) GetBalance() (float64, float64) {
     }
 
     free := rs.Tree("info.funds.free")
-    btc, _ := free.Float64("btc")
-    cny, _ := free.Float64("cny")
+    btc, _ := free.Float("btc")
+    cny, _ := free.Float("cny")
 
     return btc,cny
 }

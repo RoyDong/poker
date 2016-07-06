@@ -64,14 +64,14 @@ func (hb *Haobtc) LastTicker() *Ticker {
 
     rst     := rs.Tree("ticker")
     t        := &Ticker{}
-    t.High, _ = rst.Float64("high")
-    t.Low,  _ = rst.Float64("low")
-    t.Sell, _ = rst.Float64("sell")
-    t.Buy,  _ = rst.Float64("buy")
-    t.Last, _ = rst.Float64("last")
-    t.Vol,  _ = rst.Float64("vol")
+    t.High, _ = rst.Float("high")
+    t.Low,  _ = rst.Float("low")
+    t.Sell, _ = rst.Float("sell")
+    t.Buy,  _ = rst.Float("buy")
+    t.Last, _ = rst.Float("last")
+    t.Vol,  _ = rst.Float("vol")
 
-    //time, _ := rs.Float64("date")
+    //time, _ := rs.Float("date")
     //t.Time = int64(time)
     t.Time = time.Now().Unix()
 
@@ -92,16 +92,16 @@ func (hb *Haobtc) GetDepth() ([][]float64, [][]float64) {
     ask := make([][]float64, 0, l)
     l = rs.NodeNum("asks")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 0))
-        amount, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 1))
+        price, _ := rs.Float(fmt.Sprintf("asks.%v.%v", i, 0))
+        amount, _ := rs.Float(fmt.Sprintf("asks.%v.%v", i, 1))
         ask = append(ask, []float64{price, amount})
     }
 
     bid := make([][]float64, 0, l)
     l = rs.NodeNum("bids")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 0))
-        amount, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 1))
+        price, _ := rs.Float(fmt.Sprintf("bids.%v.%v", i, 0))
+        amount, _ := rs.Float(fmt.Sprintf("bids.%v.%v", i, 1))
         bid = append(bid, []float64{price, amount})
     }
 
@@ -114,8 +114,8 @@ func (hb *Haobtc) GetBalance() (float64, float64) {
         return 0, 0
     }
 
-    btc, _ := rs.Float64("exchange_btc")
-    cny, _ := rs.Float64("exchange_cny")
+    btc, _ := rs.Float("exchange_btc")
+    cny, _ := rs.Float("exchange_cny")
 
     return btc, cny
 }

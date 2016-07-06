@@ -62,7 +62,7 @@ func (ok *OKFuture) getExchangeRate() float64 {
         return 6.5
     }
 
-    rate, _ := rs.Float64("rate")
+    rate, _ := rs.Float("rate")
     return rate
 }
 
@@ -80,12 +80,12 @@ func (ok *OKFuture) LastTicker() *Ticker {
 
     rst := rs.Tree("ticker")
     t := &Ticker{}
-    t.High, _ = rst.Float64("high")
-    t.Low,  _ = rst.Float64("low")
-    t.Sell, _ = rst.Float64("sell")
-    t.Buy,  _ = rst.Float64("buy")
-    t.Last, _ = rst.Float64("last")
-    t.Vol,  _ = rst.Float64("vol")
+    t.High, _ = rst.Float("high")
+    t.Low,  _ = rst.Float("low")
+    t.Sell, _ = rst.Float("sell")
+    t.Buy,  _ = rst.Float("buy")
+    t.Last, _ = rst.Float("last")
+    t.Vol,  _ = rst.Float("vol")
     t.Time, _ = rs.Int64("date")
 
     return t
@@ -108,16 +108,16 @@ func (ok *OKFuture) GetDepth() ([][]float64, [][]float64) {
     ask := make([][]float64, 0, l)
     l = rs.NodeNum("asks")
     for i := l - 1; i >= 0; i-- {
-        price, _ := rs.Float64(fmt.Sprintf("asks.%v.0", i))
-        amount, _ := rs.Float64(fmt.Sprintf("asks.%v.1", i))
+        price, _ := rs.Float(fmt.Sprintf("asks.%v.0", i))
+        amount, _ := rs.Float(fmt.Sprintf("asks.%v.1", i))
         ask = append(ask, []float64{price, amount})
     }
 
     bid := make([][]float64, 0, l)
     l = rs.NodeNum("bids")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float64(fmt.Sprintf("bids.%v.0", i))
-        amount, _ := rs.Float64(fmt.Sprintf("bids.%v.1", i))
+        price, _ := rs.Float(fmt.Sprintf("bids.%v.0", i))
+        amount, _ := rs.Float(fmt.Sprintf("bids.%v.1", i))
         bid = append(bid, []float64{price, amount})
     }
 
@@ -127,7 +127,7 @@ func (ok *OKFuture) GetDepth() ([][]float64, [][]float64) {
 func (ok *OKFuture) Index() float64 {
     q := map[string]interface{}{"symbol": "btc_usd"}
     rs := ok.Call("future_index.do", q, nil)
-    idx, _ := rs.Float64("future_index")
+    idx, _ := rs.Float("future_index")
     return idx
 }
 

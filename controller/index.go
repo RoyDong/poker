@@ -4,6 +4,7 @@ import (
     "github.com/roydong/gmvc"
     "github.com/roydong/poker/service/market"
     "fmt"
+    "log"
 )
 
 func init() {
@@ -62,7 +63,7 @@ func init() {
         conf,_ := gmvc.Store.Int64("config.hedger.trade_amount")
 
         ticker.Time = conf
-        ticker.Buy, _ = gmvc.Store.Float64("config.hedger.trade_amount")
+        ticker.Buy, _ = gmvc.Store.Float("config.hedger.trade_amount")
 
         return r.JsonResponse(ticker)
     }, "/ticker")
@@ -167,9 +168,9 @@ func init() {
     }, "/okcoin_future")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        week := market.NewMarket("okfuture_thisweek")
-        quarter := market.NewMarket("okfuture_quarter")
-        hg := market.NewHedger(week, quarter)
+        week := market.NewOKFutureWS("this_week")
+        quarter := market.NewOKFutureWS("quarter")
+        hg := market.NewHedgerWS(week, quarter)
         hg.Start()
 
         return r.TextResponse("done")
@@ -198,11 +199,29 @@ func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         a, _ := gmvc.Store.Get("aa").(*market.OKFutureWS)
 
-        a.RemoveChannels()
+        amount, _ := r.Int64("amount")
+        typ, _ := r.Int("type")
+
+        ticker := a.LastTicker()
+
+        id := a.OpenPosition(typ, amount, ticker.Last - 10)
+        log.Println(id)
 
         return r.TextResponse("done")
 
-    }, "/remove_channel")
+    }, "/open")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        a, _ := gmvc.Store.Get("aa").(*market.OKFutureWS)
+
+        id, _ := r.Int64("id")
+
+        rs := a.CancelOrder(id)
+        log.Println(rs)
+
+        return r.TextResponse("done")
+
+    }, "/cancel")
 
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {

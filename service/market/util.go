@@ -74,4 +74,32 @@ func createSignature(params map[string]interface{}, skey string) string {
 }
 
 
+/*
+根据深度获得需要卖出amount数量的btc需要的价位,即获取对应的买单价(bid price)
+ */
+func GetSellPrice(amount float64, bids [][]float64) float64 {
+    var sum, price float64
+    for _, bid := range bids {
+        price = bid[0]
+        sum += bid[1]
+        if sum >= amount {
+            break
+        }
+    }
+    return price
+}
 
+/*
+根据深度获得需要买入amount数量的btc需要的价位,即获取对应的卖单价(ask price)
+ */
+func GetBuyPrice(amount float64, asks [][]float64) float64 {
+    var sum, price float64
+    for _, ask := range asks {
+        price = ask[0]
+        sum += ask[1]
+        if sum >= amount {
+            break
+        }
+    }
+    return price
+}

@@ -9,11 +9,6 @@ import (
     "log"
 )
 
-const (
-    STATE_OPEN  = 1
-    STATE_CLOSE = 2
-)
-
 type Hedger struct {
     zuo *Market
     you *Market
@@ -68,8 +63,8 @@ func NewHedger(zuo, you *Market) *Hedger {
     you.SyncBalance()
 
     conf := gmvc.Store.Tree("config.hedger")
-    hg.minTradeMargin, _ = conf.Float64("min_trade_margin")
-    hg.tradeAmount, _ = conf.Float64("trade_amount")
+    hg.minTradeMargin, _ = conf.Float("min_trade_margin")
+    hg.tradeAmount, _ = conf.Float("trade_amount")
 
     return hg
 }
