@@ -29,8 +29,6 @@ func NewOKFuture(contractType string) *OKFuture {
     ok.contractType = contractType
     ExchangeRate = ok.getExchangeRate()
 
-    //go ok.syncExchangeRate()
-
     return ok
 }
 
@@ -110,16 +108,16 @@ func (ok *OKFuture) GetDepth() ([][]float64, [][]float64) {
     ask := make([][]float64, 0, l)
     l = rs.NodeNum("asks")
     for i := l - 1; i >= 0; i-- {
-        price, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 0))
-        amount, _ := rs.Float64(fmt.Sprintf("asks.%v.%v", i, 1))
+        price, _ := rs.Float64(fmt.Sprintf("asks.%v.0", i))
+        amount, _ := rs.Float64(fmt.Sprintf("asks.%v.1", i))
         ask = append(ask, []float64{price, amount})
     }
 
     bid := make([][]float64, 0, l)
     l = rs.NodeNum("bids")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 0))
-        amount, _ := rs.Float64(fmt.Sprintf("bids.%v.%v", i, 1))
+        price, _ := rs.Float64(fmt.Sprintf("bids.%v.0", i))
+        amount, _ := rs.Float64(fmt.Sprintf("bids.%v.1", i))
         bid = append(bid, []float64{price, amount})
     }
 
@@ -158,10 +156,5 @@ func (ok *OKFuture) Call(api string, query, params map[string]interface{}) *gmvc
 
     return tree
 }
-
-func (ok *OKFuture)
-
-
-
 
 

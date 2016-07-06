@@ -186,6 +186,24 @@ func init() {
     }, "/hb_ws")
 
 
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        a := market.NewOKFutureWS("this_week")
+
+        gmvc.Store.Set("aa", a)
+
+        return r.TextResponse("done")
+
+    }, "/okfuture")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        a, _ := gmvc.Store.Get("aa").(*market.OKFutureWS)
+
+        a.RemoveChannels()
+
+        return r.TextResponse("done")
+
+    }, "/remove_channel")
+
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
         val, _ := wsm.String("a")
