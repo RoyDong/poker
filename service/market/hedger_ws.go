@@ -32,6 +32,7 @@ type HedgerWS struct {
 
     shortPrice, longPrice float64
     shortOrder, longOrder Order
+    tradeMargin float64
 
     trade chan Trade
     lastTrade chan Trade
@@ -111,15 +112,26 @@ func (hg *HedgerWS) Start() {
 
     go hg.updateMargins()
     go hg.arbitrage()
-    //go hg.checkPending()
 
     gmvc.Logger.Println("started...")
 }
 
 func (hg *HedgerWS) syncOrder(args ...interface{}) {
     order, _ := args[0].(Order)
-    hg.currentOrders[order.Id] = order
-    hg.lastOrder <-order
+
+    if hg.state == StateOpenPending {
+        if order.Type == TypeOpenShort {
+            hg.shortOrder = order
+        } else if order.Type == TypeOpenLong {
+            hg.longOrder = order
+        }
+    } else if hg.state == StateClosePending {
+        if order.Type == TypeOpenShort {
+            hg.shortOrder = order
+        } else if order.Type == TypeOpenLong {
+            hg.longOrder = order
+        }
+    }
 }
 
 func (hg *HedgerWS) syncTrade(args ...interface{}) {
@@ -218,136 +230,114 @@ func (hg *HedgerWS) getMaxMargin() (int64, float64) {
 func (hg *HedgerWS) arbitrage() {
     for !hg.stoped {
         <-hg.lastTrade
-        if hg.marginList.Len() < 50 {
+        if hg.marginList.Len() < 100 {
             continue
         }
-        if len(hg.zuo.lastAsks) == 0 {
-            gmvc.Logger.Println(hg.zuo.Name() + " depth is empty")
-            continue
-        }
-        if len(hg.you.lastAsks) == 0 {
-            gmvc.Logger.Println(hg.you.Name() + " depth is empty")
-            continue
-        }
-
         zuoPrice := hg.zuo.lastTrade.Price
         youPrice := hg.you.lastTrade.Price
         margin := youPrice - zuoPrice
         log.Println(margin)
         if hg.state == StateClose {
-
             //满足最小差价条件,并且超过最大差价
             if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin {
-                hg.state = StateOpenPending
-                hg.pendingTime = time.Now().Unix()
-
-                hg.short = hg.you
-                hg.shortPrice = youPrice
-
-                hg.long = hg.zuo
-                hg.longPrice = zuoPrice
-
-                go hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.tradePriceOffset)
-                go hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.tradePriceOffset)
-
+                hg.openPosition(hg.you, hg.zuo, youPrice, zuoPrice, margin)
                 continue
             }
-
             //满足最小差价条件,并且低于最小差价
             if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin {
-                hg.state = StateOpenPending
-                hg.pendingTime = time.Now().Unix()
-
-                hg.short = hg.zuo
-                hg.long = hg.you
-
-                hg.shortPrice = zuoPrice
-                hg.longPrice = youPrice
-
-                go hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.tradePriceOffset)
-                go hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.tradePriceOffset)
-
+                hg.openPosition(hg.zuo, hg.you, zuoPrice, youPrice, margin)
                 continue
             }
-
         } else if hg.state == StateOpen {
-
             //如果是右手做空
             if (hg.short.Name() == hg.you.Name()) {
-
                 //差价低于平均差价即可平仓
                 if margin <= hg.avgMargin {
-                    hg.state = StateClosePending
-                    hg.pendingTime = time.Now().Unix()
-
-                    hg.shortPrice = youPrice
-                    hg.longPrice = zuoPrice
-
-                    go hg.short.Trade(TypeCloseShort, hg.tradeAmount, hg.shortPrice + hg.tradePriceOffset)
-                    go hg.long.Trade(TypeCloseLong, hg.tradeAmount, hg.longPrice - hg.tradePriceOffset)
+                    hg.closePosition(youPrice, zuoPrice, margin)
                 }
-
             //如果是左手做空的
             } else {
-
                 //差价高于平均差价即可平仓
                 if margin >= hg.avgMargin {
-                    hg.state = StateClosePending
-                    hg.pendingTime = time.Now().Unix()
-
-                    hg.shortPrice = zuoPrice
-                    hg.longPrice = youPrice
-
-                    go hg.short.Trade(TypeCloseShort, hg.tradeAmount, hg.shortPrice + hg.tradePriceOffset)
-                    go hg.long.Trade(TypeCloseLong, hg.tradeAmount, hg.longPrice - hg.tradePriceOffset)
+                    hg.closePosition(zuoPrice, youPrice, margin)
                 }
             }
         }
     }
 }
 
-func (hg *HedgerWS) pending() {
-    for !hg.stoped {
-        order := <-hg.lastOrder
-        t := time.Now().Unix()
-        if hg.state == StateOpenPending {
-            if order.Type == TypeOpenShort {
-                hg.shortOrder = order
-            } else if order.Type == TypeOpenLong {
-                hg.longOrder = order
-            }
-
-            if t - hg.pendingTime < 2 {
-                if hg.shortOrder.DealAmount == hg.longOrder.DealAmount {
-                     
-                }
-            }
-
-        } else if hg.state == StateClosePending {
-            if order.Type == TypeCloseShort {
-                hg.shortOrder = order
-            } else if order.Type == TypeCloseLong {
-                hg.longOrder = order
-            }
-        }
-    }
+func (hg *HedgerWS) getCurrentMargin() float64 {
+    return hg.you.lastTrade.Price - hg.zuo.lastTrade.Price
 }
 
-func (hg *HedgerWS) checkPending() {
-    for _ = range time.Tick(5 * time.Second) {
-        if !hg.stoped {
-            return
+func (hg *HedgerWS) openPosition(short, long *OKFutureWS, shortPrice, longPrice, margin float64) {
+    hg.short = short
+    hg.long = long
+    hg.shortPrice = shortPrice
+    hg.longPrice = longPrice
+    hg.tradeMargin = margin
+    hg.state = StateOpenPending
+    hg.pendingTime = time.Now().Unix()
+    go hg.openPending()
+    go hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.tradePriceOffset)
+    go hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.tradePriceOffset)
+}
+
+func (hg *HedgerWS) closePosition(shortPrice, longPrice, margin float64) {
+    hg.shortPrice = shortPrice
+    hg.longPrice = longPrice
+    hg.state = StateClosePending
+    hg.pendingTime = time.Now().Unix()
+    hg.tradeMargin = margin
+    go hg.short.Trade(TypeCloseShort, hg.tradeAmount, hg.shortPrice + hg.tradePriceOffset)
+    go hg.long.Trade(TypeCloseLong, hg.tradeAmount, hg.longPrice - hg.tradePriceOffset)
+}
+
+func (hg *HedgerWS) openPending() {
+    for now := range time.Tick(200 * time.Millisecond) {
+        if hg.state != StateOpenPending || hg.stoped {
+            break
         }
-        if hg.state == StateOpenPending {
-        } else if hg.state == StateClosePending {
+
+        shortChanged := hg.priceChanged(hg.shortPrice, hg.short.lastTrade.Price)
+        longChanged := hg.priceChanged(hg.longPrice, hg.long.lastTrade.Price)
+
+        //成交完成
+        if hg.shortOrder.DealAmount == hg.tradeAmount && hg.longOrder.DealAmount == hg.tradeAmount {
+            break
+        }
+
+        margin := hg.getCurrentMargin()
+
+
+
+        if math.Abs(margin - hg.tradeMargin)
+
+        if shortChanged < 0 || longChanged > 0 {
+
+        }
+
+        if shortChanged == 0 && longChanged == 0 {
+            continue
         }
     }
+
+    hg.shortOrder = Order{}
+    hg.longOrder = Order{}
+}
+
+func (hg *HedgerWS) priceChanged(old, new float64) int {
+    if new < old - hg.tradePriceOffset {
+        return -1
+    }
+    if new > old + hg.tradePriceOffset {
+        return 1
+    }
+    return 0
 }
 
 /*
 func (hg *HedgerWS) openPosition(short *OKFutureWS, shortSellPrice float64, long *OKFutureWS, longBuyPrice float64) {
-
-
 
     //交易统计
     time.Sleep(2 * time.Second)

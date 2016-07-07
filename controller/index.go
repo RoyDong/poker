@@ -204,7 +204,7 @@ func init() {
 
         ticker := a.LastTicker()
 
-        id := a.OpenPosition(typ, amount, ticker.Last - 10)
+        id := a.Trade(typ, amount, ticker.Last - 10)
         log.Println(id)
 
         return r.TextResponse("done")
