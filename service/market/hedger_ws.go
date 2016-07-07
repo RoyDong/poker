@@ -11,10 +11,10 @@ import (
 
 
 const (
-    OrderStatusCreated = 0
-    OrderStatusPartial = 1
-    OrderStatusComplete = 2
-    OrderStatusCancel = -1
+    OrderStatusCreated   = 0
+    OrderStatusPartial   = 1
+    OrderStatusComplete  = 2
+    OrderStatusCancel    = -1
     OrderStatusCanceling = 4
 
     StateOpen  = iota
@@ -30,7 +30,11 @@ type HedgerWS struct {
     short *OKFutureWS
     long *OKFutureWS
 
-    depthUpdated chan int64
+    shortPrice, longPrice float64
+    shortOrder, longOrder Order
+
+    trade chan Trade
+    lastTrade chan Trade
     lastOrder chan Order
     currentOrders map[int64]Order
 
@@ -53,7 +57,7 @@ type HedgerWS struct {
 
     stoped        bool
     state         int
-    pending       bool
+    pendingTime   int64
 
     started       time.Time
     tradeNum      int
@@ -69,8 +73,9 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
         zuo: zuo,
         you: you,
 
-        depthUpdated: make(chan int64, 1),
-        lastOrder: make(chan int64, 1),
+        trade: make(chan Trade, 5),
+        lastTrade: make(chan Trade, 5),
+        lastOrder: make(chan Order, 10),
         currentOrders: make(map[int64]Order, 10),
 
         minMargin: math.Inf(1),
@@ -82,16 +87,17 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
 
         state: StateClose,
         stoped: false,
-        pending: false,
     }
 
     conf := gmvc.Store.Tree("config.hedger")
-    hg.minTradeMargin, _ = conf.Float("min_trade_margin")
-    hg.tradeAmount, _ = conf.Float("trade_amount")
+    hg.minTradeMargin,   _ = conf.Float("min_trade_margin")
+    hg.tradeAmount,      _ = conf.Float("trade_amount")
     hg.tradePriceOffset, _ = conf.Float("trade_price_offset")
 
-    hg.zuo.AddHandler("depth", hg.syncDepthUpdated)
-    hg.you.AddHandler("depth", hg.syncDepthUpdated)
+    hg.zuo.AddHandler("trade", hg.syncTrade)
+    hg.you.AddHandler("trade", hg.syncTrade)
+    hg.zuo.AddHandler("lastTrade", hg.syncLastTrade)
+    hg.you.AddHandler("lastTrade", hg.syncLastTrade)
     hg.zuo.AddHandler("order", hg.syncOrder)
     hg.you.AddHandler("order", hg.syncOrder)
 
@@ -103,9 +109,9 @@ func (hg *HedgerWS) Start() {
     hg.tradeNum = 0
     hg.started = time.Now()
 
-    go hg.updateMargins(1 * time.Second)
+    go hg.updateMargins()
     go hg.arbitrage()
-    go hg.checkPending()
+    //go hg.checkPending()
 
     gmvc.Logger.Println("started...")
 }
@@ -116,35 +122,37 @@ func (hg *HedgerWS) syncOrder(args ...interface{}) {
     hg.lastOrder <-order
 }
 
-func (hg *HedgerWS) syncDepthUpdated(args ...interface{}) {
-    updated, _ := args[2].(int64)
-    if len(hg.depthUpdated) > 0 {
-        <-hg.depthUpdated
+func (hg *HedgerWS) syncTrade(args ...interface{}) {
+    trade, _ := args[0].(Trade)
+    if len(hg.trade) > cap(hg.trade) {
+        <-hg.trade
     }
-    hg.depthUpdated <-updated
+    hg.trade <-trade
+}
+
+func (hg *HedgerWS) syncLastTrade(args ...interface{}) {
+    trade, _ := args[0].(Trade)
+    if len(hg.lastTrade) > cap(hg.lastTrade) {
+        <-hg.lastTrade
+    }
+    hg.lastTrade <-trade
 }
 
 func (hg *HedgerWS) Stop() {
     hg.stoped = true
 }
 
-func (hg *HedgerWS) updateMargins(interval time.Duration) {
-    var idx int64
-    for _ = range time.Tick(interval) {
-        if hg.stoped {
-            return
-        }
-        zuoTicker := hg.zuo.LastTicker()
-        youTicker := hg.you.LastTicker()
-        if zuoTicker.Time == 0 || youTicker.Time == 0 {
+func (hg *HedgerWS) updateMargins() {
+    for !hg.stoped {
+        trade := <-hg.trade
+        idx := trade.No
+        zuoPrice := hg.zuo.lastTrade.Price
+        youPrice := hg.you.lastTrade.Price
+        if zuoPrice <= 0 || youPrice <= 0 {
             continue
         }
-        maxId := gmvc.Max(zuoTicker.Time, youTicker.Time)
-        if idx >= maxId {
-            continue
-        }
-        idx = maxId
-        margin := youTicker.Last - zuoTicker.Last
+
+        margin := youPrice - zuoPrice
         hg.totalMargin += margin
         hg.margins[idx] = margin
         hg.marginList.PushFront(idx)
@@ -209,7 +217,8 @@ func (hg *HedgerWS) getMaxMargin() (int64, float64) {
 
 func (hg *HedgerWS) arbitrage() {
     for !hg.stoped {
-        if hg.marginList.Len() < 10 {
+        <-hg.lastTrade
+        if hg.marginList.Len() < 50 {
             continue
         }
         if len(hg.zuo.lastAsks) == 0 {
@@ -221,45 +230,43 @@ func (hg *HedgerWS) arbitrage() {
             continue
         }
 
-        /*
-        zuoBuyPrice := GetBuyPrice(hg.tradeAmount, hg.zuo.lastAsks)
-        zuoSellPrice := GetSellPrice(hg.tradeAmount, hg.zuo.lastBids)
-        youBuyPrice := GetBuyPrice(hg.tradeAmount, hg.you.lastAsks)
-        youSellPrice := GetSellPrice(hg.tradeAmount, hg.you.lastBids)
-        */
-
-        zuoPrice := hg.zuo.lastTicker.Last
-        youPrice := hg.you.lastTicker.Last
+        zuoPrice := hg.zuo.lastTrade.Price
+        youPrice := hg.you.lastTrade.Price
         margin := youPrice - zuoPrice
+        log.Println(margin)
         if hg.state == StateClose {
-
-            //尝试判断是否可以右手做空(左手多), 以右手的最近买单价 - 左手的卖单价(margin)和(min max avg)相关参数比较
-            //margin = youSellPrice - zuoBuyPrice
 
             //满足最小差价条件,并且超过最大差价
             if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin {
-                gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
-                //hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
                 hg.state = StateOpenPending
+                hg.pendingTime = time.Now().Unix()
+
                 hg.short = hg.you
-                go hg.you.OpenPosition(TypeOpenShort, hg.tradeAmount, youPrice - hg.tradePriceOffset)
+                hg.shortPrice = youPrice
+
                 hg.long = hg.zuo
-                go hg.zuo.OpenPosition(TypeOpenLong, hg.tradeAmount, zuoPrice + hg.tradePriceOffset)
+                hg.longPrice = zuoPrice
+
+                go hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.tradePriceOffset)
+                go hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.tradePriceOffset)
+
                 continue
             }
 
-            //尝试判断是否可以左手做空(右手多), 以右手的最近卖单价 - 左手的买单价(margin)和(min max avg)相关参数比较
-            //margin = youBuyPrice - zuoSellPrice
-
             //满足最小差价条件,并且低于最小差价
             if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin {
-                gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
-                //hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
                 hg.state = StateOpenPending
+                hg.pendingTime = time.Now().Unix()
+
                 hg.short = hg.zuo
                 hg.long = hg.you
-                go hg.zuo.OpenPosition(TypeOpenShort, hg.tradeAmount, zuoPrice - hg.tradePriceOffset)
-                go hg.you.OpenPosition(TypeOpenLong, hg.tradeAmount, youPrice + hg.tradePriceOffset)
+
+                hg.shortPrice = zuoPrice
+                hg.longPrice = youPrice
+
+                go hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.tradePriceOffset)
+                go hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.tradePriceOffset)
+
                 continue
             }
 
@@ -267,30 +274,32 @@ func (hg *HedgerWS) arbitrage() {
 
             //如果是右手做空
             if (hg.short.Name() == hg.you.Name()) {
-                //margin = youBuyPrice - zuoSellPrice
 
                 //差价低于平均差价即可平仓
                 if margin <= hg.avgMargin {
-                    gmvc.Logger.Println(fmt.Sprintf("youBuy - zuoSell %.2f", margin))
-                    //hg.closePosition(youBuyPrice, zuoSellPrice)
-
                     hg.state = StateClosePending
-                    go hg.short.OpenPosition(TypeCloseShort, hg.tradeAmount, youPrice + hg.tradePriceOffset)
-                    go hg.long.OpenPosition(TypeCloseLong, hg.tradeAmount, zuoPrice - hg.tradePriceOffset)
+                    hg.pendingTime = time.Now().Unix()
+
+                    hg.shortPrice = youPrice
+                    hg.longPrice = zuoPrice
+
+                    go hg.short.Trade(TypeCloseShort, hg.tradeAmount, hg.shortPrice + hg.tradePriceOffset)
+                    go hg.long.Trade(TypeCloseLong, hg.tradeAmount, hg.longPrice - hg.tradePriceOffset)
                 }
 
             //如果是左手做空的
             } else {
-                //margin = youSellPrice - zuoBuyPrice
 
                 //差价高于平均差价即可平仓
                 if margin >= hg.avgMargin {
-                    gmvc.Logger.Println(fmt.Sprintf("youSell - zuoBuy %.2f", margin))
-                    //hg.closePosition(zuoBuyPrice, youSellPrice)
-
                     hg.state = StateClosePending
-                    go hg.short.OpenPosition(TypeCloseShort, hg.tradeAmount, zuoPrice + hg.tradePriceOffset)
-                    go hg.long.OpenPosition(TypeCloseLong, hg.tradeAmount, youPrice - hg.tradePriceOffset)
+                    hg.pendingTime = time.Now().Unix()
+
+                    hg.shortPrice = zuoPrice
+                    hg.longPrice = youPrice
+
+                    go hg.short.Trade(TypeCloseShort, hg.tradeAmount, hg.shortPrice + hg.tradePriceOffset)
+                    go hg.long.Trade(TypeCloseLong, hg.tradeAmount, hg.longPrice - hg.tradePriceOffset)
                 }
             }
         }
@@ -299,14 +308,26 @@ func (hg *HedgerWS) arbitrage() {
 
 func (hg *HedgerWS) pending() {
     for !hg.stoped {
-        <-hg.lastOrder
+        order := <-hg.lastOrder
+        t := time.Now().Unix()
         if hg.state == StateOpenPending {
-            for order := range hg.currentOrders {
-
+            if order.Type == TypeOpenShort {
+                hg.shortOrder = order
+            } else if order.Type == TypeOpenLong {
+                hg.longOrder = order
             }
-        } else if hg.state == StateClosePending {
-            for order := range hg.currentOrders {
 
+            if t - hg.pendingTime < 2 {
+                if hg.shortOrder.DealAmount == hg.longOrder.DealAmount {
+                     
+                }
+            }
+
+        } else if hg.state == StateClosePending {
+            if order.Type == TypeCloseShort {
+                hg.shortOrder = order
+            } else if order.Type == TypeCloseLong {
+                hg.longOrder = order
             }
         }
     }
@@ -318,19 +339,12 @@ func (hg *HedgerWS) checkPending() {
             return
         }
         if hg.state == StateOpenPending {
-            if !hg.pending {
-                //cancel orders
-                hg.state = StateClose
-            }
         } else if hg.state == StateClosePending {
-            if !hg.pending {
-                //cancel orders
-                hg.state = StateOpen
-            }
         }
     }
 }
 
+/*
 func (hg *HedgerWS) openPosition(short *OKFutureWS, shortSellPrice float64, long *OKFutureWS, longBuyPrice float64) {
 
 
@@ -463,5 +477,6 @@ func (hg *HedgerWS) closeLong(price float64) int64 {
     return hg.long.Sell(hg.tradeAmount)
 }
 
+*/
 
 

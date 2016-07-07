@@ -199,7 +199,7 @@ func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         a, _ := gmvc.Store.Get("aa").(*market.OKFutureWS)
 
-        amount, _ := r.Int64("amount")
+        amount, _ := r.Float("amount")
         typ, _ := r.Int("type")
 
         ticker := a.LastTicker()

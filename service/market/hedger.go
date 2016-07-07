@@ -56,7 +56,7 @@ func NewHedger(zuo, you *Market) *Hedger {
         margins: make(map[int64]float64),
         marginList: list.New(),
 
-        state: STATE_CLOSE,
+        state: StateClose,
     }
 
     zuo.SyncBalance()
@@ -189,7 +189,7 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
         youSellPrice := hg.you.GetSellPrice(hg.tradeAmount)
 
         var margin float64
-        if hg.state == STATE_CLOSE {
+        if hg.state == StateClose {
 
             //尝试判断是否可以右手做空(左手多), 以右手的最近买单价 - 左手的卖单价(margin)和(min max avg)相关参数比较
             margin = youSellPrice - zuoBuyPrice
@@ -257,7 +257,7 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
         sid = hg.openShort(short, shortSellPrice)
     }
 
-    hg.state = STATE_OPEN
+    hg.state = StateOpen
 
     //交易统计
     time.Sleep(2 * time.Second)
@@ -327,7 +327,7 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
         }
         sid = hg.closeShort(buyPrice)
     }
-    hg.state = STATE_CLOSE
+    hg.state = StateClose
     hg.tradeNum++
 
     //交易统计

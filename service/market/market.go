@@ -34,7 +34,7 @@ type Ticker struct {
 
 type Order struct {
     Id int64
-    Type string
+    Type int
     Amount float64
     Price float64
     Created int64

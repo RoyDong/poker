@@ -28,6 +28,7 @@ type OKFutureWS struct {
     conn *websocket.Conn
 
     lastTicker Ticker
+    lastTrade Trade
     lastAsks [][]float64
     lastBids [][]float64
 
@@ -61,6 +62,7 @@ func NewOKFutureWS(contractType string) *OKFutureWS {
     ok.leverRate = 10
 
     ok.lastTicker = Ticker{}
+    ok.lastTrade = Trade{}
 
     ok.lastBtc = make(chan float64)
     ok.lastBtcLocker = &sync.Mutex{}
@@ -76,6 +78,7 @@ func NewOKFutureWS(contractType string) *OKFutureWS {
     ok.subChannels = []string{
         "ok_sub_futureusd_btc_ticker_" + ok.contractType,
         fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", ok.contractType, 20),
+        "ok_sub_futureusd_btc_trade_" + ok.contractType,
         "ok_sub_futureusd_trades",
     }
 
@@ -83,6 +86,39 @@ func NewOKFutureWS(contractType string) *OKFutureWS {
     ok.Connect()
 
     return ok
+}
+
+func (ok *OKFutureWS) Connect() {
+    var err error
+    ok.conn, _, err = (&websocket.Dialer{}).Dial(ok.wsHost, nil)
+    if err != nil {
+        gmvc.Logger.Fatalln(err)
+    }
+
+    go ok.readLoop()
+    //ok.addChannel(ok.subChannels[0], nil)
+    //ok.addChannel(ok.subChannels[1], nil)
+    ok.addChannel(ok.subChannels[2], nil)
+    ok.addChannel(ok.subChannels[3], map[string]interface{}{})
+}
+
+func (ok *OKFutureWS) Stop() {
+    ok.removeChannels()
+    ok.conn.Close()
+}
+
+func (ok *OKFutureWS) initCallbacks() {
+    ok.AddHandler(ok.subChannels[0], ok.syncTicker)
+    ok.AddHandler(ok.subChannels[1], ok.syncDepth)
+    ok.AddHandler(ok.subChannels[2], ok.syncTrade)
+    ok.AddHandler(ok.subChannels[3], ok.syncCurrentOrder)
+    ok.AddHandler("ok_futureusd_userinfo", ok.syncBalance)
+    ok.AddHandler("ok_futuresusd_trade", ok.syncOpenResult)
+    ok.AddHandler("ok_futureusd_cancel_order", ok.syncCancelResult)
+}
+
+func (ok *OKFutureWS) Name() string {
+    return ok.contractType
 }
 
 func (ok *OKFutureWS) syncTicker(args ...interface{}) {
@@ -103,13 +139,42 @@ func (ok *OKFutureWS) syncTicker(args ...interface{}) {
     ok.lastTicker = t
 }
 
-func (ok *OKFutureWS) Name() string {
-    return ok.contractType
-}
-
 func (ok *OKFutureWS) LastTicker() Ticker {
     return ok.lastTicker
 }
+
+type Trade struct {
+    No int64
+    Price float64
+    Amount float64
+    Time string
+    Type string
+}
+
+func (ok *OKFutureWS) syncTrade(args ...interface{}) {
+    rs, _ := args[0].(*gmvc.Tree)
+    if rs == nil {
+        return
+    }
+    var trade Trade
+    for i, l := 0, rs.NodeNum(""); i < l; i++ {
+        trade = Trade{}
+        trade.No, _ = rs.Int64(fmt.Sprintf("%d.0", i))
+        trade.Price, _ = rs.Float(fmt.Sprintf("%d.1", i))
+        trade.Amount, _ = rs.Float(fmt.Sprintf("%d.2", i))
+        trade.Time, _ = rs.String(fmt.Sprintf("%d.3", i))
+        trade.Type, _ = rs.String(fmt.Sprintf("%d.4", i))
+        ok.lastTrade = trade
+        ok.Trigger("trade", trade)
+    }
+
+    ok.Trigger("lastTrade", trade)
+}
+
+func (ok *OKFutureWS) LastTrade() Trade {
+    return ok.lastTrade
+}
+
 
 func (ok *OKFutureWS) syncDepth(args ...interface{}) {
     rs, _ := args[0].(*gmvc.Tree)
@@ -168,7 +233,7 @@ func (ok *OKFutureWS) GetBalance() (float64, float64) {
     return <-ok.lastBtc, 0
 }
 
-func (ok *OKFutureWS) OpenPosition(typ int, amount int64, price float64) int64 {
+func (ok *OKFutureWS) Trade(typ int, amount float64, price float64) int64 {
     ok.lastOrderIdLocker.Lock()
     defer ok.lastOrderIdLocker.Unlock()
     params := map[string]interface{}{
@@ -222,6 +287,7 @@ func (ok *OKFutureWS) syncCurrentOrder(args ...interface{}) {
 
     order := Order{}
     order.Id, _ = rs.Int64("orderid")
+    order.Type, _ = rs.Int("type")
     order.Amount, _ = rs.Float("amount")
     order.Price, _ = rs.Float("price")
     order.DealAmount, _ = rs.Float("deal_amount")
@@ -231,24 +297,6 @@ func (ok *OKFutureWS) syncCurrentOrder(args ...interface{}) {
 
     ok.currentOrders[order.Id] = order
     ok.Trigger("order", order)
-}
-
-func (ok *OKFutureWS) Connect() {
-    var err error
-    ok.conn, _, err = (&websocket.Dialer{}).Dial(ok.wsHost, nil)
-    if err != nil {
-        gmvc.Logger.Fatalln(err)
-    }
-
-    go ok.readLoop()
-    ok.addChannel(ok.subChannels[0], nil)
-    ok.addChannel(ok.subChannels[1], nil)
-    ok.addChannel(ok.subChannels[2], map[string]interface{}{})
-}
-
-func (ok *OKFutureWS) Stop() {
-    ok.removeChannels()
-    ok.conn.Close()
 }
 
 func (ok *OKFutureWS) signParams(params map[string]interface{}) map[string]interface{} {
@@ -272,15 +320,6 @@ func (ok *OKFutureWS) addChannel(name string, params map[string]interface{}) {
     if err != nil {
         gmvc.Logger.Fatalln("okfuture add channel failed")
     }
-}
-
-func (ok *OKFutureWS) initCallbacks() {
-    ok.AddHandler(ok.subChannels[0], ok.syncTicker)
-    ok.AddHandler(ok.subChannels[1], ok.syncDepth)
-    ok.AddHandler(ok.subChannels[2], ok.syncCurrentOrder)
-    ok.AddHandler("ok_futureusd_userinfo", ok.syncBalance)
-    ok.AddHandler("ok_futuresusd_trade", ok.syncOpenResult)
-    ok.AddHandler("ok_futureusd_cancel_order", ok.syncCancelResult)
 }
 
 func (ok *OKFutureWS) RemoveChannel(name string) {
