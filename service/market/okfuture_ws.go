@@ -113,7 +113,7 @@ func (ok *OKFutureWS) initCallbacks() {
     ok.AddHandler(ok.subChannels[2], ok.syncTrade)
     ok.AddHandler(ok.subChannels[3], ok.syncCurrentOrder)
     ok.AddHandler("ok_futureusd_userinfo", ok.syncBalance)
-    ok.AddHandler("ok_futuresusd_trade", ok.syncOpenResult)
+    ok.AddHandler("ok_futuresusd_trade", ok.syncTradeResult)
     ok.AddHandler("ok_futureusd_cancel_order", ok.syncCancelResult)
 }
 
@@ -249,7 +249,7 @@ func (ok *OKFutureWS) Trade(typ int, amount float64, price float64) int64 {
     return <-ok.lastOrderId
 }
 
-func (ok *OKFutureWS) syncOpenResult(args ...interface{}) {
+func (ok *OKFutureWS) syncTradeResult(args ...interface{}) {
     var id int64
     rs, _ := args[0].(*gmvc.Tree)
     if rs != nil {
