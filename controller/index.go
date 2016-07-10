@@ -223,6 +223,22 @@ func init() {
 
     }, "/cancel")
 
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        ok, _ := gmvc.Store.Get("aa").(*market.OKFutureWS)
+
+        t, _ := r.Int("t")
+        m, _ := r.Float("m")
+
+        log.Println("===========")
+        dm, ag := ok.FTrade(t, m, 1)
+        log.Println(dm, ag)
+
+
+
+        return r.TextResponse("done")
+
+    }, "/ftrade")
+
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
         val, _ := wsm.String("a")

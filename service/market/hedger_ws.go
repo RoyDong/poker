@@ -30,9 +30,12 @@ type HedgerWS struct {
     short *OKFutureWS
     long *OKFutureWS
 
+    shortAmount, longAmount float64
     shortPrice, longPrice float64
     shortOrderId, longOrderId int64
     tradeMargin float64
+
+    direction int
 
     trade chan Trade
     lastTrade chan Trade
@@ -40,8 +43,10 @@ type HedgerWS struct {
     currentOrders map[int64]Order
 
     tradeAmount float64
-    tradePriceOffset float64
+    realTradeAmount float64
+    priceLead float64
     minTradeMargin float64
+    marginOffset float64
 
     minMargin     float64
     minMarginTime int64
@@ -92,9 +97,10 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
 
 
     conf := gmvc.Store.Tree("config.hedger")
-    hg.minTradeMargin,   _ = conf.Float("min_trade_margin")
     hg.tradeAmount,      _ = conf.Float("trade_amount")
-    hg.tradePriceOffset, _ = conf.Float("trade_price_offset")
+    hg.priceLead,        _ = conf.Float("price_lead")
+    hg.minTradeMargin,   _ = conf.Float("min_trade_margin")
+    hg.marginOffset,     _ = conf.Float("margin_offset")
 
     hg.zuo.AddHandler("trade", hg.syncTrade)
     hg.you.AddHandler("trade", hg.syncTrade)
@@ -227,31 +233,114 @@ func (hg *HedgerWS) arbitrage() {
         youPrice := hg.you.lastTrade.Price
         margin := youPrice - zuoPrice
         log.Println(margin)
-        if hg.state == StateClose {
-            //满足最小差价条件,并且超过最大差价
+
+        switch hg.state {
+        case StateClose:
+            //满足最小差价条件,并且超过最大差价,右手空，左手多 direction = 1
             if margin - hg.avgMargin >= hg.minTradeMargin && margin >= hg.maxMargin {
+                hg.direction = 1
                 hg.openPosition(hg.you, hg.zuo, youPrice, zuoPrice, margin)
                 continue
             }
-            //满足最小差价条件,并且低于最小差价
+            //满足最小差价条件,并且低于最小差价,左手空，右手多 direction = -1
             if hg.avgMargin - margin >= hg.minTradeMargin && margin <= hg.minMargin {
+                hg.direction = -1
                 hg.openPosition(hg.zuo, hg.you, zuoPrice, youPrice, margin)
                 continue
             }
-        } else if hg.state == StateOpen {
+
+        case StateOpenPending:
+            //如果成交完成，进入下一步
+            //如果部分成交
+                //价格不变，继续等待
+                //价格变化
+                    //只要价格变化了，取消两边订单，如果有一边成交较多，把多余成交平仓
+
+            if (hg.direction == 1) {
+                if margin <= hg.tradeMargin * 2 / 3 {
+                    hg.state = StateOpen
+                    continue
+                }
+            } else {
+                if margin >= hg.avgMargin * 2 / 3 {
+                    hg.state = StateOpen
+                    continue
+                }
+            }
+
+            if hg.shortOrderId > 0 && hg.longOrderId > 0 {
+                shortOrder := hg.short.currentOrders[hg.shortOrderId]
+                longOrder := hg.long.currentOrders[hg.longOrderId]
+                //等待订单信息
+                if shortOrder.Id > 0 || longOrder.Id > 0 {
+                    continue
+                }
+
+                /*
+                if hg.short.shortAmount == hg.realTradeAmount && hg.long.longAmount == hg.realTradeAmount {
+                    hg.shortOrderId = 0
+                    hg.longOrderId = 0
+                    hg.state = StateOpen
+                } else  {
+                    shortPrice := hg.short.lastTrade.Price
+                    longPrice := hg.long.lastTrade.Price
+
+                    //价格没变化
+                    if hg.priceChanged(shortPrice, hg.shortPrice) == 0 &&
+                            hg.priceChanged(longPrice, hg.longPrice) == 0 {
+                        continue
+                    } else {
+                        id := make(chan int64, 1)
+                        //同时取消订单
+                        go func() {
+                            id <- hg.short.CancelOrder(hg.shortOrderId)
+                        }()
+                        go func() {
+                            id <- hg.short.CancelOrder(hg.shortOrderId)
+                        }()
+                        <-id; <-id
+                        if hg.short.shortAmount > hg.long.longAmount {
+                            amount := hg.short.shortAmount - hg.long.longAmount
+                            hg.realTradeAmount -= amount
+                            hg.short.Trade(TypeCloseShort, amount, shortPrice)
+                        } else {
+                            amount := hg.long.longAmount - hg.short.shortAmount
+                            hg.realTradeAmount -= amount
+                            hg.long.Trade(TypeCloseLong, amount, shortPrice)
+                        }
+                    }
+                }
+                */
+            } else {
+                //操作失败
+                if hg.shortOrderId > 0 {
+                    hg.short.CancelOrder(hg.shortOrderId)
+                }
+                if hg.longOrderId > 0 {
+                    hg.long.CancelOrder(hg.longOrderId)
+                }
+                hg.shortOrderId = 0
+                hg.longOrderId = 0
+                hg.state = StateClose
+            }
+
+        case StateOpen:
             //如果是右手做空
-            if (hg.short.Name() == hg.you.Name()) {
+            if (hg.direction == 1) {
                 //差价低于平均差价即可平仓
                 if margin <= hg.avgMargin {
                     hg.closePosition(youPrice, zuoPrice, margin)
                 }
-            //如果是左手做空的
+                //如果是左手做空的
             } else {
                 //差价高于平均差价即可平仓
                 if margin >= hg.avgMargin {
                     hg.closePosition(zuoPrice, youPrice, margin)
                 }
             }
+
+        case StateClosePending:
+            hg.state = StateClose
         }
     }
 }
@@ -273,13 +362,14 @@ func (hg *HedgerWS) openPosition(short, long *OKFutureWS, shortPrice, longPrice,
     hg.state = StateOpenPending
     hg.pendingTime = time.Now().Unix()
     hg.clearCurrentOrders()
+    hg.realTradeAmount = hg.tradeAmount
 
-    go hg.openPending()
+
     go func() {
-        hg.shortOrderId = hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.tradePriceOffset)
+        hg.shortOrderId = hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.priceLead)
     }()
     go func() {
-        hg.longOrderId = hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.tradePriceOffset)
+        hg.longOrderId = hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.priceLead)
     }()
 }
 
@@ -291,81 +381,18 @@ func (hg *HedgerWS) closePosition(shortPrice, longPrice, margin float64) {
     hg.tradeMargin = margin
 
     go func() {
-        hg.shortOrderId = hg.short.Trade(TypeCloseShort, hg.tradeAmount, hg.shortPrice + hg.tradePriceOffset)
+        hg.shortOrderId = hg.short.Trade(TypeCloseShort, hg.realTradeAmount, hg.shortPrice + hg.priceLead)
     }()
     go func() {
-        hg.longOrderId = hg.long.Trade(TypeCloseLong, hg.tradeAmount, hg.longPrice - hg.tradePriceOffset)
+        hg.longOrderId = hg.long.Trade(TypeCloseLong, hg.realTradeAmount, hg.longPrice - hg.priceLead)
     }()
-}
-
-func (hg *HedgerWS) openPending() {
-    for now := range time.Tick(200 * time.Millisecond) {
-        if hg.state != StateOpenPending || hg.stoped {
-            break
-        }
-
-        sorder, shas := hg.short.currentOrders[hg.shortOrderId]
-        lorder, lhas := hg.long.currentOrders[hg.longOrderId]
-
-        if shas && lhas  {
-            //成交完成
-            if sorder.DealAmount == hg.tradeAmount && lorder.DealAmount == hg.tradeAmount {
-                break
-            }
-
-            margin := hg.getCurrentMargin()
-            shortChanged := hg.priceChanged(hg.shortPrice, hg.short.lastTrade.Price)
-            longChanged := hg.priceChanged(hg.longPrice, hg.long.lastTrade.Price)
-            marginChanged := hg.priceChanged(margin, hg.tradeMargin)
-
-            //右手做空 左手做多
-            if hg.short.Name() == hg.you.Name() {
-                //差价缩小
-                if marginChanged < 0 {
-
-
-
-                //差价变大
-                } else if marginChanged > 0 {
-
-                } else {
-
-                }
-            } else {
-                //差价缩小
-                if marginChanged > 0 {
-
-                //差价变大
-                } else if marginChanged < 0 {
-
-                } else {
-
-                }
-            }
-
-            if shortChanged < 0 || longChanged > 0 {
-
-            }
-
-            if shortChanged == 0 && longChanged == 0 {
-                continue
-            }
-        } else {
-            if now.Unix() - hg.pendingTime > 10 {
-                gmvc.Logger.Fatalln("trade not respond check the network")
-            }
-            continue
-        }
-    }
-
-    hg.state = StateOpen
 }
 
 func (hg *HedgerWS) priceChanged(new, old float64) int {
-    if new < old - hg.tradePriceOffset {
+    if new < old - hg.priceLead{
         return -1
     }
-    if new > old + hg.tradePriceOffset {
+    if new > old + hg.priceLead{
         return 1
     }
     return 0

@@ -7,6 +7,8 @@ import (
     "github.com/gorilla/websocket"
     "strings"
     "sync"
+    "math"
+    "log"
 )
 
 const (
@@ -24,6 +26,7 @@ type OKFutureWS struct {
     apiSecret string
     contractType string
     leverRate int
+    priceLead float64
 
     conn *websocket.Conn
 
@@ -35,11 +38,9 @@ type OKFutureWS struct {
     lastBtc chan float64
     lastBtcLocker *sync.Mutex
 
+    tradeLocker *sync.Mutex
     lastOrderId chan int64
-    lastOrderIdLocker *sync.Mutex
-
     cancelOrderId chan int64
-    cancelOrderIdLocker *sync.Mutex
 
     tickerUpdated int64
     depthUpdated int64
@@ -49,6 +50,9 @@ type OKFutureWS struct {
     currentOrders map[int64]Order
 
     subChannels []string
+
+    dealAmount []float64
+    totalPrice []float64
 }
 
 func NewOKFutureWS(contractType string) *OKFutureWS {
@@ -60,6 +64,7 @@ func NewOKFutureWS(contractType string) *OKFutureWS {
     ok.apiSecret, _ = conf.String("api_secret")
     ok.contractType = contractType
     ok.leverRate = 10
+    ok.priceLead = 0.02
 
     ok.lastTicker = Ticker{}
     ok.lastTrade = Trade{}
@@ -67,18 +72,20 @@ func NewOKFutureWS(contractType string) *OKFutureWS {
     ok.lastBtc = make(chan float64)
     ok.lastBtcLocker = &sync.Mutex{}
 
+    ok.tradeLocker = &sync.Mutex{}
     ok.lastOrderId = make(chan int64)
-    ok.lastOrderIdLocker = &sync.Mutex{}
-
     ok.cancelOrderId = make(chan int64)
-    ok.cancelOrderIdLocker = &sync.Mutex{}
 
     ok.currentOrders = make(map[int64]Order, 4)
 
     ok.subChannels = []string{
+        //ticker订阅
         "ok_sub_futureusd_btc_ticker_" + ok.contractType,
+        //最新深度订阅
         fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", ok.contractType, 20),
+        //最新交易单订阅
         "ok_sub_futureusd_btc_trade_" + ok.contractType,
+        //订单交易结果订阅
         "ok_sub_futureusd_trades",
     }
 
@@ -108,13 +115,13 @@ func (ok *OKFutureWS) Stop() {
 }
 
 func (ok *OKFutureWS) initCallbacks() {
-    ok.AddHandler(ok.subChannels[0], ok.syncTicker)
-    ok.AddHandler(ok.subChannels[1], ok.syncDepth)
-    ok.AddHandler(ok.subChannels[2], ok.syncTrade)
-    ok.AddHandler(ok.subChannels[3], ok.syncCurrentOrder)
-    ok.AddHandler("ok_futureusd_userinfo", ok.syncBalance)
-    ok.AddHandler("ok_futuresusd_trade", ok.syncTradeResult)
-    ok.AddHandler("ok_futureusd_cancel_order", ok.syncCancelResult)
+    ok.AddSyncHandler(ok.subChannels[0], ok.syncTicker)
+    ok.AddSyncHandler(ok.subChannels[1], ok.syncDepth)
+    ok.AddSyncHandler(ok.subChannels[2], ok.syncTrade)
+    ok.AddSyncHandler(ok.subChannels[3], ok.syncCurrentOrder)
+    ok.AddSyncHandler("ok_futureusd_userinfo", ok.syncBalance)
+    ok.AddSyncHandler("ok_futuresusd_trade", ok.syncTradeResult)
+    ok.AddSyncHandler("ok_futureusd_cancel_order", ok.syncCancelResult)
 }
 
 func (ok *OKFutureWS) Name() string {
@@ -175,7 +182,6 @@ func (ok *OKFutureWS) LastTrade() Trade {
     return ok.lastTrade
 }
 
-
 func (ok *OKFutureWS) syncDepth(args ...interface{}) {
     rs, _ := args[0].(*gmvc.Tree)
     if rs == nil {
@@ -233,9 +239,13 @@ func (ok *OKFutureWS) GetBalance() (float64, float64) {
     return <-ok.lastBtc, 0
 }
 
-func (ok *OKFutureWS) Trade(typ int, amount float64, price float64) int64 {
-    ok.lastOrderIdLocker.Lock()
-    defer ok.lastOrderIdLocker.Unlock()
+func (ok *OKFutureWS) Trade(typ int, amount, price float64) int64 {
+    ok.tradeLocker.Lock()
+    defer ok.tradeLocker.Unlock()
+    return ok.tradeNolock(typ, amount, price)
+}
+
+func (ok *OKFutureWS) tradeNolock(typ int, amount, price float64) int64 {
     params := map[string]interface{}{
         "symbol": "btc_usd",
         "contract_type": ok.contractType,
@@ -249,6 +259,124 @@ func (ok *OKFutureWS) Trade(typ int, amount float64, price float64) int64 {
     return <-ok.lastOrderId
 }
 
+/*
+FTrade 追单交易，类似市价交易，不停的追随当前价格下单，直到交易完成，或者交易价格同向(下单方向)偏移超过offset
+offset = 0 表示没有价格上下限制
+返回成交数量和成交均价
+ */
+func (ok *OKFutureWS) FTrade(typ int, amount, offset float64) (float64, float64) {
+    ok.tradeLocker.Lock()
+    defer ok.tradeLocker.Unlock()
+
+    //最大尝试次数
+    maxNum := 50
+    sigChan := make(chan int, maxNum)
+
+    //订单变动信号
+    hid1 := ok.AddHandler("order", func(args ...interface{}) {
+        sigChan <-1
+    })
+    defer ok.RemoveHandler("order", hid1)
+
+    //最新交易价格变动信号
+    hid2 := ok.AddHandler("trade", func(args ...interface{}) {
+        sigChan <-2
+    })
+    defer ok.RemoveHandler("trade", hid2)
+
+    //主动触发
+    go func() {
+        num := 0
+        for _ = range time.Tick(1 * time.Second) {
+            num++
+            if num > maxNum {
+                return
+            }
+            //只有通道中没有其他信号的时候，才会发出信号3
+            if len(sigChan) == 0 {
+                sigChan <-3
+            }
+        }
+    }()
+
+    //初始化订单内容
+    ok.ClearOrders()
+    price := ok.lastTrade.Price
+    id := ok.tradeNolock(typ, amount - ok.dealAmount[typ], price + ok.GetPriceLead(typ))
+    leadFactor := 1
+    if id <= 0 {
+        gmvc.Logger.Println("make order failed")
+        return ok.dealAmount[typ], ok.GetAvgPrice(typ)
+    }
+    num := 0
+    for {
+        sig := <-sigChan
+        log.Println("sig =", sig, ok.currentOrders)
+        if sig == 3 {
+            num++
+            if num > maxNum {
+                if id > 0 {
+                    id = ok.cancelOrderNolock(id)
+                }
+                break
+            }
+            //如果是信号3并且价格没有变动,那么价格提前量系数增加
+            if math.Abs(ok.lastTrade.Price - price) <= ok.priceLead {
+                leadFactor++
+            }
+        }
+        if ok.dealAmount[typ] >= amount {
+            break
+        }
+
+        //实际交易价格 = 当前价格加上价格提前量 * 系数
+        tradePrice := ok.lastTrade.Price + ok.GetPriceLead(typ) * float64(leadFactor)
+
+        //判断交易价格是否超出了offset限制
+        if offset > 0 {
+            if typ == TypeOpenLong || typ == TypeCloseShort {
+                if tradePrice - price > offset {
+                    break
+                }
+            } else {
+                if price - tradePrice > offset {
+                    break
+                }
+            }
+        }
+
+        //交易价格变动了，取消之前的订单，按照新的价格继续下单
+        if math.Abs(tradePrice - price) > ok.priceLead {
+            if id > 0 {
+                id = ok.cancelOrderNolock(id)
+            }
+            id = ok.tradeNolock(typ, amount - ok.dealAmount[typ], tradePrice)
+            if id <= 0 {
+                gmvc.Logger.Println("make order failed")
+                break
+            }
+        }
+    }
+    return ok.dealAmount[typ], ok.GetAvgPrice(typ)
+}
+
+func (ok *OKFutureWS) GetPriceLead(typ int) float64 {
+    switch typ {
+    case TypeOpenLong:
+        return ok.priceLead
+    case TypeCloseLong:
+        return -ok.priceLead
+    case TypeOpenShort:
+        return -ok.priceLead
+    case TypeCloseShort:
+        return ok.priceLead
+
+    default:
+        gmvc.Logger.Fatalln("unsuport trade type")
+        return 0
+    }
+}
+
 func (ok *OKFutureWS) syncTradeResult(args ...interface{}) {
     var id int64
     rs, _ := args[0].(*gmvc.Tree)
@@ -259,8 +387,12 @@ func (ok *OKFutureWS) syncTradeResult(args ...interface{}) {
 }
 
 func (ok *OKFutureWS) CancelOrder(id int64) int64 {
-    ok.cancelOrderIdLocker.Lock()
-    defer ok.cancelOrderIdLocker.Unlock()
+    ok.tradeLocker.Lock()
+    defer ok.tradeLocker.Unlock()
+    return ok.cancelOrderNolock(id)
+}
+
+func (ok *OKFutureWS) cancelOrderNolock(id int64) int64 {
     params := map[string]interface{}{
         "symbol": "btc_usd",
         "contract_type": ok.contractType,
@@ -295,8 +427,34 @@ func (ok *OKFutureWS) syncCurrentOrder(args ...interface{}) {
     order.Status, _ = rs.Int("status")
     order.Fee, _ = rs.Float("fee")
 
+    if order.Status == OrderStatusCreated ||
+            order.Status == OrderStatusCancel ||
+            order.Status == OrderStatusCanceling {
+
+        return
+    }
     ok.currentOrders[order.Id] = order
+    ok.dealAmount = make([]float64, 5)
+    ok.totalPrice = make([]float64, 5)
+    for _, order := range ok.currentOrders {
+        ok.dealAmount[order.Type] += order.DealAmount
+        ok.totalPrice[order.Type] += order.AvgPrice * order.DealAmount
+    }
     ok.Trigger("order", order)
+}
+
+func (ok *OKFutureWS) ClearOrders() {
+    ok.currentOrders = make(map[int64]Order, 10)
+    ok.dealAmount = make([]float64, 5)
+    ok.totalPrice = make([]float64, 5)
+}
+
+func (ok *OKFutureWS) GetAvgPrice(typ int) float64 {
+    amount := ok.dealAmount[typ]
+    if amount > 0 {
+        return ok.totalPrice[typ] / amount
+    }
+    return 0
 }
 
 func (ok *OKFutureWS) signParams(params map[string]interface{}) map[string]interface{} {
