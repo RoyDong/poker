@@ -172,10 +172,10 @@ func (ok *OKFutureWS) syncTrade(args ...interface{}) {
         trade.Time, _ = rs.String(fmt.Sprintf("%d.3", i))
         trade.Type, _ = rs.String(fmt.Sprintf("%d.4", i))
         ok.lastTrade = trade
-        ok.Trigger("trade", trade)
+        ok.Trigger("new_trade", trade)
     }
 
-    ok.Trigger("lastTrade", trade)
+    ok.Trigger("last_trade", trade)
 }
 
 func (ok *OKFutureWS) LastTrade() Trade {
@@ -269,30 +269,28 @@ func (ok *OKFutureWS) FTrade(typ int, amount, offset float64) (float64, float64)
     defer ok.tradeLocker.Unlock()
 
     //最大尝试次数
-    maxNum := 50
-    sigChan := make(chan int, maxNum)
+    maxRound := 50
+    sigChan := make(chan int, maxRound)
 
     //订单变动信号
-    hid1 := ok.AddHandler("order", func(args ...interface{}) {
+    hid1 := ok.AddHandler("order_change", func(args ...interface{}) {
         sigChan <-1
     })
-    defer ok.RemoveHandler("order", hid1)
-
+    defer ok.RemoveHandler("order_change", hid1)
     //最新交易价格变动信号
-    hid2 := ok.AddHandler("trade", func(args ...interface{}) {
+    hid2 := ok.AddHandler("last_trade", func(args ...interface{}) {
         sigChan <-2
     })
-    defer ok.RemoveHandler("trade", hid2)
-
+    defer ok.RemoveHandler("last_trade", hid2)
     //主动触发
     go func() {
         num := 0
-        for _ = range time.Tick(1 * time.Second) {
+        for _ = range time.Tick(2 * time.Second) {
             num++
-            if num > maxNum {
+            if num > maxRound {
                 return
             }
-            //只有通道中没有其他信号的时候，才会发出信号3
+            //只有通道中没有信号的时候，才会发出信号3
             if len(sigChan) == 0 {
                 sigChan <-3
             }
@@ -301,61 +299,66 @@ func (ok *OKFutureWS) FTrade(typ int, amount, offset float64) (float64, float64)
 
     //初始化订单内容
     ok.ClearOrders()
-    price := ok.lastTrade.Price
-    id := ok.tradeNolock(typ, amount - ok.dealAmount[typ], price + ok.GetPriceLead(typ))
-    leadFactor := 1
-    if id <= 0 {
-        gmvc.Logger.Println("make order failed")
-        return ok.dealAmount[typ], ok.GetAvgPrice(typ)
-    }
-    num := 0
+    var id int64
+    var lastPrice float64
+    startPrice := ok.lastTrade.Price
+    leadFactor, round, failRound := 1, 0, 0
     for {
-        sig := <-sigChan
-        log.Println("sig =", sig, ok.currentOrders)
-        if sig == 3 {
-            num++
-            if num > maxNum {
+        //实际交易价格 = 当前价格加上价格提前量 * 系数
+        tradePrice := ok.lastTrade.Price + ok.GetPriceLead(typ) * float64(leadFactor)
+        cancelOrder := false
+        //判断交易价格是否超出了offset限制
+        if typ == TypeOpenLong || typ == TypeCloseShort {
+            if offset > 0 && tradePrice - startPrice > offset {
+                break
+            }
+            if lastPrice > 0 {
+                cancelOrder = tradePrice > lastPrice
+            }
+        } else {
+            if offset > 0 && startPrice - tradePrice > offset {
+                break
+            }
+            if lastPrice > 0 {
+                cancelOrder = tradePrice < lastPrice
+            }
+        }
+        if id > 0 {
+            //交易价格变动了，取消之前的订单
+            if cancelOrder {
+                id = ok.cancelOrderNolock(id)
                 if id > 0 {
-                    id = ok.cancelOrderNolock(id)
+                    id = 0
                 }
+            }
+        } else {
+            id = ok.tradeNolock(typ, amount - ok.dealAmount[typ], tradePrice)
+            if id <= 0 {
+                failRound++
+                if failRound > 5 {
+                    break
+                }
+            }
+            lastPrice = tradePrice
+        }
+
+        sig := <-sigChan
+        if sig == 3 {
+            round++
+            if round > maxRound {
                 break
             }
             //如果是信号3并且价格没有变动,那么价格提前量系数增加
-            if math.Abs(ok.lastTrade.Price - price) <= ok.priceLead {
+            if math.Abs(ok.lastTrade.Price - lastPrice) <= ok.priceLead {
                 leadFactor++
             }
         }
         if ok.dealAmount[typ] >= amount {
             break
         }
-
-        //实际交易价格 = 当前价格加上价格提前量 * 系数
-        tradePrice := ok.lastTrade.Price + ok.GetPriceLead(typ) * float64(leadFactor)
-
-        //判断交易价格是否超出了offset限制
-        if offset > 0 {
-            if typ == TypeOpenLong || typ == TypeCloseShort {
-                if tradePrice - price > offset {
-                    break
-                }
-            } else {
-                if price - tradePrice > offset {
-                    break
-                }
-            }
-        }
-
-        //交易价格变动了，取消之前的订单，按照新的价格继续下单
-        if math.Abs(tradePrice - price) > ok.priceLead {
-            if id > 0 {
-                id = ok.cancelOrderNolock(id)
-            }
-            id = ok.tradeNolock(typ, amount - ok.dealAmount[typ], tradePrice)
-            if id <= 0 {
-                gmvc.Logger.Println("make order failed")
-                break
-            }
-        }
+    }
+    if id > 0 {
+        id = ok.cancelOrderNolock(id)
     }
     return ok.dealAmount[typ], ok.GetAvgPrice(typ)
 }
@@ -440,7 +443,7 @@ func (ok *OKFutureWS) syncCurrentOrder(args ...interface{}) {
         ok.dealAmount[order.Type] += order.DealAmount
         ok.totalPrice[order.Type] += order.AvgPrice * order.DealAmount
     }
-    ok.Trigger("order", order)
+    ok.Trigger("order_change", order)
 }
 
 func (ok *OKFutureWS) ClearOrders() {

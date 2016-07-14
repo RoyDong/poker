@@ -7,6 +7,7 @@ import (
     "fmt"
     "github.com/roydong/gmvc"
     "log"
+    "sync"
 )
 
 
@@ -17,10 +18,10 @@ const (
     OrderStatusCancel    = -1
     OrderStatusCanceling = 4
 
-    StateOpen  = iota
-    StateOpenPending
-    StateClose
-    StateClosePending
+    StateOpen         = 1
+    StateOpenPending  = 2
+    StateClose        = 3
+    StateClosePending = 4
 )
 
 type HedgerWS struct {
@@ -44,9 +45,7 @@ type HedgerWS struct {
 
     tradeAmount float64
     realTradeAmount float64
-    priceLead float64
     minTradeMargin float64
-    marginOffset float64
 
     minMargin     float64
     minMarginTime int64
@@ -71,6 +70,8 @@ type HedgerWS struct {
     tcny        float64
     cny         float64
     btc         float64
+
+    wg *sync.WaitGroup
 }
 
 
@@ -93,23 +94,23 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
 
         state: StateClose,
         stoped: false,
+        wg: &sync.WaitGroup{},
     }
 
 
     conf := gmvc.Store.Tree("config.hedger")
     hg.tradeAmount,      _ = conf.Float("trade_amount")
-    hg.priceLead,        _ = conf.Float("price_lead")
     hg.minTradeMargin,   _ = conf.Float("min_trade_margin")
-    hg.marginOffset,     _ = conf.Float("margin_offset")
 
-    hg.zuo.AddHandler("trade", hg.syncTrade)
-    hg.you.AddHandler("trade", hg.syncTrade)
-    hg.zuo.AddHandler("lastTrade", hg.syncLastTrade)
-    hg.you.AddHandler("lastTrade", hg.syncLastTrade)
-    hg.zuo.AddHandler("order", hg.syncOrder)
-    hg.you.AddHandler("order", hg.syncOrder)
+    hg.zuo.AddHandler("new_trade", hg.syncTrade)
+    hg.you.AddHandler("new_trade", hg.syncTrade)
+    hg.zuo.AddHandler("last_trade", hg.syncLastTrade)
+    hg.you.AddHandler("last_trade", hg.syncLastTrade)
+    hg.zuo.AddHandler("order_change", hg.syncOrder)
+    hg.you.AddHandler("order_change", hg.syncOrder)
 
-    hg.clearCurrentOrders()
+    hg.btc, _ = hg.zuo.GetBalance()
+    hg.btc, _ = hg.you.GetBalance()
 
     return hg
 }
@@ -190,7 +191,7 @@ func (hg *HedgerWS) updateMargins() {
         }
 
         log.Println(fmt.Sprintf("%.3f <= %.3f(%.3f) => %.3f",
-            hg.minMargin - hg.avgMargin, hg.avgMargin, margin, hg.maxMargin - hg.avgMargin))
+            hg.minMargin - hg.avgMargin, hg.avgMargin, margin - hg.avgMargin, hg.maxMargin - hg.avgMargin))
     }
 }
 
@@ -232,7 +233,7 @@ func (hg *HedgerWS) arbitrage() {
         zuoPrice := hg.zuo.lastTrade.Price
         youPrice := hg.you.lastTrade.Price
         margin := youPrice - zuoPrice
-        log.Println(margin)
+        log.Println(margin, hg.state)
 
         switch hg.state {
         case StateClose:
@@ -249,81 +250,6 @@ func (hg *HedgerWS) arbitrage() {
                 continue
             }
 
-        case StateOpenPending:
-            //如果成交完成，进入下一步
-            //如果部分成交
-                //价格不变，继续等待
-                //价格变化
-                    //只要价格变化了，取消两边订单，如果有一边成交较多，把多余成交平仓
-
-            if (hg.direction == 1) {
-                if margin <= hg.tradeMargin * 2 / 3 {
-                    hg.state = StateOpen
-                    continue
-                }
-            } else {
-                if margin >= hg.avgMargin * 2 / 3 {
-                    hg.state = StateOpen
-                    continue
-                }
-            }
-
-            if hg.shortOrderId > 0 && hg.longOrderId > 0 {
-                shortOrder := hg.short.currentOrders[hg.shortOrderId]
-                longOrder := hg.long.currentOrders[hg.longOrderId]
-                //等待订单信息
-                if shortOrder.Id > 0 || longOrder.Id > 0 {
-                    continue
-                }
-
-                /*
-                if hg.short.shortAmount == hg.realTradeAmount && hg.long.longAmount == hg.realTradeAmount {
-                    hg.shortOrderId = 0
-                    hg.longOrderId = 0
-                    hg.state = StateOpen
-                } else  {
-                    shortPrice := hg.short.lastTrade.Price
-                    longPrice := hg.long.lastTrade.Price
-
-                    //价格没变化
-                    if hg.priceChanged(shortPrice, hg.shortPrice) == 0 &&
-                            hg.priceChanged(longPrice, hg.longPrice) == 0 {
-                        continue
-                    } else {
-                        id := make(chan int64, 1)
-                        //同时取消订单
-                        go func() {
-                            id <- hg.short.CancelOrder(hg.shortOrderId)
-                        }()
-                        go func() {
-                            id <- hg.short.CancelOrder(hg.shortOrderId)
-                        }()
-                        <-id; <-id
-                        if hg.short.shortAmount > hg.long.longAmount {
-                            amount := hg.short.shortAmount - hg.long.longAmount
-                            hg.realTradeAmount -= amount
-                            hg.short.Trade(TypeCloseShort, amount, shortPrice)
-                        } else {
-                            amount := hg.long.longAmount - hg.short.shortAmount
-                            hg.realTradeAmount -= amount
-                            hg.long.Trade(TypeCloseLong, amount, shortPrice)
-                        }
-                    }
-                }
-                */
-            } else {
-                //操作失败
-                if hg.shortOrderId > 0 {
-                    hg.short.CancelOrder(hg.shortOrderId)
-                }
-                if hg.longOrderId > 0 {
-                    hg.long.CancelOrder(hg.longOrderId)
-                }
-                hg.shortOrderId = 0
-                hg.longOrderId = 0
-                hg.state = StateClose
-            }
-
         case StateOpen:
             //如果是右手做空
             if (hg.direction == 1) {
@@ -338,9 +264,6 @@ func (hg *HedgerWS) arbitrage() {
                     hg.closePosition(zuoPrice, youPrice, margin)
                 }
             }
-
-        case StateClosePending:
-            hg.state = StateClose
         }
     }
 }
@@ -356,179 +279,49 @@ func (hg *HedgerWS) clearCurrentOrders() {
 func (hg *HedgerWS) openPosition(short, long *OKFutureWS, shortPrice, longPrice, margin float64) {
     hg.short = short
     hg.long = long
-    hg.shortPrice = shortPrice
-    hg.longPrice = longPrice
     hg.tradeMargin = margin
-    hg.state = StateOpenPending
+    hg.state = StateOpen
     hg.pendingTime = time.Now().Unix()
-    hg.clearCurrentOrders()
-    hg.realTradeAmount = hg.tradeAmount
-
-
+    hg.wg.Add(2)
     go func() {
-        hg.shortOrderId = hg.short.Trade(TypeOpenShort, hg.tradeAmount, hg.shortPrice - hg.priceLead)
+        hg.shortAmount, hg.shortPrice = hg.short.FTrade(TypeOpenShort, hg.tradeAmount, hg.minTradeMargin / 2)
+        hg.wg.Done()
     }()
     go func() {
-        hg.longOrderId = hg.long.Trade(TypeOpenLong, hg.tradeAmount, hg.longPrice + hg.priceLead)
+        hg.longAmount, hg.longPrice = hg.long.FTrade(TypeOpenLong, hg.tradeAmount, hg.minTradeMargin / 2)
+        hg.wg.Done()
     }()
+    hg.wg.Wait()
+
+    gmvc.Logger.Println("open position:")
+    gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.2f(%.2f) btc, + %.2f(%.2f) usd",
+        short.Name(), hg.tradeAmount, hg.shortAmount, shortPrice, hg.shortPrice))
+    gmvc.Logger.Println(fmt.Sprintf("   long: %v + %.2f(%.2f) btc, - %.2f(%.2f) usd",
+        long.Name(), hg.tradeAmount, hg.longAmount, longPrice, hg.longPrice))
+    gmvc.Logger.Println("")
 }
 
 func (hg *HedgerWS) closePosition(shortPrice, longPrice, margin float64) {
-    hg.shortPrice = shortPrice
-    hg.longPrice = longPrice
-    hg.state = StateClosePending
+    hg.state = StateClose
     hg.pendingTime = time.Now().Unix()
-    hg.tradeMargin = margin
-
+    hg.wg.Add(2)
     go func() {
-        hg.shortOrderId = hg.short.Trade(TypeCloseShort, hg.realTradeAmount, hg.shortPrice + hg.priceLead)
+        hg.shortAmount, hg.shortPrice = hg.short.FTrade(TypeCloseShort, hg.shortAmount, hg.minTradeMargin / 2)
+        hg.wg.Done()
     }()
     go func() {
-        hg.longOrderId = hg.long.Trade(TypeCloseLong, hg.realTradeAmount, hg.longPrice - hg.priceLead)
+        hg.longAmount, hg.longPrice = hg.long.FTrade(TypeCloseLong, hg.longAmount, hg.minTradeMargin / 2)
+        hg.wg.Done()
     }()
-}
-
-func (hg *HedgerWS) priceChanged(new, old float64) int {
-    if new < old - hg.priceLead{
-        return -1
-    }
-    if new > old + hg.priceLead{
-        return 1
-    }
-    return 0
-}
-
-/*
-func (hg *HedgerWS) openPosition(short *OKFutureWS, shortSellPrice float64, long *OKFutureWS, longBuyPrice float64) {
-
-    //交易统计
-    time.Sleep(2 * time.Second)
-    sorder := short.OrderInfo(sid)
-    if sorder == nil {
-        return
-    }
-    if sorder.DealAmount <= 0 {
-        sorder.DealAmount = hg.tradeAmount
-    }
-    if sorder.AvgPrice <= 0 {
-        sorder.AvgPrice = shortSellPrice
-    }
-
-    lorder := long.OrderInfo(lid)
-    if lorder == nil {
-        return
-    }
-    if lorder.DealAmount <= 0 {
-        lorder.DealAmount = hg.tradeAmount
-    }
-    if lorder.AvgPrice <= 0 {
-        lorder.AvgPrice = longBuyPrice
-    }
-
-    hg.btc += lorder.DealAmount - hg.tradeAmount
-    hg.cny += sorder.AvgPrice - lorder.AvgPrice
-    hg.tcny += shortSellPrice - longBuyPrice
-
-    gmvc.Logger.Println("open position:")
-    gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.2f(%.2f) btc, + %.2f(%.2f) cny",
-        short.name, hg.tradeAmount, sorder.DealAmount, shortSellPrice, sorder.AvgPrice))
-    gmvc.Logger.Println(fmt.Sprintf("   long: %v + %.2f(%.2f) btc, - %.2f(%.2f) cny",
-        long.name, hg.tradeAmount, lorder.DealAmount, longBuyPrice, lorder.AvgPrice))
-    gmvc.Logger.Println("")
-}
-
-func (hg *HedgerWS) openShort(short *OKFutureWS, sellPrice float64) int64 {
-    id := short.Sell(hg.tradeAmount)
-    hg.short = short
-    return id
-}
-
-func (hg *HedgerWS) openLong(long *OKFutureWS, buyPrice float64) int64 {
-    delta := 0.0;
-    if long.name == "okcoin" {
-        delta = 0.006
-    }
-    id := long.Buy((hg.tradeAmount + delta) * buyPrice)
-    hg.long = long
-    return id
-}
-
-
-func (hg *HedgerWS) closePosition(buyPrice, sellPrice float64) {
-    var sid, lid int64
-    if hg.short.name == "huobi" {
-        sid = hg.closeShort(buyPrice)
-        if sid == 0 {
-            return
-        }
-        lid = hg.closeLong(sellPrice)
-    } else {
-        lid = hg.closeLong(sellPrice)
-        if lid == 0 {
-            return
-        }
-        sid = hg.closeShort(buyPrice)
-    }
-    hg.state = STATE_CLOSE
-    hg.tradeNum++
-
-    //交易统计
-    time.Sleep(2 * time.Second)
-    sorder := hg.short.OrderInfo(sid)
-    if sorder == nil {
-        return
-    }
-
-    if sorder.DealAmount <= 0 {
-        sorder.DealAmount = hg.tradeAmount
-    }
-    if sorder.AvgPrice <= 0 {
-        sorder.AvgPrice = buyPrice
-    }
-
-    lorder := hg.long.OrderInfo(lid)
-    if lorder == nil {
-        return
-    }
-
-    if lorder.DealAmount <= 0 {
-        lorder.DealAmount = hg.tradeAmount
-    }
-    if lorder.AvgPrice <= 0 {
-        lorder.AvgPrice = sellPrice
-    }
-
-    hg.btc += sorder.DealAmount - lorder.DealAmount
-    hg.cny += lorder.AvgPrice - sorder.AvgPrice
-    hg.tcny += sellPrice - buyPrice
+    hg.wg.Wait()
 
     gmvc.Logger.Println("close position:")
     gmvc.Logger.Println(fmt.Sprintf("   short: %v + %.2f(%.2f) btc, - %.2f(%.2f) cny",
-        hg.short.name, hg.tradeAmount, sorder.DealAmount, buyPrice, sorder.AvgPrice))
+        hg.short.Name(), hg.tradeAmount, hg.shortAmount, shortPrice, hg.shortPrice))
     gmvc.Logger.Println(fmt.Sprintf("   long: %v - %.2f(%.2f) btc, + %.2f(%.2f) cny",
-        hg.long.name, hg.tradeAmount, lorder.DealAmount, sellPrice, lorder.AvgPrice))
+        hg.long.Name(), hg.tradeAmount, hg.longAmount, longPrice, hg.longPrice))
     gmvc.Logger.Println("")
 
-    now := time.Now()
-    d := time.Unix(now.Unix() - hg.started.Unix(), 0)
-    gmvc.Logger.Println(fmt.Sprintf("profit: %.4f btc, %.2f(%.2f) cny, %v min, %v round %v",
-        hg.btc, hg.tcny * hg.tradeAmount, hg.cny * hg.tradeAmount,
-        d.Format("15:04:05"), hg.tradeNum, now.Format("15:04:05")))
-    gmvc.Logger.Println("")
+    time.Sleep(1 * time.Second)
 }
-
-func (hg *HedgerWS) closeShort(price float64) int64 {
-    delta := 0.0;
-    if hg.short.name == "okcoin" {
-        delta = 0.006
-    }
-    return hg.short.Buy((hg.tradeAmount + delta) * price)
-}
-
-func (hg *HedgerWS) closeLong(price float64) int64 {
-    return hg.long.Sell(hg.tradeAmount)
-}
-
-*/
-
 
