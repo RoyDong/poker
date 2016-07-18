@@ -18,6 +18,7 @@ const (
     OrderStatusCancel    = -1
     OrderStatusCanceling = 4
 
+    StateStop         = 0
     StateOpen         = 1
     StateOpenPending  = 2
     StateClose        = 3
@@ -41,7 +42,6 @@ type HedgerWS struct {
     trade chan Trade
     lastTrade chan Trade
     lastOrder chan Order
-    currentOrders map[int64]Order
 
     tradeAmount float64
     realTradeAmount float64
@@ -60,7 +60,6 @@ type HedgerWS struct {
     margins       map[int64]float64
     marginList    *list.List
 
-    stoped        bool
     state         int
     pendingTime   int64
 
@@ -83,7 +82,6 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
         trade: make(chan Trade, 5),
         lastTrade: make(chan Trade, 5),
         lastOrder: make(chan Order, 10),
-        currentOrders: make(map[int64]Order, 10),
 
         minMargin: math.Inf(1),
         maxMargin: math.Inf(-1),
@@ -92,11 +90,9 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
         margins: make(map[int64]float64),
         marginList: list.New(),
 
-        state: StateClose,
-        stoped: false,
+        state: StateStop,
         wg: &sync.WaitGroup{},
     }
-
 
     conf := gmvc.Store.Tree("config.hedger")
     hg.tradeAmount,      _ = conf.Float("trade_amount")
@@ -106,17 +102,15 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
     hg.you.AddHandler("new_trade", hg.syncTrade)
     hg.zuo.AddHandler("last_trade", hg.syncLastTrade)
     hg.you.AddHandler("last_trade", hg.syncLastTrade)
-    hg.zuo.AddHandler("order_change", hg.syncOrder)
-    hg.you.AddHandler("order_change", hg.syncOrder)
-
-    hg.btc, _ = hg.zuo.GetBalance()
-    hg.btc, _ = hg.you.GetBalance()
 
     return hg
 }
 
 func (hg *HedgerWS) Start() {
-    hg.stoped = false
+    hg.btc, _ = hg.zuo.GetBalance()
+    hg.btc, _ = hg.you.GetBalance()
+
+    hg.state = StateClose
     hg.tradeNum = 0
     hg.started = time.Now()
 
@@ -124,11 +118,6 @@ func (hg *HedgerWS) Start() {
     go hg.arbitrage()
 
     gmvc.Logger.Println("started...")
-}
-
-func (hg *HedgerWS) syncOrder(args ...interface{}) {
-    order, _ := args[0].(Order)
-    hg.currentOrders[order.Id] = order
 }
 
 func (hg *HedgerWS) syncTrade(args ...interface{}) {
@@ -148,11 +137,11 @@ func (hg *HedgerWS) syncLastTrade(args ...interface{}) {
 }
 
 func (hg *HedgerWS) Stop() {
-    hg.stoped = true
+    hg.state = StateStop
 }
 
 func (hg *HedgerWS) updateMargins() {
-    for !hg.stoped {
+    for hg.state != StateStop {
         trade := <-hg.trade
         idx := trade.No
         zuoPrice := hg.zuo.lastTrade.Price
@@ -225,7 +214,7 @@ func (hg *HedgerWS) getMaxMargin() (int64, float64) {
 
 
 func (hg *HedgerWS) arbitrage() {
-    for !hg.stoped {
+    for hg.state != StateStop {
         <-hg.lastTrade
         if hg.marginList.Len() < 100 {
             continue
@@ -272,10 +261,6 @@ func (hg *HedgerWS) getCurrentMargin() float64 {
     return hg.you.lastTrade.Price - hg.zuo.lastTrade.Price
 }
 
-func (hg *HedgerWS) clearCurrentOrders() {
-    hg.currentOrders = make(map[int64]Order, 10)
-}
-
 func (hg *HedgerWS) openPosition(short, long *OKFutureWS, shortPrice, longPrice, margin float64) {
     hg.short = short
     hg.long = long
@@ -306,11 +291,11 @@ func (hg *HedgerWS) closePosition(shortPrice, longPrice, margin float64) {
     hg.pendingTime = time.Now().Unix()
     hg.wg.Add(2)
     go func() {
-        hg.shortAmount, hg.shortPrice = hg.short.FTrade(TypeCloseShort, hg.shortAmount, hg.minTradeMargin / 2)
+        hg.shortAmount, hg.shortPrice = hg.short.FTrade(TypeCloseShort, hg.shortAmount, 0)
         hg.wg.Done()
     }()
     go func() {
-        hg.longAmount, hg.longPrice = hg.long.FTrade(TypeCloseLong, hg.longAmount, hg.minTradeMargin / 2)
+        hg.longAmount, hg.longPrice = hg.long.FTrade(TypeCloseLong, hg.longAmount, 0)
         hg.wg.Done()
     }()
     hg.wg.Wait()

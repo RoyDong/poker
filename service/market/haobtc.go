@@ -1,7 +1,6 @@
 package market
 
 import (
-    "errors"
     "fmt"
     "strings"
     "github.com/roydong/gmvc"
@@ -26,7 +25,7 @@ func NewHaobtc() *Haobtc {
 }
 
 
-func (hb *Haobtc) Buy(price float64) error {
+func (hb *Haobtc) Buy(price float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
         "type": "buy_market",
@@ -35,13 +34,15 @@ func (hb *Haobtc) Buy(price float64) error {
 
     rs := hb.Call("trade", nil, p)
     if rs == nil {
-        return errors.New("haobtc buy error")
+        return 0
     }
-    return nil
+
+    id, _ := rs.Int64("order_id")
+    return id
 }
 
 
-func (hb *Haobtc) Sell(amount float64) error {
+func (hb *Haobtc) Sell(amount float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
         "type": "sell_market",
@@ -50,11 +51,15 @@ func (hb *Haobtc) Sell(amount float64) error {
 
     rs := hb.Call("trade", nil, p)
     if rs == nil {
-        return errors.New("haobtc sell error")
+        return 0
     }
-    return nil
+    id, _ := rs.Int64("order_id")
+    return id
 }
 
+func (hb *Haobtc) OrderInfo(id int64) *Order {
+    return &Order{}
+}
 
 func (hb *Haobtc) LastTicker() *Ticker {
     rs := hb.Call("ticker", nil, nil)

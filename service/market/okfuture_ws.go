@@ -8,7 +8,6 @@ import (
     "strings"
     "sync"
     "math"
-    "log"
 )
 
 const (
