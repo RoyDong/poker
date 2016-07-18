@@ -17,7 +17,7 @@ type Haobtc struct {
 func NewHaobtc() *Haobtc {
     conf := gmvc.Store.Tree("config.market.haobtc")
     hb := &Haobtc{}
-    hb.apiHost, _ = conf.String("api_host")
+    hb.apiHost, _ = conf.String("http_host")
     hb.apiKey, _ = conf.String("api_key")
     hb.apiSecret, _ = conf.String("api_secret")
 
