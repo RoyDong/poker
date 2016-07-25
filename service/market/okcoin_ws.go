@@ -18,7 +18,7 @@ const (
     TypeCloseShort = 4
 )
 
-type OKFutureWS struct {
+type OKCoinWS struct {
     *gmvc.Event
 
     wsHost   string
@@ -55,14 +55,13 @@ type OKFutureWS struct {
     totalPrice []float64
 }
 
-func NewOKFutureWS(contractType string) *OKFutureWS {
-    conf := gmvc.Store.Tree("config.market.okfuture")
-    ok := &OKFutureWS{}
+func NewOKCoinWS() *OKCoinWS {
+    conf := gmvc.Store.Tree("config.market.okcoin")
+    ok := &OKCoinWS{}
     ok.Event = gmvc.NewEvent()
     ok.wsHost, _ = conf.String("ws_host")
     ok.apiKey, _ = conf.String("api_key")
     ok.apiSecret, _ = conf.String("api_secret")
-    ok.contractType = contractType
     ok.leverRate = 10
     ok.priceLead = 0.02
 
@@ -79,8 +78,6 @@ func NewOKFutureWS(contractType string) *OKFutureWS {
     ok.currentOrders = make(map[int64]Order, 4)
 
     ok.subChannels = []string{
-        //ticker订阅
-        "ok_sub_futureusd_btc_ticker_" + ok.contractType,
         //最新深度订阅
         fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", ok.contractType, 20),
         //最新交易单订阅
@@ -95,7 +92,7 @@ func NewOKFutureWS(contractType string) *OKFutureWS {
     return ok
 }
 
-func (ok *OKFutureWS) Connect() {
+func (ok *OKCoinWS) Connect() {
     var err error
     ok.conn, _, err = (&websocket.Dialer{}).Dial(ok.wsHost, nil)
     if err != nil {
@@ -103,86 +100,51 @@ func (ok *OKFutureWS) Connect() {
     }
 
     go ok.readLoop()
-    //ok.addChannel(ok.subChannels[0], nil)
-    //ok.addChannel(ok.subChannels[1], nil)
-    ok.addChannel(ok.subChannels[2], nil)
-    ok.addChannel(ok.subChannels[3], map[string]interface{}{})
+    ok.addChannel(ok.subChannels[0], nil)
+    ok.addChannel(ok.subChannels[1], nil)
+    ok.addChannel(ok.subChannels[2], map[string]interface{}{})
 }
 
-func (ok *OKFutureWS) Stop() {
+func (ok *OKCoinWS) Stop() {
     ok.removeChannels()
     ok.conn.Close()
 }
 
-func (ok *OKFutureWS) initCallbacks() {
-    ok.AddSyncHandler(ok.subChannels[0], ok.syncTicker)
-    ok.AddSyncHandler(ok.subChannels[1], ok.syncDepth)
-    ok.AddSyncHandler(ok.subChannels[2], ok.syncTrade)
-    ok.AddSyncHandler(ok.subChannels[3], ok.syncCurrentOrder)
+func (ok *OKCoinWS) initCallbacks() {
+    ok.AddSyncHandler(ok.subChannels[0], ok.syncDepth)
+    ok.AddSyncHandler(ok.subChannels[1], ok.syncTrade)
+    ok.AddSyncHandler(ok.subChannels[2], ok.syncCurrentOrder)
     ok.AddSyncHandler("ok_futureusd_userinfo", ok.syncBalance)
     ok.AddSyncHandler("ok_futuresusd_trade", ok.syncTradeResult)
     ok.AddSyncHandler("ok_futureusd_cancel_order", ok.syncCancelResult)
 }
 
-func (ok *OKFutureWS) Name() string {
-    return ok.contractType
-}
-
-func (ok *OKFutureWS) syncTicker(args ...interface{}) {
-    rs, _ := args[0].(*gmvc.Tree)
-    if rs == nil {
-        return
-    }
-
-    t := Ticker{}
-    t.High, _ = rs.Float("high")
-    t.Low,  _ = rs.Float("low")
-    t.Sell, _ = rs.Float("sell")
-    t.Buy,  _ = rs.Float("buy")
-    t.Last, _ = rs.Float("last")
-    t.Vol,  _ = rs.Float("volume")
-    t.Time    = time.Now().Unix()
-    ok.tickerUpdated = t.Time
-    ok.lastTicker = t
-}
-
-func (ok *OKFutureWS) LastTicker() Ticker {
-    return ok.lastTicker
-}
-
-type Trade struct {
-    No int64
-    Price float64
-    Amount float64
-    Time string
-    Type string
-}
-
-func (ok *OKFutureWS) syncTrade(args ...interface{}) {
+func (ok *OKCoinWS) syncTrade(args ...interface{}) {
     rs, _ := args[0].(*gmvc.Tree)
     if rs == nil {
         return
     }
     var trade Trade
+    trades := make([]Trade, 0, rs.NodeNum(""))
     for i, l := 0, rs.NodeNum(""); i < l; i++ {
+        rst := rs.Tree(fmt.Sprintf("%d", i))
         trade = Trade{}
-        trade.No, _ = rs.Int64(fmt.Sprintf("%d.0", i))
-        trade.Price, _ = rs.Float(fmt.Sprintf("%d.1", i))
-        trade.Amount, _ = rs.Float(fmt.Sprintf("%d.2", i))
-        trade.Time, _ = rs.String(fmt.Sprintf("%d.3", i))
-        trade.Type, _ = rs.String(fmt.Sprintf("%d.4", i))
-        ok.lastTrade = trade
-        ok.Trigger("new_trade", trade)
+        trade.No, _ = rst.Int64("0")
+        trade.Price, _ = rst.Float("1")
+        trade.Amount, _ = rst.Float("2")
+        trade.Time, _ = rst.String("3")
+        trade.Type, _ = rst.String("4")
+        trades = append(trades, trade)
     }
-
-    ok.Trigger("last_trade", trade)
+    ok.lastTrade = trade
+    ok.Trigger("new_trades", trades)
 }
 
-func (ok *OKFutureWS) LastTrade() Trade {
+func (ok *OKCoinWS) LastTrade() Trade {
     return ok.lastTrade
 }
 
-func (ok *OKFutureWS) syncDepth(args ...interface{}) {
+func (ok *OKCoinWS) syncDepth(args ...interface{}) {
     rs, _ := args[0].(*gmvc.Tree)
     if rs == nil {
         gmvc.Logger.Println("depth data is nil")
@@ -192,34 +154,36 @@ func (ok *OKFutureWS) syncDepth(args ...interface{}) {
     l := rs.NodeNum("asks")
     asks := make([][]float64, 0, l)
     for i := l - 1; i >= 0; i-- {
-        price, _ := rs.Float(fmt.Sprintf("asks.%v.0", i))
-        amount, _ := rs.Float(fmt.Sprintf("asks.%v.1", i))
+        rst := rs.Tree(fmt.Sprintf("asks.%v", i))
+        price, _ := rst.Float("0")
+        amount, _ := rst.Float("1")
         asks = append(asks, []float64{price, amount})
     }
 
     l = rs.NodeNum("bids")
     bids := make([][]float64, 0, l)
     for i := 0; i < l; i++ {
-        price, _ := rs.Float(fmt.Sprintf("bids.%v.0", i))
-        amount, _ := rs.Float(fmt.Sprintf("bids.%v.1", i))
+        rst := rs.Tree(fmt.Sprintf("bids.%v", i))
+        price, _ := rst.Float("0")
+        amount, _ := rst.Float("1")
         bids = append(bids, []float64{price, amount})
     }
 
     ok.lastAsks = asks
     ok.lastBids = bids
     ok.depthUpdated = time.Now().Unix()
-    ok.Trigger("depth", asks, bids, ok.depthUpdated)
+    ok.Trigger("depth_change", asks, bids, ok.depthUpdated)
 }
 
-func (ok *OKFutureWS) GetDepth() ([][]float64, [][]float64) {
+func (ok *OKCoinWS) GetDepth() ([][]float64, [][]float64) {
     return ok.lastAsks, ok.lastBids
 }
 
-func (ok *OKFutureWS) DepthUpdated() int64 {
+func (ok *OKCoinWS) DepthUpdated() int64 {
     return ok.depthUpdated
 }
 
-func (ok *OKFutureWS) syncBalance(args ...interface{}) {
+func (ok *OKCoinWS) syncBalance(args ...interface{}) {
     code, _ := args[1].(int64)
     var btc float64
     if code > 0 {
@@ -232,7 +196,7 @@ func (ok *OKFutureWS) syncBalance(args ...interface{}) {
     ok.lastBtc <-btc
 }
 
-func (ok *OKFutureWS) GetBalance() (float64, float64) {
+func (ok *OKCoinWS) GetBalance() (float64, float64) {
     ok.lastBtcLocker.Lock()
     defer ok.lastBtcLocker.Unlock()
     st := time.Now().UnixNano()
@@ -241,15 +205,18 @@ func (ok *OKFutureWS) GetBalance() (float64, float64) {
     et := time.Now().UnixNano()
     log.Println((et - st)/ 1000000)
     return r,0
+
+
+    ok.AddHandler("")
 }
 
-func (ok *OKFutureWS) Trade(typ int, amount, price float64) int64 {
+func (ok *OKCoinWS) Trade(typ int, amount, price float64) int64 {
     ok.tradeLocker.Lock()
     defer ok.tradeLocker.Unlock()
     return ok.tradeNolock(typ, amount, price)
 }
 
-func (ok *OKFutureWS) tradeNolock(typ int, amount, price float64) int64 {
+func (ok *OKCoinWS) tradeNolock(typ int, amount, price float64) int64 {
     params := map[string]interface{}{
         "symbol": "btc_usd",
         "contract_type": ok.contractType,
@@ -268,7 +235,7 @@ FTrade 追单交易，类似市价交易，不停的追随当前价格下单，�
 offset = 0 表示没有价格上下限制
 返回成交数量和成交均价
  */
-func (ok *OKFutureWS) FTrade(typ int, amount, offset float64) (float64, float64) {
+func (ok *OKCoinWS) FTrade(typ int, amount, offset float64) (float64, float64) {
     ok.tradeLocker.Lock()
     defer ok.tradeLocker.Unlock()
 
@@ -367,7 +334,7 @@ func (ok *OKFutureWS) FTrade(typ int, amount, offset float64) (float64, float64)
     return ok.dealAmount[typ], ok.GetAvgPrice(typ)
 }
 
-func (ok *OKFutureWS) GetPriceLead(typ int) float64 {
+func (ok *OKCoinWS) GetPriceLead(typ int) float64 {
     switch typ {
     case TypeOpenLong:
         return ok.priceLead
@@ -384,7 +351,7 @@ func (ok *OKFutureWS) GetPriceLead(typ int) float64 {
     }
 }
 
-func (ok *OKFutureWS) syncTradeResult(args ...interface{}) {
+func (ok *OKCoinWS) syncTradeResult(args ...interface{}) {
     var id int64
     rs, _ := args[0].(*gmvc.Tree)
     if rs != nil {
@@ -393,13 +360,13 @@ func (ok *OKFutureWS) syncTradeResult(args ...interface{}) {
     ok.lastOrderId <-id
 }
 
-func (ok *OKFutureWS) CancelOrder(id int64) int64 {
+func (ok *OKCoinWS) CancelOrder(id int64) int64 {
     ok.tradeLocker.Lock()
     defer ok.tradeLocker.Unlock()
     return ok.cancelOrderNolock(id)
 }
 
-func (ok *OKFutureWS) cancelOrderNolock(id int64) int64 {
+func (ok *OKCoinWS) cancelOrderNolock(id int64) int64 {
     params := map[string]interface{}{
         "symbol": "btc_usd",
         "contract_type": ok.contractType,
@@ -409,7 +376,7 @@ func (ok *OKFutureWS) cancelOrderNolock(id int64) int64 {
     return <-ok.cancelOrderId
 }
 
-func (ok *OKFutureWS) syncCancelResult(args ...interface{}) {
+func (ok *OKCoinWS) syncCancelResult(args ...interface{}) {
     var id int64
     rs, _ := args[0].(*gmvc.Tree)
     if rs != nil {
@@ -418,7 +385,7 @@ func (ok *OKFutureWS) syncCancelResult(args ...interface{}) {
     ok.cancelOrderId <-id
 }
 
-func (ok *OKFutureWS) syncCurrentOrder(args ...interface{}) {
+func (ok *OKCoinWS) syncCurrentOrder(args ...interface{}) {
     rs, _ := args[0].(*gmvc.Tree)
     if rs == nil {
         return
@@ -450,13 +417,13 @@ func (ok *OKFutureWS) syncCurrentOrder(args ...interface{}) {
     ok.Trigger("order_change", order)
 }
 
-func (ok *OKFutureWS) ClearOrders() {
+func (ok *OKCoinWS) ClearOrders() {
     ok.currentOrders = make(map[int64]Order, 10)
     ok.dealAmount = make([]float64, 5)
     ok.totalPrice = make([]float64, 5)
 }
 
-func (ok *OKFutureWS) GetAvgPrice(typ int) float64 {
+func (ok *OKCoinWS) GetAvgPrice(typ int) float64 {
     amount := ok.dealAmount[typ]
     if amount > 0 {
         return ok.totalPrice[typ] / amount
@@ -464,7 +431,7 @@ func (ok *OKFutureWS) GetAvgPrice(typ int) float64 {
     return 0
 }
 
-func (ok *OKFutureWS) signParams(params map[string]interface{}) map[string]interface{} {
+func (ok *OKCoinWS) signParams(params map[string]interface{}) map[string]interface{} {
     if params == nil {
         params = make(map[string]interface{}, 2)
     }
@@ -473,7 +440,7 @@ func (ok *OKFutureWS) signParams(params map[string]interface{}) map[string]inter
     return params
 }
 
-func (ok *OKFutureWS) addChannel(name string, params map[string]interface{}) {
+func (ok *OKCoinWS) addChannel(name string, params map[string]interface{}) {
     msg := map[string]interface{} {
         "event": "addChannel",
         "channel": name,
@@ -483,42 +450,42 @@ func (ok *OKFutureWS) addChannel(name string, params map[string]interface{}) {
     }
     err := ok.conn.WriteJSON(msg)
     if err != nil {
-        gmvc.Logger.Fatalln("okfuture add channel failed")
+        gmvc.Logger.Fatalln("okcoin add channel failed")
     }
 }
 
-func (ok *OKFutureWS) RemoveChannel(name string) {
+func (ok *OKCoinWS) RemoveChannel(name string) {
     err := ok.conn.WriteMessage(websocket.TextMessage,
         []byte(fmt.Sprintf(`{"event":"removeChannel","channel":"%s"}`, name)))
     if err != nil {
-        gmvc.Logger.Fatalln("okfuture remove channel failed " + name)
+        gmvc.Logger.Fatalln("okcoin remove channel failed " + name)
     }
 }
 
-func (ok *OKFutureWS) removeChannels() {
+func (ok *OKCoinWS) removeChannels() {
     query := make([]string, 0, len(ok.subChannels))
     for _, channel := range ok.subChannels{
         query = append(query, fmt.Sprintf(`{"event":"removeChannel","channel":"%s"}`, channel))
     }
     err := ok.conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("[%s]", strings.Join(query, ","))))
     if err != nil {
-        gmvc.Logger.Fatalln("okfuture remove channels failed")
+        gmvc.Logger.Fatalln("okcoin remove channels failed")
     }
 }
 
-func (ok *OKFutureWS) Ping() {
+func (ok *OKCoinWS) Ping() {
     ok.conn.WriteMessage(websocket.TextMessage, []byte(`{"event":"ping"}`))
 }
 
-func (ok *OKFutureWS) readLoop() {
+func (ok *OKCoinWS) readLoop() {
    for {
        typ, raw, err := ok.conn.ReadMessage()
        if err != nil {
-           gmvc.Logger.Println("okfuture ws read message error ", err.Error())
+           gmvc.Logger.Println("okcoin ws read message error ", err.Error())
            return
        }
        if typ != websocket.TextMessage {
-           gmvc.Logger.Println("okfuture ws not text message", err.Error())
+           gmvc.Logger.Println("okcoin ws not text message", err.Error())
            continue
        }
        rs := gmvc.NewTree()
@@ -530,14 +497,14 @@ func (ok *OKFutureWS) readLoop() {
        for i, l := 0, rs.NodeNum(""); i < l; i++ {
            event := rs.Tree(fmt.Sprintf("%d", i))
            if event == nil {
-               gmvc.Logger.Println("okfuture ws error " + string(raw))
+               gmvc.Logger.Println("okcoin ws error " + string(raw))
                continue
            }
            if name, has := event.String("channel"); has && len(name) > 0 {
                data := event.Tree("data")
                code, _ := event.Int64("errorcode")
                if code > 0 {
-                   gmvc.Logger.Println("okfuture ws error " + string(raw))
+                   gmvc.Logger.Println("okcoin ws error " + string(raw))
                }
                ok.Trigger(name, data, code)
            }

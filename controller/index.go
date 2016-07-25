@@ -77,6 +77,8 @@ func init() {
 
         b1, c1 := huobi.GetBalance()
 
+        market.NewOKFutureWS("this_week").GetBalance()
+
         return r.JsonResponse([]float64{b, c, b1, c1, c + c1})
     }, "/balance")
 
