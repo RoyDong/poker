@@ -241,6 +241,16 @@ func init() {
 
     }, "/ftrade")
 
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        huobi := market.NewHuobiWS()
+
+        huobi.WSConnect()
+
+
+        return r.TextResponse("done")
+
+    }, "/fix_test")
+
 
     gmvc.WSActionMap["ws"] = func(wsm *gmvc.WSMessage) {
         val, _ := wsm.String("a")

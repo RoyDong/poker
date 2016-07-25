@@ -21,7 +21,6 @@ type Socket struct {
 
 
 func Dial(host string, timeout time.Duration) (*Socket, error) {
-
     dialer := &websocket.Dialer{HandshakeTimeout: timeout}
     u, err := url.Parse(host)
     if err != nil {
@@ -58,7 +57,7 @@ func Dial(host string, timeout time.Duration) (*Socket, error) {
 
     io := &Socket{}
     io.timeout = timeout
-    io.heartbeat = 10
+    io.heartbeat = 10 * time.Second
     io.conn, _, err = dialer.Dial(u.String(), nil)
     if err != nil {
         return nil, err
@@ -68,7 +67,9 @@ func Dial(host string, timeout time.Duration) (*Socket, error) {
 
     go func() {
         for _ = range time.Tick(io.heartbeat) {
+            log.Println("hb")
             if err := io.sendHeartbeat(); err != nil {
+                log.Println(err, "vvvv")
                 return
             }
         }
@@ -84,6 +85,12 @@ func (io *Socket) Emit(name string, data ...interface{}) error {
     }
     raw := fmt.Sprintf(`5:::{"name":"%s","args":%s}`, name, string(b))
     return io.conn.WriteMessage(websocket.TextMessage, []byte(raw))
+}
+
+func (io *Socket) EmitText(name string, raw string) error {
+    r := fmt.Sprintf(`5:::{"name":"%s","args":[%s]}`, name, raw)
+    log.Println(r)
+    return io.conn.WriteMessage(websocket.TextMessage, []byte(r))
 }
 
 func (io *Socket) sendConnect() error {
@@ -110,9 +117,9 @@ func (io *Socket) readLoop() {
             return
         }
         msg, err := parseMessage(raw)
+        log.Println(msg.Type, string(msg.Data), err)
         if err != nil {
             continue
         }
-        log.Println(msg.ID, msg.Type)
     }
 }
