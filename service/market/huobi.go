@@ -80,6 +80,7 @@ func (hb *Huobi) OrderInfo(id int64) *Order {
     order.Price,      _ = rs.Float("order_price")
     order.DealAmount, _ = rs.Float("processed_amount")
     order.AvgPrice,   _ = rs.Float("processed_price")
+    order.Status,     _ = rs.Int("status")
 
     typ, _ := rs.Float("type")
     if int64(typ) == 3 {

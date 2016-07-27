@@ -58,7 +58,7 @@ func (ok *OKCoin)Sell(amount float64) int64 {
     return int64(id)
 }
 
-func (ok *OKCoin) OrderInfo(id int64) *Order {
+func (ok *OKCoin) OrderInfo(id int64) Order {
     params := map[string]interface{}{
         "symbol": "btc_cny",
         "order_id": id,
@@ -74,13 +74,15 @@ func (ok *OKCoin) OrderInfo(id int64) *Order {
         return nil
     }
 
-    order := &Order{}
+    order := Order{}
     order.Id = id
 
     order.Amount, _ = rst.Float("amount")
     order.Price, _ = rst.Float("price")
     order.DealAmount, _ = rst.Float("deal_amount")
     order.AvgPrice, _ = rst.Float("avg_price")
+
+    order.Status, _ = rst.Int("status")
 
     t, _ := rst.Float("create_date")
     order.Created = int64(t)
@@ -89,14 +91,14 @@ func (ok *OKCoin) OrderInfo(id int64) *Order {
 }
 
 
-func (ok *OKCoin) LastTicker() *Ticker {
+func (ok *OKCoin) LastTicker() Ticker {
     rs := ok.Call("ticker.do", map[string]interface{}{"symbol": "btc_cny"}, nil)
     if rs == nil {
         return nil
     }
 
     rst     := rs.Tree("ticker")
-    t         := &Ticker{}
+    t         := Ticker{}
     t.Time, _ = rs.Int64("date")
     t.High, _ = rst.Float("high")
     t.Low,  _ = rst.Float("low")

@@ -14,9 +14,9 @@ type exchanger interface {
 
     Buy(price float64) int64
 
-    OrderInfo(id int64) *Order
+    OrderInfo(id int64) Order
 
-    LastTicker() *Ticker
+    LastTicker() Ticker
 
     GetDepth() ([][]float64, [][]float64)
 
@@ -50,7 +50,7 @@ type Market struct {
     exchanger
 
     name string
-    tickers map[int64]*Ticker
+    tickers map[int64]Ticker
     tickerList *list.List
     maxTickerNum int
 
@@ -62,6 +62,8 @@ type Market struct {
 
     lastAsks [][]float64
     lastBids [][]float64
+
+    lastBuy, lastSell float64
 }
 
 
@@ -95,7 +97,7 @@ func (m *Market) Name() string {
     return m.name
 }
 
-func (m *Market) addTicker(t *Ticker) {
+func (m *Market) addTicker(t Ticker) {
     if t == nil {
         return
     }
@@ -111,24 +113,22 @@ func (m *Market) addTicker(t *Ticker) {
     }
 
     m.recentAverage = m.recentTotalPrince / float64(m.tickerList.Len())
-
-    //gmvc.Logger.Println(fmt.Sprintf("%v: %v, %.2f, %.2f, %v", m.name, m.tickerList.Len(), m.recentAverage, t.Last, t.Time))
 }
 
-func (m *Market) TickerByTime(t int64) *Ticker {
+func (m *Market) TickerByTime(t int64) Ticker {
     return m.tickers[t]
 }
 
-func (m *Market) BackTicker() *Ticker {
+func (m *Market) BackTicker() Ticker {
     if el := m.tickerList.Back(); el != nil {
-        return el.Value.(*Ticker)
+        return el.Value.(Ticker)
     }
     return nil
 }
 
-func (m *Market) FrontTicker() *Ticker {
+func (m *Market) FrontTicker() Ticker {
     if el := m.tickerList.Front(); el != nil {
-        return el.Value.(*Ticker)
+        return el.Value.(Ticker)
     }
     return nil
 }

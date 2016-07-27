@@ -13,6 +13,9 @@ type Hedger struct {
     zuo *Market
     you *Market
 
+    zuoBuyAmount float64
+    youBuyAmount float64
+
     short *Market
     long *Market
 
@@ -52,7 +55,7 @@ func NewHedger(zuo, you *Market) *Hedger {
         minMargin: math.Inf(1),
         maxMargin: math.Inf(-1),
 
-        tickerNum: 200,
+        tickerNum: 100,
         margins: make(map[int64]float64),
         marginList: list.New(),
 
@@ -65,6 +68,9 @@ func NewHedger(zuo, you *Market) *Hedger {
     conf := gmvc.Store.Tree("config.hedger")
     hg.minTradeMargin, _ = conf.Float("min_trade_margin")
     hg.tradeAmount, _ = conf.Float("trade_amount")
+
+    hg.zuoBuyAmount = hg.tradeAmount
+    hg.youBuyAmount = hg.tradeAmount
 
     return hg
 }
@@ -83,7 +89,7 @@ func (hg *Hedger) Start() {
     go hg.zuo.SyncTicker(1 * time.Second)
     go hg.you.SyncTicker(1 * time.Second)
     go hg.updateMargins(1 * time.Second)
-    go hg.arbitrage(1 * time.Second)
+    go hg.arbitrage(500 * time.Millisecond)
 }
 
 func (hg *Hedger) Stop() {
@@ -260,27 +266,21 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
     hg.state = StateOpen
 
     //交易统计
-    time.Sleep(2 * time.Second)
-    sorder := short.OrderInfo(sid)
-    if sorder == nil {
-        return
-    }
-    if sorder.DealAmount <= 0 {
-        sorder.DealAmount = hg.tradeAmount
-    }
-    if sorder.AvgPrice <= 0 {
-        sorder.AvgPrice = shortSellPrice
+    var sorder, lorder Order
+    for _ = range time.Tick(500 * time.Millisecond) {
+        sorder = short.OrderInfo(sid)
+        if sorder.Status == 2 {
+            short.lastSell = sorder.DealAmount
+            break
+        }
     }
 
-    lorder := long.OrderInfo(lid)
-    if lorder == nil {
-        return
-    }
-    if lorder.DealAmount <= 0 {
-        lorder.DealAmount = hg.tradeAmount
-    }
-    if lorder.AvgPrice <= 0 {
-        lorder.AvgPrice = longBuyPrice
+    for _ = range time.Tick(500 * time.Millisecond) {
+        lorder = long.OrderInfo(lid)
+        if lorder.Status == 2 {
+            long.lastBuy = lorder.DealAmount
+            break
+        }
     }
 
     hg.btc += lorder.DealAmount - hg.tradeAmount
@@ -296,17 +296,17 @@ func (hg *Hedger) openPosition(short *Market, shortSellPrice float64, long *Mark
 }
 
 func (hg *Hedger) openShort(short *Market, sellPrice float64) int64 {
-    id := short.Sell(hg.tradeAmount)
+    amount := hg.tradeAmount
+    if short.lastBuy > 0 {
+        amount = short.lastBuy
+    }
+    id := short.Sell(amount)
     hg.short = short
     return id
 }
 
 func (hg *Hedger) openLong(long *Market, buyPrice float64) int64 {
-    delta := 0.0;
-    if long.name == "okcoin" {
-        delta = 0.006
-    }
-    id := long.Buy((hg.tradeAmount + delta) * buyPrice)
+    id := long.Buy(hg.tradeAmount * buyPrice)
     hg.long = long
     return id
 }
@@ -331,29 +331,21 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     hg.tradeNum++
 
     //交易统计
-    time.Sleep(2 * time.Second)
-    sorder := hg.short.OrderInfo(sid)
-    if sorder == nil {
-        return
+    var sorder, lorder Order
+    for _ = range time.Tick(500 * time.Millisecond) {
+        sorder := hg.short.OrderInfo(sid)
+        if sorder.Status == 2 {
+            hg.short.lastBuy = sorder.DealAmount
+            break
+        }
     }
 
-    if sorder.DealAmount <= 0 {
-        sorder.DealAmount = hg.tradeAmount
-    }
-    if sorder.AvgPrice <= 0 {
-        sorder.AvgPrice = buyPrice
-    }
-
-    lorder := hg.long.OrderInfo(lid)
-    if lorder == nil {
-        return
-    }
-
-    if lorder.DealAmount <= 0 {
-        lorder.DealAmount = hg.tradeAmount
-    }
-    if lorder.AvgPrice <= 0 {
-        lorder.AvgPrice = sellPrice
+    for _ = range time.Tick(500 * time.Millisecond) {
+        lorder := hg.long.OrderInfo(lid)
+        if lorder.Status == 2 {
+            hg.long.lastSell = lorder.DealAmount
+            break
+        }
     }
 
     hg.btc += sorder.DealAmount - lorder.DealAmount
@@ -376,15 +368,15 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
 }
 
 func (hg *Hedger) closeShort(price float64) int64 {
-    delta := 0.0;
-    if hg.short.name == "okcoin" {
-        delta = 0.006
-    }
-    return hg.short.Buy((hg.tradeAmount + delta) * price)
+    return hg.short.Buy(hg.tradeAmount * price)
 }
 
 func (hg *Hedger) closeLong(price float64) int64 {
-    return hg.long.Sell(hg.tradeAmount)
+    amount := hg.tradeAmount
+    if hg.long.lastBuy > 0 {
+        amount = hg.long.lastBuy
+    }
+    return hg.long.Sell(amount)
 }
 
 
