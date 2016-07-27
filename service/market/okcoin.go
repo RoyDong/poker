@@ -123,16 +123,18 @@ func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
     l := rs.NodeNum("asks")
     ask := make([][]float64, 0, l)
     for i := l - 1; i >= 0; i-- {
-        price, _ := rs.Float(fmt.Sprintf("asks.%v.0", i))
-        amount, _ := rs.Float(fmt.Sprintf("asks.%v.1", i))
+        rst := rs.Tree(fmt.Sprintf("asks.%v", i))
+        price, _ := rst.Float("0")
+        amount, _ := rst.Float("1")
         ask = append(ask, []float64{price, amount})
     }
 
     l = rs.NodeNum("bids")
     bid := make([][]float64, 0, l)
     for i := 0; i < l; i++ {
-        price, _ := rs.Float(fmt.Sprintf("bids.%v.0", i))
-        amount, _ := rs.Float(fmt.Sprintf("bids.%v.1", i))
+        rst := rs.Tree(fmt.Sprintf("bids.%v", i))
+        price, _ := rst.Float("0")
+        amount, _ := rst.Float("1")
         bid = append(bid, []float64{price, amount})
     }
 

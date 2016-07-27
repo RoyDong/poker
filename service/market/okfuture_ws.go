@@ -518,9 +518,7 @@ func (ok *OKFutureWS) readLoop() {
            return
        }
        if typ != websocket.TextMessage {
-           gmvc.Logger.Println("okfuture ws not text message", err.Error())
-           continue
-       }
+           gmvc.Logger.Println("okfuture ws not text message", err.Error()) continue }
        rs := gmvc.NewTree()
        err = rs.LoadJson("", raw, true)
        if err != nil {

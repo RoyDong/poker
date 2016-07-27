@@ -36,7 +36,7 @@ func parseMessage(raw []byte) (*Message, error) {
 }
 
 // String returns the string represenation of the Message.
-func (m Message) String() string {
+func (m *Message) String() string {
     raw := fmt.Sprintf("%d:%s:%s", m.Type, m.ID, m.Endpoint)
     if len(m.Data) > 0 {
         raw = fmt.Sprintf("%s:%s", raw, m.Data)
@@ -44,7 +44,7 @@ func (m Message) String() string {
     return raw
 }
 
-func (m Message) ReadData() *gmvc.Tree {
+func (m *Message) ReadData() *gmvc.Tree {
     tree := gmvc.NewTree()
     err := tree.LoadJson("", m.Data, true)
     if err != nil {

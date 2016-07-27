@@ -10,18 +10,27 @@ import (
 )
 
 type HuobiWS struct {
+    *gmvc.Event
+
     marketHost string
     httpHost   string
     apiKey     string
     apiSecret  string
     wsHost     string
 
+    socketio   *socketio.Socket
+
+    lastAsks   [][]float64
+    lastBids   [][]float64
 }
 
 
 func NewHuobiWS() *HuobiWS {
-    conf := gmvc.Store.Tree("config.market.huobi")
     hb := &HuobiWS{}
+
+    hb.Event = &gmvc.Event{}
+
+    conf := gmvc.Store.Tree("config.market.huobi")
     hb.marketHost, _ = conf.String("market_host")
     hb.httpHost, _ = conf.String("http_host")
     hb.apiKey, _ = conf.String("api_key")
@@ -98,25 +107,6 @@ func (hb *HuobiWS) OrderInfo(id int64) *Order {
 }
 
 
-func (hb *HuobiWS) LastTicker() *Ticker {
-    rs := hb.CallMarket("staticmarket/ticker_btc_json.js", nil, nil)
-    if rs == nil {
-        return nil
-    }
-
-    rst := rs.Tree("ticker")
-    t := &Ticker{}
-    t.Time, _ = rs.Int64("time")
-    t.High, _ = rst.Float("high")
-    t.Low,  _ = rst.Float("low")
-    t.Sell, _ = rst.Float("sell")
-    t.Buy,  _ = rst.Float("buy")
-    t.Last, _ = rst.Float("last")
-    t.Vol,  _ = rst.Float("vol")
-
-    return t
-}
-
 func (hb *HuobiWS) GetDepth() ([][]float64, [][]float64) {
     rs := hb.CallMarket("staticmarket/detail_btc_json.js", nil, nil)
     if rs == nil {
@@ -142,6 +132,7 @@ func (hb *HuobiWS) GetDepth() ([][]float64, [][]float64) {
 
     return ask, bid
 }
+
 
 func (hb *HuobiWS) GetBalance() (float64, float64) {
     q := map[string]interface{}{
@@ -186,25 +177,41 @@ func (hb *HuobiWS) CallMarket(api string, query, params map[string]interface{}) 
     return tree
 }
 
-func (hb *HuobiWS) WSConnect() {
+func (hb *HuobiWS) Connect() {
     io, err := socketio.Dial(hb.wsHost, 3 * time.Second)
-    log.Println(hb.wsHost, err)
-
-    var strMsg = `{"symbolList":{"marketDetail":[{"symbolId":"btccny","pushType":"pushLong"}],"tradeDetail":[{"symbolId":"btccny","pushType":"pushLong"}]},"version":1,"msgType":"reqMsgSubscribe","requestIndex":103}`
-
-
-
-    err = io.EmitText("request", strMsg)
-
-    data := map[string]interface{}{
-        "symbolIdList": []string{"btccny"},
-        "version":1,
-        "msgType": "reqSymbolList",
-        "requestIndex": 101,
+    if err != nil {
+        gmvc.Logger.Fatalln(err)
     }
 
-    err = io.Emit("request", data)
-    log.Println(err)
+    hb.socketio = io
+    go hb.readLoop()
+    hb.addChannels()
+}
+
+func (hb *HuobiWS) addChannels() {
+    var strMsg = `{"symbolList":{
+                        "marketDetail":[{"symbolId":"btccny","pushType":"pushLong"}],
+                        "tradeDetail":[{"symbolId":"btccny","pushType":"pushLong"}]
+                        },"version":1,"msgType":"reqMsgSubscribe","requestIndex":103}`
+    err := hb.socketio.EmitText("request", strMsg)
+    if err != nil {
+        gmvc.Logger.Println("huobi ws error")
+    }
+}
+
+
+func (hb *HuobiWS) readLoop() {
+    for {
+        msg, err := hb.socketio.Read()
+        if err != nil {
+            return
+        }
+        log.Println(1, msg.Type, string(msg.Data))
+    }
+}
+
+func (hb *HuobiWS) syncTrade() {
+
 }
 
 

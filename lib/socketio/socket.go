@@ -59,23 +59,7 @@ func Dial(host string, timeout time.Duration) (*Socket, error) {
     io.timeout = timeout
     io.heartbeat = 10 * time.Second
     io.conn, _, err = dialer.Dial(u.String(), nil)
-    if err != nil {
-        return nil, err
-    }
-
-    go io.readLoop()
-
-    go func() {
-        for _ = range time.Tick(io.heartbeat) {
-            log.Println("hb")
-            if err := io.sendHeartbeat(); err != nil {
-                log.Println(err, "vvvv")
-                return
-            }
-        }
-    }()
-
-    return io, nil
+    return io, err
 }
 
 func (io *Socket) Emit(name string, data ...interface{}) error {
@@ -105,21 +89,10 @@ func (io *Socket) sendAck() error {
     return io.conn.WriteMessage(websocket.TextMessage, []byte("6::"))
 }
 
-func (io *Socket) Read() ([]byte, error) {
+func (io *Socket) Read() (*Message, error) {
     _, raw, err := io.conn.ReadMessage()
-    return raw, err
-}
-
-func (io *Socket) readLoop() {
-    for {
-        _, raw, err := io.conn.ReadMessage()
-        if err != nil {
-            return
-        }
-        msg, err := parseMessage(raw)
-        log.Println(msg.Type, string(msg.Data), err)
-        if err != nil {
-            continue
-        }
+    if err != nil {
+        return nil, err
     }
+    return parseMessage(raw)
 }

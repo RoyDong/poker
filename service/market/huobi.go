@@ -5,8 +5,6 @@ import (
     "github.com/roydong/gmvc"
     "time"
     "fmt"
-    "log"
-    "github.com/roydong/poker/lib/socketio"
 )
 
 type Huobi struct {
@@ -118,25 +116,27 @@ func (hb *Huobi) LastTicker() *Ticker {
 }
 
 func (hb *Huobi) GetDepth() ([][]float64, [][]float64) {
-    rs := hb.CallMarket("staticmarket/detail_btc_json.js", nil, nil)
+    rs := hb.CallMarket("staticmarket/depth_btc_60.js", nil, nil)
     if rs == nil {
         return nil, nil
     }
 
     var l int
     ask := make([][]float64, 0, l)
-    l = rs.NodeNum("sells")
+    l = rs.NodeNum("asks")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float(fmt.Sprintf("sells.%v.price", i))
-        amount, _ := rs.Float(fmt.Sprintf("sells.%v.amount", i))
+        rst := rs.Tree(fmt.Sprintf("asks.%v", i))
+        price, _ := rst.Float("0")
+        amount, _ := rst.Float("1")
         ask = append(ask, []float64{price, amount})
     }
 
     bid := make([][]float64, 0, l)
-    l = rs.NodeNum("buys")
+    l = rs.NodeNum("bids")
     for i := 0; i < l; i++ {
-        price, _ := rs.Float(fmt.Sprintf("buys.%v.price", i))
-        amount, _ := rs.Float(fmt.Sprintf("buys.%v.amount", i))
+        rst := rs.Tree(fmt.Sprintf("bids.%v", i))
+        price, _ := rst.Float("0")
+        amount, _ := rst.Float("1")
         bid = append(bid, []float64{price, amount})
     }
 
@@ -185,21 +185,4 @@ func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *g
     }
     return tree
 }
-
-func (hb *Huobi) WSConnect() {
-    io, err := socketio.Dial(hb.wsUrl, 3 * time.Second)
-    log.Println(err)
-
-    data := map[string]interface{}{
-        "symbolIdList": []string{"btccny"},
-        "version": 1,
-        "msgType": "reqSymbolList",
-        "requestIndex": 100,
-    }
-
-    err = io.Emit("request", data)
-    log.Println(err)
-}
-
-
 

@@ -244,8 +244,7 @@ func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         huobi := market.NewHuobiWS()
 
-        huobi.WSConnect()
-
+        huobi.Connect()
 
         return r.TextResponse("done")
 
