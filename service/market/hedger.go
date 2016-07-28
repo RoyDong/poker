@@ -134,6 +134,7 @@ func (hg *Hedger) maxAvgMargin() float64 {
 }
 
 func (hg *Hedger) arbitrage(interval time.Duration) {
+    wg := &sync.WaitGroup{}
     for {
         time.Sleep(interval)
         if hg.midAvg.Len() < 20 {
@@ -141,8 +142,17 @@ func (hg *Hedger) arbitrage(interval time.Duration) {
             continue
         }
 
-        hg.zuo.UpdateDepth()
-        hg.you.UpdateDepth()
+        wg.Add(2)
+        go func() {
+            hg.zuo.UpdateDepth()
+            wg.Done()
+        }()
+        go func() {
+            hg.you.UpdateDepth()
+            wg.Done()
+        }()
+        wg.Wait()
+
         if len(hg.zuo.lastAsks) == 0 {
             gmvc.Logger.Println(hg.zuo.name + " depth is empty")
             continue
