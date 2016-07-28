@@ -64,17 +64,17 @@ func (ok *OKCoin) OrderInfo(id int64) Order {
         "order_id": id,
     }
 
+    order := Order{}
     rs := ok.Call("order_info.do", nil, params)
     if rs == nil {
-        return nil
+        return order
     }
 
     rst := rs.Tree("orders.0")
     if rst == nil {
-        return nil
+        return order
     }
 
-    order := Order{}
     order.Id = id
 
     order.Amount, _ = rst.Float("amount")
@@ -92,13 +92,13 @@ func (ok *OKCoin) OrderInfo(id int64) Order {
 
 
 func (ok *OKCoin) LastTicker() Ticker {
+    t := Ticker{}
     rs := ok.Call("ticker.do", map[string]interface{}{"symbol": "btc_cny"}, nil)
     if rs == nil {
-        return nil
+        return t
     }
 
     rst     := rs.Tree("ticker")
-    t         := Ticker{}
     t.Time, _ = rs.Int64("date")
     t.High, _ = rst.Float("high")
     t.Low,  _ = rst.Float("low")

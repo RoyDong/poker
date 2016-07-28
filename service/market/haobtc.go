@@ -57,18 +57,18 @@ func (hb *Haobtc) Sell(amount float64) int64 {
     return id
 }
 
-func (hb *Haobtc) OrderInfo(id int64) *Order {
-    return &Order{}
+func (hb *Haobtc) OrderInfo(id int64) Order {
+    return Order{}
 }
 
-func (hb *Haobtc) LastTicker() *Ticker {
+func (hb *Haobtc) LastTicker() Ticker {
+    t        := Ticker{}
     rs := hb.Call("ticker", nil, nil)
     if rs == nil {
-        return nil
+        return t
     }
 
     rst     := rs.Tree("ticker")
-    t        := &Ticker{}
     t.High, _ = rst.Float("high")
     t.Low,  _ = rst.Float("low")
     t.Sell, _ = rst.Float("sell")

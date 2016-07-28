@@ -4,7 +4,6 @@ import (
     "github.com/roydong/gmvc"
     "container/list"
     "time"
-    "log"
 )
 
 var maxTickerNum = 300
@@ -87,7 +86,7 @@ func NewMarket(name string) *Market {
         gmvc.Logger.Fatalln("invalid market " + m.name)
     }
 
-    m.tickers = make(map[int64]*Ticker)
+    m.tickers = make(map[int64]Ticker)
     m.tickerList = list.New()
 
     return m
@@ -98,7 +97,7 @@ func (m *Market) Name() string {
 }
 
 func (m *Market) addTicker(t Ticker) {
-    if t == nil {
+    if t.Last <= 0 {
         return
     }
     m.tickerList.PushFront(t)
@@ -123,14 +122,14 @@ func (m *Market) BackTicker() Ticker {
     if el := m.tickerList.Back(); el != nil {
         return el.Value.(Ticker)
     }
-    return nil
+    return Ticker{}
 }
 
 func (m *Market) FrontTicker() Ticker {
     if el := m.tickerList.Front(); el != nil {
         return el.Value.(Ticker)
     }
-    return nil
+    return Ticker{}
 }
 
 func (m *Market) SyncTicker(interval time.Duration) {
@@ -171,10 +170,7 @@ func (m *Market) GetBuyPrice(amount float64) float64 {
 }
 
 func (m *Market) UpdateDepth() {
-    st := time.Now().UnixNano()
     lastAsks, lastBids := m.GetDepth()
-    et := time.Now().UnixNano()
-    log.Println(m.name, (et - st)/1000000)
     if len(lastAsks) > 0 && len(lastBids) > 0 {
         m.lastAsks = lastAsks
         m.lastBids = lastBids

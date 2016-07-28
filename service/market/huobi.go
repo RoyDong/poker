@@ -50,7 +50,7 @@ func (hb *Huobi) Sell(amount float64) int64 {
     q := map[string]interface{}{
         "method": "sell_market",
         "coin_type": 1,
-        "amount": amount,
+        "amount": fmt.Sprintf("%.4f", amount),
     }
 
     rs := hb.Call("", nil, q)
@@ -62,19 +62,19 @@ func (hb *Huobi) Sell(amount float64) int64 {
 }
 
 
-func (hb *Huobi) OrderInfo(id int64) *Order {
+func (hb *Huobi) OrderInfo(id int64) Order {
     params := map[string]interface{}{
         "method": "order_info",
         "coin_type": 1,
         "id": id,
     }
 
+    order := Order{}
     rs := hb.Call("", nil, params)
     if rs == nil {
-        return nil
+        return order
     }
 
-    order := &Order{}
     order.Id = id
     order.Amount,     _ = rs.Float("order_amount")
     order.Price,      _ = rs.Float("order_price")
@@ -97,14 +97,14 @@ func (hb *Huobi) OrderInfo(id int64) *Order {
 }
 
 
-func (hb *Huobi) LastTicker() *Ticker {
+func (hb *Huobi) LastTicker() Ticker {
+    t := Ticker{}
     rs := hb.CallMarket("staticmarket/ticker_btc_json.js", nil, nil)
     if rs == nil {
-        return nil
+        return t
     }
 
     rst := rs.Tree("ticker")
-    t := &Ticker{}
     t.Time, _ = rs.Int64("time")
     t.High, _ = rst.Float("high")
     t.Low,  _ = rst.Float("low")

@@ -181,15 +181,6 @@ func init() {
 
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        huobi := market.NewHuobi()
-        huobi.WSConnect()
-
-        return r.TextResponse("done")
-
-    }, "/hb_ws")
-
-
-    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         a := market.NewOKFutureWS("this_week")
 
         gmvc.Store.Set("aa", a)
