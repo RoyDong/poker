@@ -32,9 +32,7 @@ func (ar *averager) Add(idx int64, val float64) (bool, int64) {
         el := ar.dataList.Back()
         idx, _ = el.Value.(int64)
         val = ar.dataMap[idx]
-        ar.total -= val
-        ar.dataList.Remove(el)
-        delete(ar.dataMap, idx)
+        ar.remove(idx, val, el)
         overflow = true
     }
 
@@ -42,19 +40,38 @@ func (ar *averager) Add(idx int64, val float64) (bool, int64) {
     return overflow, idx
 }
 
+func (ar *averager) AddPeek(top bool, idx int64, val float64) (bool, int64) {
+    if ar.Full() {
+        for el := ar.dataList.Back(); el != nil; el = el.Prev() {
+            i, _ := el.Value.(int64)
+            v := ar.dataMap[i]
+            if (top && val > v) || (!top && val < v){
+                ar.remove(i, v, el)
+                return ar.Add(idx, val)
+            }
+        }
+        return false, 0
+    }
+    return ar.Add(idx, val)
+}
+
 func (ar *averager) CutTail(idx int64) {
     if val, has := ar.dataMap[idx]; has {
         el := ar.dataList.Back()
         i, _ := el.Value.(int64)
         if i == idx {
-            ar.total -= val
-            ar.dataList.Remove(el)
-            delete(ar.dataMap, idx)
+            ar.remove(idx, val, el)
             ar.avg = ar.total / float64(ar.dataList.Len())
         } else {
             panic("data not sync")
         }
     }
+}
+
+func (ar *averager) remove(idx int64, val float64, el *list.Element) {
+    ar.total -= val
+    ar.dataList.Remove(el)
+    delete(ar.dataMap, idx)
 }
 
 func (ar *averager) Avg() float64 {
@@ -63,6 +80,10 @@ func (ar *averager) Avg() float64 {
 
 func (ar *averager) Len() int {
     return ar.dataList.Len()
+}
+
+func (ar *averager) Full() bool {
+    return ar.dataList.Len() >= ar.maxNum
 }
 
 

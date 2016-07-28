@@ -39,9 +39,9 @@ func NewHedger(zuo, you *Market) *Hedger {
         zuo: zuo,
         you: you,
 
-        minAvg: newAverager(20),
-        midAvg: newAverager(100),
-        maxAvg: newAverager(20),
+        minAvg: newAverager(10),
+        midAvg: newAverager(300),
+        maxAvg: newAverager(10),
 
         state: StateClose,
     }
@@ -103,9 +103,9 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
 
         if hg.midAvg.Len() > 0 {
             if margin <= hg.midAvg.Avg() - hg.minTradeMargin {
-                hg.minAvg.Add(idx, margin)
+                hg.minAvg.AddPeek(false, idx, margin)
             } else if margin >= hg.midAvg.Avg() + hg.minTradeMargin {
-                hg.maxAvg.Add(idx, margin)
+                hg.maxAvg.AddPeek(true, idx, margin)
             }
         }
 
@@ -114,8 +114,8 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
             hg.maxAvg.CutTail(i)
         }
 
-        log.Println(fmt.Sprintf("%.3f <= %.3f(%.3f) => %.3f",
-            hg.minAvgMargin(), hg.midAvg.Avg(), margin, hg.maxAvgMargin()))
+        log.Println(fmt.Sprintf("%.3f(%v) <= %.3f(%.3f) => %.3f(%v)",
+            hg.minAvgMargin(), hg.minAvg.Len(), hg.midAvg.Avg(), margin, hg.maxAvgMargin(), hg.maxAvg.Len()))
     }
 }
 
