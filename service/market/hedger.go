@@ -80,7 +80,10 @@ func (hg *Hedger) Stop() {
 
 func (hg *Hedger) updateMargins(interval time.Duration) {
     wg := &sync.WaitGroup{}
-    for _ = range time.Tick(interval) {
+    var idx int64
+    for {
+        time.Sleep(interval)
+        idx++
         var zuoTicker, youTicker Ticker
         wg.Add(2)
         go func() {
@@ -96,7 +99,6 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
             continue
         }
 
-        idx := zuoTicker.Time
         margin := youTicker.Last - zuoTicker.Last
 
         if hg.midAvg.Len() > 0 {
@@ -107,9 +109,9 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
             }
         }
 
-        if overflow, idx := hg.midAvg.Add(idx, margin); overflow {
-            hg.minAvg.CutTail(idx)
-            hg.maxAvg.CutTail(idx)
+        if overflow, i := hg.midAvg.Add(idx, margin); overflow {
+            hg.minAvg.CutTail(i)
+            hg.maxAvg.CutTail(i)
         }
 
         log.Println(fmt.Sprintf("%.3f <= %.3f(%.3f) => %.3f",
@@ -132,7 +134,8 @@ func (hg *Hedger) maxAvgMargin() float64 {
 }
 
 func (hg *Hedger) arbitrage(interval time.Duration) {
-    for _ = range time.Tick(interval) {
+    for {
+        time.Sleep(interval)
         if hg.midAvg.Len() < 20 {
             gmvc.Logger.Println("margin list is less than 10")
             continue
@@ -294,7 +297,7 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     //交易统计
     var sorder, lorder Order
     for _ = range time.Tick(500 * time.Millisecond) {
-        sorder := hg.short.OrderInfo(sid)
+        sorder = hg.short.OrderInfo(sid)
         if sorder.Status == 2 {
             hg.short.lastBuy = sorder.DealAmount
             break
@@ -302,7 +305,7 @@ func (hg *Hedger) closePosition(buyPrice, sellPrice float64) {
     }
 
     for _ = range time.Tick(500 * time.Millisecond) {
-        lorder := hg.long.OrderInfo(lid)
+        lorder = hg.long.OrderInfo(lid)
         if lorder.Status == 2 {
             hg.long.lastSell = lorder.DealAmount
             break
