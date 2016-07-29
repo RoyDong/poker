@@ -40,7 +40,7 @@ func NewHedger(zuo, you *Market) *Hedger {
         you: you,
 
         minAvg: newAverager(10),
-        midAvg: newAverager(300),
+        midAvg: newAverager(200),
         maxAvg: newAverager(10),
 
         state: StateClose,
@@ -120,14 +120,14 @@ func (hg *Hedger) updateMargins(interval time.Duration) {
 }
 
 func (hg *Hedger) minAvgMargin() float64 {
-    if hg.minAvg.Len() > 0 {
+    if hg.minAvg.Len() > 1 {
         return hg.minAvg.Avg()
     }
     return hg.midAvg.Avg() - hg.minTradeMargin
 }
 
 func (hg *Hedger) maxAvgMargin() float64 {
-    if hg.maxAvg.Len() > 0 {
+    if hg.maxAvg.Len() > 1 {
         return hg.maxAvg.Avg()
     }
     return hg.midAvg.Avg() + hg.minTradeMargin
