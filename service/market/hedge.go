@@ -67,7 +67,7 @@ func (hg *Hedge) Start() {
     hg.marginLevel = 1
     hg.levelEvalAt = hg.started
 
-    go hg.evalMargins(500 * time.Millisecond)
+    go hg.evalMargins(1000 * time.Millisecond)
     go hg.arbitrage(500 * time.Millisecond)
 }
 
@@ -330,7 +330,7 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
         sorder = hg.short.OrderInfo(sid)
         if sorder.Status == 2 {
             hg.short.amountChange += sorder.DealAmount
-            hg.short.cny -= sorder.AvgPrice * sorder.DealAmount
+            hg.short.cnyChange -= sorder.AvgPrice * sorder.DealAmount
             hg.cny -= sorder.AvgPrice
             break
         }
