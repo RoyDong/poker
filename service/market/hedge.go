@@ -288,9 +288,9 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
         }
     }
 
-    gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.4f(%.4f) btc + %.2f(%.2f) cny",
+    gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.4f btc + %.2f(%.2f) cny",
         short.name, hg.tradeAmount, sorder.DealAmount, shortSellPrice, sorder.AvgPrice))
-    gmvc.Logger.Println(fmt.Sprintf("   long: %v + %.4f(%.4f) btc - %.2f(%.2f) cny",
+    gmvc.Logger.Println(fmt.Sprintf("   long: %v + %.4f btc - %.2f(%.2f) cny",
         long.name, hg.tradeAmount, lorder.DealAmount, longBuyPrice, lorder.AvgPrice))
     gmvc.Logger.Println("")
 }
@@ -347,15 +347,15 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
         }
     }
 
-    gmvc.Logger.Println(fmt.Sprintf("   short: %v + %.4f(%.4f) btc - %.2f(%.2f) cny",
+    gmvc.Logger.Println(fmt.Sprintf("   short: %v + %.4f btc - %.2f(%.2f) cny",
         hg.short.name, hg.tradeAmount, sorder.DealAmount, buyPrice, sorder.AvgPrice))
-    gmvc.Logger.Println(fmt.Sprintf("   long: %v - %.4f(%.4f) btc + %.2f(%.2f) cny",
+    gmvc.Logger.Println(fmt.Sprintf("   long: %v - %.4f btc + %.2f(%.2f) cny",
         hg.long.name, hg.tradeAmount, lorder.DealAmount, sellPrice, lorder.AvgPrice))
     gmvc.Logger.Println("")
 
     now := time.Now()
     d := time.Unix(now.Unix() - hg.started.Unix() - 28800, 0)
-    gmvc.Logger.Println(fmt.Sprintf("result: %.4f btc, %.2f(%.2f) cny, %v/%v",
+    gmvc.Logger.Println(fmt.Sprintf("result: %.4f btc, %.2f cny, %.2f cny, %v/%v",
                                     hg.long.amountChange + hg.short.amountChange,
                                     hg.long.cnyChange + hg.short.cnyChange, hg.cny * hg.tradeAmount,
                                     hg.roundNum, d.Format("15:04:05")))
