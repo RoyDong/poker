@@ -367,7 +367,7 @@ func (hg *Hedge) closeShort(price float64) int64 {
 }
 
 func (hg *Hedge) closeLong(price float64) int64 {
-    return hg.long.Sell(hg.tradeAmount)
+    return hg.long.Sell(hg.long.amountChange)
 }
 
 
