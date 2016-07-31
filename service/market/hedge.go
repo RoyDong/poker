@@ -69,8 +69,6 @@ func (hg *Hedge) Start() {
     hg.started = time.Now()
     hg.roundNum = 0
     hg.state = StateClose
-    hg.marginLevel = 1
-    hg.levelEvalAt = hg.started
 
     go hg.evalMargins(1000 * time.Millisecond)
     go hg.arbitrage(500 * time.Millisecond)
