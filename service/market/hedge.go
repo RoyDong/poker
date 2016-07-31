@@ -41,12 +41,17 @@ func NewHedge(zuo, you *Market) *Hedge {
         midAvg: newAverager(300),
         maxAvg: newAverager(15),
 
-        minTradeMargin: 3,
         levelValue: 3,
+        minTradeMargin: 5,
     }
 
     conf := gmvc.Store.Tree("config.hedger")
-    //hg.minTradeMargin, _ = conf.Float("min_trade_margin")
+    if v, has := conf.Float("min_trade_margin"); has {
+        hg.minTradeMargin = v
+    }
+    if v, has := conf.Float("margin_level_value"); has {
+        hg.levelValue = v
+    }
     hg.tradeAmount, _ = conf.Float("trade_amount")
 
     return hg
