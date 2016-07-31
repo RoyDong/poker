@@ -37,9 +37,9 @@ func NewHedge(zuo, you *Market) *Hedge {
         zuo: zuo,
         you: you,
 
-        minAvg: newAverager(20),
-        midAvg: newAverager(500),
-        maxAvg: newAverager(20),
+        minAvg: newAverager(15),
+        midAvg: newAverager(300),
+        maxAvg: newAverager(15),
 
         minTradeMargin: 3,
         levelValue: 3,
