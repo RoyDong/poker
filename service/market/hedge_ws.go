@@ -25,7 +25,7 @@ const (
     StateClosePending = 4
 )
 
-type HedgerWS struct {
+type HedgeWS struct {
     zuo *OKFutureWS
     you *OKFutureWS
 
@@ -74,8 +74,8 @@ type HedgerWS struct {
 }
 
 
-func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
-    hg := &HedgerWS{
+func NewHedgeWS(zuo, you *OKFutureWS) *HedgeWS {
+    hg := &HedgeWS{
         zuo: zuo,
         you: you,
 
@@ -106,7 +106,7 @@ func NewHedgerWS(zuo, you *OKFutureWS) *HedgerWS {
     return hg
 }
 
-func (hg *HedgerWS) Start() {
+func (hg *HedgeWS) Start() {
     hg.btc, _ = hg.zuo.GetBalance()
     hg.btc, _ = hg.you.GetBalance()
 
@@ -120,7 +120,7 @@ func (hg *HedgerWS) Start() {
     gmvc.Logger.Println("started...")
 }
 
-func (hg *HedgerWS) syncTrade(args ...interface{}) {
+func (hg *HedgeWS) syncTrade(args ...interface{}) {
     trade, _ := args[0].(Trade)
     if len(hg.trade) > cap(hg.trade) {
         <-hg.trade
@@ -128,7 +128,7 @@ func (hg *HedgerWS) syncTrade(args ...interface{}) {
     hg.trade <-trade
 }
 
-func (hg *HedgerWS) syncLastTrade(args ...interface{}) {
+func (hg *HedgeWS) syncLastTrade(args ...interface{}) {
     trade, _ := args[0].(Trade)
     if len(hg.lastTrade) > cap(hg.lastTrade) {
         <-hg.lastTrade
@@ -136,11 +136,11 @@ func (hg *HedgerWS) syncLastTrade(args ...interface{}) {
     hg.lastTrade <-trade
 }
 
-func (hg *HedgerWS) Stop() {
+func (hg *HedgeWS) Stop() {
     hg.state = StateStop
 }
 
-func (hg *HedgerWS) updateMargins() {
+func (hg *HedgeWS) updateMargins() {
     for hg.state != StateStop {
         trade := <-hg.trade
         idx := trade.No
@@ -184,7 +184,7 @@ func (hg *HedgerWS) updateMargins() {
     }
 }
 
-func (hg *HedgerWS) getMinMargin() (int64, float64) {
+func (hg *HedgeWS) getMinMargin() (int64, float64) {
     min := math.Inf(1)
     var idx int64
     for el := hg.marginList.Back(); el != nil; el = el.Prev() {
@@ -198,7 +198,7 @@ func (hg *HedgerWS) getMinMargin() (int64, float64) {
     return idx, min
 }
 
-func (hg *HedgerWS) getMaxMargin() (int64, float64) {
+func (hg *HedgeWS) getMaxMargin() (int64, float64) {
     max := math.Inf(-1)
     var idx int64
     for el := hg.marginList.Back(); el != nil; el = el.Prev() {
@@ -213,7 +213,7 @@ func (hg *HedgerWS) getMaxMargin() (int64, float64) {
 }
 
 
-func (hg *HedgerWS) arbitrage() {
+func (hg *HedgeWS) arbitrage() {
     for hg.state != StateStop {
         <-hg.lastTrade
         if hg.marginList.Len() < 100 {
@@ -257,11 +257,11 @@ func (hg *HedgerWS) arbitrage() {
     }
 }
 
-func (hg *HedgerWS) getCurrentMargin() float64 {
+func (hg *HedgeWS) getCurrentMargin() float64 {
     return hg.you.lastTrade.Price - hg.zuo.lastTrade.Price
 }
 
-func (hg *HedgerWS) openPosition(short, long *OKFutureWS, shortPrice, longPrice, margin float64) {
+func (hg *HedgeWS) openPosition(short, long *OKFutureWS, shortPrice, longPrice, margin float64) {
     hg.short = short
     hg.long = long
     hg.tradeMargin = margin
@@ -286,7 +286,7 @@ func (hg *HedgerWS) openPosition(short, long *OKFutureWS, shortPrice, longPrice,
     gmvc.Logger.Println("")
 }
 
-func (hg *HedgerWS) closePosition(shortPrice, longPrice, margin float64) {
+func (hg *HedgeWS) closePosition(shortPrice, longPrice, margin float64) {
     hg.state = StateClose
     hg.pendingTime = time.Now().Unix()
     hg.wg.Add(2)

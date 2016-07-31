@@ -143,7 +143,7 @@ func init() {
         okcoin := market.NewMarket("okcoin")
         huobi := market.NewMarket("huobi")
 
-        hg := market.NewHedger(okcoin, huobi)
+        hg := market.NewHedge(okcoin, huobi)
         hg.Start()
 
         return r.TextResponse("done")
@@ -154,7 +154,7 @@ func init() {
         okcoin := market.NewMarket("okcoin")
         haobtc := market.NewMarket("haobtc")
 
-        hg := market.NewHedger(okcoin, haobtc)
+        hg := market.NewHedge(okcoin, haobtc)
         hg.Start()
 
         return r.TextResponse("done")
@@ -162,7 +162,7 @@ func init() {
     }, "/okcoin_haobtc")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        hg := market.NewHedger(market.NewMarket("okcoin"), market.NewMarket("okfuture_quarter"))
+        hg := market.NewHedge(market.NewMarket("okcoin"), market.NewMarket("okfuture_quarter"))
         hg.Start()
 
         return r.TextResponse("done")
@@ -172,7 +172,7 @@ func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         week := market.NewOKFutureWS("this_week")
         quarter := market.NewOKFutureWS("quarter")
-        hg := market.NewHedgerWS(week, quarter)
+        hg := market.NewHedgeWS(week, quarter)
         hg.Start()
 
         return r.TextResponse("done")

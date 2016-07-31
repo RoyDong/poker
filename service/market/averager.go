@@ -5,73 +5,71 @@ import (
 )
 
 type averager struct {
-    dataList *list.List
-    dataMap map[int64]float64
-    maxNum int
+    keys *list.List
+    data map[int64]float64
+    size int
     total, avg float64
 }
 
-
-
-func newAverager(num int) *averager {
+func newAverager(size int) *averager {
     ar := &averager{
-        dataList: list.New(),
-        dataMap: make(map[int64]float64, num),
-        maxNum: num,
+        keys: list.New(),
+        data: make(map[int64]float64, size),
+        size: size,
     }
     return ar
 }
 
-func (ar *averager) Add(idx int64, val float64) (bool, int64) {
-    ar.dataMap[idx] = val
-    ar.dataList.PushFront(idx)
+func (ar *averager) Add(key int64, val float64) (bool, int64) {
+    ar.data[key] = val
+    ar.keys.PushFront(key)
     ar.total += val
 
     overflow := false
-    if ar.dataList.Len() > ar.maxNum {
-        el := ar.dataList.Back()
-        idx, _ = el.Value.(int64)
-        val = ar.dataMap[idx]
-        ar.remove(idx, val, el)
+    if ar.keys.Len() > ar.size {
+        el := ar.keys.Back()
+        key, _ = el.Value.(int64)
+        val = ar.data[key]
+        ar.remove(key, val, el)
         overflow = true
     }
 
-    ar.avg = ar.total / float64(ar.dataList.Len())
-    return overflow, idx
+    ar.avg = ar.total / float64(ar.keys.Len())
+    return overflow, key
 }
 
-func (ar *averager) AddPeek(top bool, idx int64, val float64) (bool, int64) {
+func (ar *averager) AddPeek(top bool, key int64, val float64) (bool, int64) {
     if ar.Full() {
-        for el := ar.dataList.Back(); el != nil; el = el.Prev() {
-            i, _ := el.Value.(int64)
-            v := ar.dataMap[i]
+        for el := ar.keys.Back(); el != nil; el = el.Prev() {
+            k, _ := el.Value.(int64)
+            v := ar.data[k]
             if (top && val > v) || (!top && val < v){
-                ar.remove(i, v, el)
-                return ar.Add(idx, val)
+                ar.remove(k, v, el)
+                return ar.Add(key, val)
             }
         }
         return false, 0
     }
-    return ar.Add(idx, val)
+    return ar.Add(key, val)
 }
 
-func (ar *averager) CutTail(idx int64) {
-    if val, has := ar.dataMap[idx]; has {
-        el := ar.dataList.Back()
-        i, _ := el.Value.(int64)
-        if i == idx {
-            ar.remove(idx, val, el)
-            ar.avg = ar.total / float64(ar.dataList.Len())
+func (ar *averager) CutTail(key int64) {
+    if val, has := ar.data[key]; has {
+        el := ar.keys.Back()
+        k, _ := el.Value.(int64)
+        if k == key {
+            ar.remove(key, val, el)
+            ar.avg = ar.total / float64(ar.keys.Len())
         } else {
             panic("data not sync")
         }
     }
 }
 
-func (ar *averager) remove(idx int64, val float64, el *list.Element) {
+func (ar *averager) remove(key int64, val float64, el *list.Element) {
     ar.total -= val
-    ar.dataList.Remove(el)
-    delete(ar.dataMap, idx)
+    ar.keys.Remove(el)
+    delete(ar.data, key)
 }
 
 func (ar *averager) Avg() float64 {
@@ -79,11 +77,11 @@ func (ar *averager) Avg() float64 {
 }
 
 func (ar *averager) Len() int {
-    return ar.dataList.Len()
+    return ar.keys.Len()
 }
 
 func (ar *averager) Full() bool {
-    return ar.dataList.Len() >= ar.maxNum
+    return ar.keys.Len() >= ar.size
 }
 
 

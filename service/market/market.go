@@ -56,13 +56,13 @@ type Market struct {
     recentTotalPrince float64
     recentAverage float64
 
-    btc float64
+    amount float64
+    amountChange float64
     cny float64
+    cnyChange float64
 
     lastAsks [][]float64
     lastBids [][]float64
-
-    lastBuy, lastSell float64
 }
 
 
@@ -178,10 +178,10 @@ func (m *Market) UpdateDepth() {
 }
 
 func (m *Market) SyncBalance() {
-    m.btc, m.cny = m.GetBalance()
+    m.amount, m.cny = m.GetBalance()
 }
 
 func (m *Market) Balance() (float64, float64) {
-    return m.btc, m.cny
+    return m.amount, m.cny
 }
 
