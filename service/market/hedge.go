@@ -173,7 +173,6 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
     for hg.running {
         time.Sleep(interval)
         if hg.midAvg.Len() < 50 {
-            gmvc.Logger.Println("margin list is less than 10")
             continue
         }
 
