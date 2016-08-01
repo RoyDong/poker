@@ -289,9 +289,9 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
     }
 
     gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.4f btc + %.2f(%.2f) cny",
-        short.name, hg.tradeAmount, sorder.DealAmount, shortSellPrice, sorder.AvgPrice))
+        short.name, sorder.DealAmount, shortSellPrice, sorder.AvgPrice))
     gmvc.Logger.Println(fmt.Sprintf("   long: %v + %.4f btc - %.2f(%.2f) cny",
-        long.name, hg.tradeAmount, lorder.DealAmount, longBuyPrice, lorder.AvgPrice))
+        long.name, lorder.DealAmount, longBuyPrice, lorder.AvgPrice))
     gmvc.Logger.Println("")
 }
 
@@ -348,9 +348,9 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     }
 
     gmvc.Logger.Println(fmt.Sprintf("   short: %v + %.4f btc - %.2f(%.2f) cny",
-        hg.short.name, hg.tradeAmount, sorder.DealAmount, buyPrice, sorder.AvgPrice))
+        hg.short.name, sorder.DealAmount, buyPrice, sorder.AvgPrice))
     gmvc.Logger.Println(fmt.Sprintf("   long: %v - %.4f btc + %.2f(%.2f) cny",
-        hg.long.name, hg.tradeAmount, lorder.DealAmount, sellPrice, lorder.AvgPrice))
+        hg.long.name, lorder.DealAmount, sellPrice, lorder.AvgPrice))
     gmvc.Logger.Println("")
 
     now := time.Now()
