@@ -19,7 +19,7 @@ type Hedge struct {
     levelEvalAt time.Time
     levelUpNum int
 
-    minAvg, midAvg, maxAvg *averager
+    avg, minAvg, maxAvg *averager
 
     running       bool
     state         int
@@ -37,8 +37,8 @@ func NewHedge(zuo, you *Market) *Hedge {
         zuo: zuo,
         you: you,
 
+        avg: newAverager(300),
         minAvg: newAverager(15),
-        midAvg: newAverager(300),
         maxAvg: newAverager(15),
 
         levelValue: 3,
@@ -101,23 +101,23 @@ func (hg *Hedge) evalMargins(interval time.Duration) {
         }
 
         margin := youTicker.Last - zuoTicker.Last
-        if hg.midAvg.Len() > 0 {
-            if margin <= hg.midAvg.Avg() - hg.tradeMargin() {
+        if hg.avg.Len() > 0 {
+            if margin <= hg.avg.Avg() - hg.tradeMargin() {
                 hg.minAvg.AddPeek(false, idx, margin)
-            } else if margin >= hg.midAvg.Avg() + hg.tradeMargin() {
+            } else if margin >= hg.avg.Avg() + hg.tradeMargin() {
                 hg.maxAvg.AddPeek(true, idx, margin)
             }
         }
-        if overflow, i := hg.midAvg.Add(idx, margin); overflow {
+        if overflow, i := hg.avg.Add(idx, margin); overflow {
             hg.minAvg.CutTail(i)
             hg.maxAvg.CutTail(i)
         }
 
         hg.evalLevel()
 
-        log.Println(fmt.Sprintf("%.3f(%v) <= %.3f(%.3f, %v) => %.3f(%v)",
+        log.Println(fmt.Sprintf("%.2f(%v) <= %.2f(%.2f, %v) => %.2f(%v)",
                                 hg.minAvgMargin(), hg.minAvg.Len(),
-                                hg.midAvg.Avg(), margin, hg.marginLevel,
+                                hg.avg.Avg(), margin, hg.marginLevel,
                                 hg.maxAvgMargin(), hg.maxAvg.Len()))
     }
 }
@@ -125,10 +125,10 @@ func (hg *Hedge) evalMargins(interval time.Duration) {
 func (hg *Hedge) evalLevel() {
     var max, min int64
     if hg.minAvg.Len() > 0 {
-        min = int64((hg.midAvg.Avg() - hg.minAvg.Avg() - hg.minTradeMargin) / hg.levelValue)
+        min = int64((hg.avg.Avg() - hg.minAvg.Avg() - hg.minTradeMargin) / hg.levelValue)
     }
     if hg.maxAvg.Len() > 0 {
-        max = int64((hg.maxAvg.Avg() - hg.midAvg.Avg() - hg.minTradeMargin) / hg.levelValue)
+        max = int64((hg.maxAvg.Avg() - hg.avg.Avg() - hg.minTradeMargin) / hg.levelValue)
     }
 
     level := int(gmvc.Max(min, max))
@@ -152,14 +152,14 @@ func (hg *Hedge) minAvgMargin() float64 {
     if hg.minAvg.Len() > 1 {
         return hg.minAvg.Avg()
     }
-    return hg.midAvg.Avg() - hg.tradeMargin()
+    return hg.avg.Avg() - hg.tradeMargin()
 }
 
 func (hg *Hedge) maxAvgMargin() float64 {
     if hg.maxAvg.Len() > 1 {
         return hg.maxAvg.Avg()
     }
-    return hg.midAvg.Avg() + hg.tradeMargin()
+    return hg.avg.Avg() + hg.tradeMargin()
 }
 
 func (hg *Hedge) tradeMargin() float64 {
@@ -170,7 +170,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
     wg := &sync.WaitGroup{}
     for hg.running {
         time.Sleep(interval)
-        if hg.midAvg.Len() < 50 {
+        if hg.avg.Len() < 50 {
             continue
         }
 
@@ -230,7 +230,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
                 margin = youBuyPrice - zuoSellPrice
 
                 //差价低于平均差价即可平仓
-                if margin <= hg.midAvg.Avg() {
+                if margin <= hg.avg.Avg() {
                     gmvc.Logger.Println(fmt.Sprintf("close position(youBuy - zuoSell %.2f):", margin))
                     hg.closePosition(youBuyPrice, zuoSellPrice)
                 }
@@ -240,7 +240,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
                 margin = youSellPrice - zuoBuyPrice
 
                 //差价高于平均差价即可平仓
-                if margin >= hg.midAvg.Avg() {
+                if margin >= hg.avg.Avg() {
                     gmvc.Logger.Println(fmt.Sprintf("close position(youSell - zuoBuy %.2f):", margin))
                     hg.closePosition(zuoBuyPrice, youSellPrice)
                 }
