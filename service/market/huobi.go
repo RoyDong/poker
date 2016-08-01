@@ -179,6 +179,9 @@ func (hb *Huobi) Call(api string, query, params map[string]interface{}) *gmvc.Tr
 
 func (hb *Huobi) CallMarket(api string, query, params map[string]interface{}) *gmvc.Tree {
     tree := CallRest(hb.marketHost + api, query, params)
+    if tree == nil {
+        return nil
+    }
     if code, has := tree.Int64("code"); has {
         msg, _ := tree.String("message")
         gmvc.Logger.Println(fmt.Sprintf("huobi: %v %s", code, msg))
