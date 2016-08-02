@@ -208,7 +208,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
 
             //满足最小差价条件,并且超过最大差价
             if margin >= hg.maxAvgMargin() {
-                gmvc.Logger.Println(fmt.Sprintf("open positoin(youSell - zuoBuy %.2f):", margin))
+                gmvc.Logger.Println(fmt.Sprintf("open positoin(youSell - zuoBuy %.2f %v):", margin, hg.marginLevel))
                 hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
                 continue
             }
@@ -218,7 +218,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
 
             //满足最小差价条件,并且低于最小差价
             if margin <= hg.minAvgMargin() {
-                gmvc.Logger.Println(fmt.Sprintf("open position(youBuy - zuoSell %.2f):", margin))
+                gmvc.Logger.Println(fmt.Sprintf("open position(youBuy - zuoSell %.2f $v):", margin, hg.marginLevel))
                 hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
                 continue
             }
