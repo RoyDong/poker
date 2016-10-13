@@ -12,9 +12,13 @@ const (
     StateClose   = 4
 )
 
+/*
+仓位
+ */
 type position struct {
     amount, price float64
 
+    //多头/空头, 成交状态
     postionType, state int
 
     closeAmount, closePrice float64
@@ -27,12 +31,4 @@ type position struct {
     openAt, closeAt time.Time
 }
 
-func openLong(amount, price float64) *position {
 
-}
-
-func openClose(amount, price float64) *position {
-
-}
-
-func (pos *position)
