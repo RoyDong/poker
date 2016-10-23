@@ -48,6 +48,8 @@ type EMATrade struct {
     minMargin, maxMargin float64
     minMarginTime, maxMarginTime time.Time
 
+    tradeAmount float64
+
     state int
 }
 
@@ -159,13 +161,33 @@ func (et *EMATrade) tradeLoop() {
     }
 }
 
-func (et *EMATrade) openLong() {
-    //开多单买入，买入数量要减去之前没有平仓的数量
-    //等待成交完成或者价格恢复到均价
-    //取消订单
-    //在均线附近卖出，等待完全成交，或者价格偏离
 
-
+/*
+开多单买入，买入数量要减去之前没有平仓的数量
+等待成交完成或者价格恢复到均价
+取消订单
+在均线附近卖出，等待完全成交，或者价格偏离
+*/
+func (et *EMATrade) openLong(price float64) {
+    id := et.market.Buy(et.tradeAmount, price)
+    //交易统计
+    var order market.Order
+    for _ = range time.Tick(500 * time.Millisecond) {
+        order = et.market.OrderInfo(id)
+        currentPrice := et.tradePrices.Front().Value.(float64)
+        if order.Status == 2 || order.Status == -1 {
+            et.long = &position{
+                amount: order.DealAmount,
+                price: order.AvgPrice,
+                postionType: TypeLong,
+                state: StateOpen,
+                openAt: time.Now(),
+            }
+            break
+        } else if currentPrice > price {
+            et.market.CancelOrder(id)
+        }
+    }
 }
 
 func (et *EMATrade) openShort() {

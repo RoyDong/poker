@@ -296,13 +296,13 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
 }
 
 func (hg *Hedge) openShort(short *Market, sellPrice float64) int64 {
-    id := short.Sell(hg.tradeAmount + short.amountChange)
+    id := short.Sell(hg.tradeAmount + short.amountChange, 0)
     hg.short = short
     return id
 }
 
 func (hg *Hedge) openLong(long *Market, buyPrice float64) int64 {
-    id := long.Buy(hg.tradeAmount * buyPrice)
+    id := long.Buy(0, hg.tradeAmount * buyPrice)
     hg.long = long
     return id
 }
@@ -363,11 +363,11 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
 }
 
 func (hg *Hedge) closeShort(price float64) int64 {
-    return hg.short.Buy(hg.tradeAmount * price)
+    return hg.short.Buy(0, hg.tradeAmount * price)
 }
 
 func (hg *Hedge) closeLong(price float64) int64 {
-    return hg.long.Sell(hg.long.amountChange)
+    return hg.long.Sell(hg.long.amountChange, 0)
 }
 
 
