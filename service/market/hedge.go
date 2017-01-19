@@ -6,6 +6,7 @@ import (
     "github.com/roydong/gmvc"
     "log"
     "sync"
+    "math"
 )
 
 type Hedge struct {
@@ -52,7 +53,6 @@ func NewHedge(zuo, you *Market) *Hedge {
     if v, has := conf.Float("margin_level_value"); has {
         hg.levelValue = v
     }
-    hg.tradeAmount, _ = conf.Float("trade_amount")
 
     return hg
 }
@@ -194,11 +194,11 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             continue
         }
 
-        zuoBuyPrice := hg.zuo.GetBuyPrice(hg.tradeAmount)
-        zuoSellPrice := hg.zuo.GetSellPrice(hg.tradeAmount)
+        zuoBuyPrice, zuoBuyAmount := hg.zuo.GetAskDepth(1)
+        zuoSellPrice, zuoSellAmount := hg.zuo.GetBidDepth(1)
 
-        youBuyPrice := hg.you.GetBuyPrice(hg.tradeAmount)
-        youSellPrice := hg.you.GetSellPrice(hg.tradeAmount)
+        youBuyPrice, youBuyAmount := hg.you.GetAskDepth(1)
+        youSellPrice, youSellAmount := hg.you.GetBidDepth(1)
 
         var margin float64
         if hg.state == StateClose {
@@ -209,6 +209,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             //满足最小差价条件,并且超过最大差价
             if margin >= hg.maxAvgMargin() {
                 gmvc.Logger.Println(fmt.Sprintf("open positoin(youSell - zuoBuy %.2f %v):", margin, hg.marginLevel))
+                hg.tradeAmount = math.Min(youSellAmount, zuoBuyAmount)
                 hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
                 continue
             }
@@ -219,6 +220,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             //满足最小差价条件,并且低于最小差价
             if margin <= hg.minAvgMargin() {
                 gmvc.Logger.Println(fmt.Sprintf("open position(youBuy - zuoSell %.2f %v):", margin, hg.marginLevel))
+                hg.tradeAmount = math.Min(youBuyAmount, zuoSellAmount)
                 hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
                 continue
             }
@@ -370,4 +372,5 @@ func (hg *Hedge) closeLong(price float64) int64 {
     return hg.long.Sell(hg.long.amountChange)
 }
 
+func (hg *Hedge) re
 

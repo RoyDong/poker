@@ -169,6 +169,36 @@ func (m *Market) GetBuyPrice(amount float64) float64 {
     return price
 }
 
+/*
+获取盘口买单对应深度的价格和数量
+ */
+func (m *Market) GetBidDepth(depth int) (float64, float64) {
+    var price, amount float64
+    for i, bid := range m.lastBids {
+        amount += bid[1]
+        if i + 1 >= depth {
+            price = bid[0]
+            break
+        }
+    }
+    return price, amount
+}
+
+/*
+获取盘口卖单对应深度的价格和深度
+ */
+func (m *Market) GetAskDepth(depth int) (float64, float64) {
+    var price, amount float64
+    for i, ask := range m.lastAsks {
+        amount += ask[1]
+        if i >= depth {
+            price = ask[0]
+            break
+        }
+    }
+    return price, amount
+}
+
 func (m *Market) UpdateDepth() {
     lastAsks, lastBids := m.GetDepth()
     if len(lastAsks) > 0 && len(lastBids) > 0 {
