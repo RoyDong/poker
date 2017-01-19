@@ -14,6 +14,7 @@ type Hedge struct {
     short, long *Market
 
     tradeAmount float64
+    maxTradeAmount float64
     minTradeMargin float64
     marginLevel int
     levelValue float64
@@ -60,6 +61,7 @@ func NewHedge(zuo, you *Market) *Hedge {
 func (hg *Hedge) Start() {
     hg.zuo.SyncBalance()
     hg.you.SyncBalance()
+    hg.maxTradeAmount = math.Min(hg.zuo.amount, hg.you.amount) - 0.01
     amount := hg.zuo.amount + hg.you.amount
     cny := hg.zuo.cny + hg.you.cny
     gmvc.Logger.Println("--------")
@@ -209,7 +211,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             //满足最小差价条件,并且超过最大差价
             if margin >= hg.maxAvgMargin() {
                 gmvc.Logger.Println(fmt.Sprintf("open positoin(youSell - zuoBuy %.2f %v):", margin, hg.marginLevel))
-                hg.tradeAmount = math.Min(youSellAmount, zuoBuyAmount)
+                hg.tradeAmount = math.Min(math.Min(youSellAmount, zuoBuyAmount), hg.maxTradeAmount)
                 hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
                 continue
             }
@@ -220,7 +222,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             //满足最小差价条件,并且低于最小差价
             if margin <= hg.minAvgMargin() {
                 gmvc.Logger.Println(fmt.Sprintf("open position(youBuy - zuoSell %.2f %v):", margin, hg.marginLevel))
-                hg.tradeAmount = math.Min(youBuyAmount, zuoSellAmount)
+                hg.tradeAmount = math.Min(math.Min(youBuyAmount, zuoSellAmount), hg.maxTradeAmount)
                 hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
                 continue
             }
@@ -252,44 +254,22 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
 }
 
 func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Market, longBuyPrice float64) {
-    var sid, lid int64
-    if short.name == "huobi" {
-        sid = hg.openShort(short, shortSellPrice)
-        if sid == 0 {
-            return
-        }
-        lid = hg.openLong(long, longBuyPrice)
-    } else {
-        lid = hg.openLong(long, longBuyPrice)
-        if lid == 0 {
-            return
-        }
-        sid = hg.openShort(short, shortSellPrice)
-    }
+    wg := &sync.WaitGroup{}
+    wg.Add(2)
+    var sorder, lorder Order
+    go func() {
+        sorder = hg.openShort(short, shortSellPrice)
+        wg.Done()
+    }()
+    go func() {
+        lorder = hg.openLong(long, longBuyPrice)
+        wg.Done()
+    }()
+    wg.Wait()
 
     hg.state = StateOpen
 
     //交易统计
-    var sorder, lorder Order
-    for _ = range time.Tick(500 * time.Millisecond) {
-        sorder = short.OrderInfo(sid)
-        if sorder.Status == 2 {
-            short.amountChange -= sorder.DealAmount
-            short.cnyChange += sorder.AvgPrice * sorder.DealAmount
-            hg.cny += sorder.AvgPrice
-            break
-        }
-    }
-    for _ = range time.Tick(500 * time.Millisecond) {
-        lorder = long.OrderInfo(lid)
-        if lorder.Status == 2 {
-            long.amountChange += lorder.DealAmount
-            long.cnyChange -= lorder.AvgPrice * lorder.DealAmount
-            hg.cny -= lorder.AvgPrice
-            break
-        }
-    }
-
     gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.4f btc + %.2f(%.2f) cny",
         short.name, sorder.DealAmount, shortSellPrice, sorder.AvgPrice))
     gmvc.Logger.Println(fmt.Sprintf("   long: %v + %.4f btc - %.2f(%.2f) cny",
@@ -297,16 +277,31 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
     gmvc.Logger.Println("")
 }
 
-func (hg *Hedge) openShort(short *Market, sellPrice float64) int64 {
-    id := short.Sell(hg.tradeAmount + short.amountChange)
+func (hg *Hedge) openShort(short *Market, sellPrice float64) Order {
     hg.short = short
-    return id
+    id := short.Sell(hg.tradeAmount + short.amountChange)
+    return hg.orderInfo(id, short)
 }
 
-func (hg *Hedge) openLong(long *Market, buyPrice float64) int64 {
+func (hg *Hedge) openLong(long *Market, buyPrice float64) Order {
     id := long.Buy(hg.tradeAmount * buyPrice)
     hg.long = long
-    return id
+    return hg.orderInfo(id, long)
+}
+
+func (hg *Hedge) orderInfo(id int64, market *Market) {
+    var order Order
+    for _ = range time.Tick(500 * time.Millisecond) {
+        order = market.OrderInfo(id)
+        if order.Status == 2 {
+            market.amountChange -= order.DealAmount
+            market.cnyChange += order.AvgPrice * order.DealAmount
+            hg.cny += order.AvgPrice
+            break
+        }
+    }
+    return order
+
 }
 
 
@@ -371,6 +366,4 @@ func (hg *Hedge) closeShort(price float64) int64 {
 func (hg *Hedge) closeLong(price float64) int64 {
     return hg.long.Sell(hg.long.amountChange)
 }
-
-func (hg *Hedge) re
 
