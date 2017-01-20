@@ -260,21 +260,35 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
     var sorder, lorder Order
     go func() {
         sorder = hg.openShort(short, shortSellPrice)
-        short.amountChange -= sorder.DealAmount
-        short.cnyChange += sorder.AvgPrice * sorder.DealAmount
         wg.Done()
     }()
     go func() {
         lorder = hg.openLong(long, longBuyPrice)
-        long.amountChange += lorder.DealAmount
-        long.cnyChange -= lorder.AvgPrice * lorder.DealAmount
         wg.Done()
     }()
     wg.Wait()
 
-    //回补差额，如果成交量为0，重新开始
+    //检查下单结果，回补交易差额，如果最后成交为0，开始下一轮
+    if sorder.DealAmount > lorder.DealAmount {
+        delta := sorder.DealAmount * sorder.AvgPrice - lorder.DealAmount * lorder.AvgPrice
+        id := short.Buy(delta, 0)
+        order := hg.orderInfo(id, short)
+        sorder.DealAmount -= order.DealAmount
+    } else {
+        delta := lorder.DealAmount - sorder.DealAmount
+        if id := long.Sell(0, delta); id > 0 {
+            lorder.DealAmount -= delta
+        }
+    }
 
-    hg.state = StateOpen
+    short.amountChange -= sorder.DealAmount
+    long.amountChange += lorder.DealAmount
+
+    if sorder.DealAmount == 0 || lorder.DealAmount == 0 {
+        hg.state = StateClose
+    } else {
+        hg.state = StateOpen
+    }
 
     //交易统计
     gmvc.Logger.Println(fmt.Sprintf("   short: %v - %.4f btc + %.2f(%.2f) cny",
@@ -317,7 +331,7 @@ func (hg *Hedge) openLong(long *Market, buyPrice float64) Order {
 /*
 获取订单结果
  */
-func (hg *Hedge) orderInfo(id int64, market *Market) {
+func (hg *Hedge) orderInfo(id int64, market *Market) Order {
     var order Order
     if id > 0 {
         //每隔0.5s读取一次，最多等带5s
@@ -361,42 +375,26 @@ func (hg *Hedge) orderInfo(id int64, market *Market) {
 
 
 func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
-    var sid, lid int64
-    if hg.short.name == "huobi" {
-        sid = hg.closeShort(buyPrice)
-        if sid == 0 {
-            return
-        }
-        lid = hg.closeLong(sellPrice)
-    } else {
-        lid = hg.closeLong(sellPrice)
-        if lid == 0 {
-            return
-        }
-        sid = hg.closeShort(buyPrice)
-    }
+    wg := *sync.WaitGroup{}
+    wg.Add(2)
+
+    var sorder, lorder Order
+    go func() {
+        sorder = hg.closeShort(buyPrice)
+        wg.Done()
+    }()
+
+
+    go func() {
+        lorder = hg.closeLong(sellPrice)
+        wg.Done()
+    }()
+    wg.Wait()
+
     hg.state = StateClose
     hg.roundNum++
 
     //交易统计
-    var sorder, lorder Order
-    for _ = range time.Tick(500 * time.Millisecond) {
-        sorder = hg.short.OrderInfo(sid)
-        if sorder.Status == 2 {
-            hg.short.amountChange += sorder.DealAmount
-            hg.short.cnyChange -= sorder.AvgPrice * sorder.DealAmount
-            break
-        }
-    }
-    for _ = range time.Tick(500 * time.Millisecond) {
-        lorder = hg.long.OrderInfo(lid)
-        if lorder.Status == 2 {
-            hg.long.amountChange -= lorder.DealAmount
-            hg.long.cnyChange += lorder.AvgPrice * lorder.DealAmount
-            break
-        }
-    }
-
     gmvc.Logger.Println(fmt.Sprintf("   short: %v + %.4f btc - %.2f(%.2f) cny",
         hg.short.name, sorder.DealAmount, buyPrice, sorder.AvgPrice))
     gmvc.Logger.Println(fmt.Sprintf("   long: %v - %.4f btc + %.2f(%.2f) cny",
@@ -412,11 +410,13 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     gmvc.Logger.Println("")
 }
 
-func (hg *Hedge) closeShort(price float64) int64 {
-    return hg.short.Buy(hg.tradeAmount * price)
+func (hg *Hedge) closeShort(price float64) Order {
+    id := hg.short.Buy(price, -hg.short.amountChange)
+    return hg.orderInfo(id, hg.short)
 }
 
-func (hg *Hedge) closeLong(price float64) int64 {
-    return hg.long.Sell(hg.long.amountChange)
+func (hg *Hedge) closeLong(price float64) Order {
+    id := hg.long.Sell(price, hg.long.amountChange)
+    return hg.orderInfo(id, hg.long)
 }
 
