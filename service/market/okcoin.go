@@ -27,11 +27,17 @@ func NewOKCoin() *OKCoin {
 }
 
 
-func (ok *OKCoin)Buy(price float64) int64 {
+func (ok *OKCoin)Buy(price, amount float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
-        "type": "buy_market",
         "price": price,
+    }
+
+    if amount > 0 {
+        p["type"] = "buy"
+        p["amount"] = amount
+    } else {
+        p["type"] = "buy_market"
     }
 
     rs := ok.Call("trade.do", nil, p)
@@ -43,11 +49,18 @@ func (ok *OKCoin)Buy(price float64) int64 {
 }
 
 
-func (ok *OKCoin)Sell(amount float64) int64 {
+func (ok *OKCoin)Sell(price, amount float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
         "type": "sell_market",
         "amount": amount,
+    }
+
+    if price > 0 {
+        p["type"] = "sell"
+        p["price"] = price
+    } else {
+        p["type"] = "sell_market"
     }
 
     rs := ok.Call("trade.do", nil, p)
@@ -90,6 +103,23 @@ func (ok *OKCoin) OrderInfo(id int64) Order {
     return order
 }
 
+func (ok *OKCoin) CancleOrder(id int64) bool {
+    params := map[string]interface{} {
+        "symbol": "btc_cny",
+        "order_id": id,
+    }
+
+    rs := ok.Call("cancel_order.do", nil, params)
+    if rs == nil {
+        return false
+    }
+
+    if result, _ := rs.String("result"); result == "true" {
+        return true
+    }
+
+    return false
+}
 
 func (ok *OKCoin) LastTicker() Ticker {
     t := Ticker{}

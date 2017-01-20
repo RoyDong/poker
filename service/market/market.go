@@ -9,11 +9,13 @@ import (
 var maxTickerNum = 300
 
 type exchanger interface {
-    Sell(amount float64) int64
+    Sell(price, amount float64) int64
 
-    Buy(price float64) int64
+    Buy(price, amount float64) int64
 
     OrderInfo(id int64) Order
+
+    CancelOrder(id int64) bool
 
     LastTicker() Ticker
 

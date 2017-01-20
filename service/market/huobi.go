@@ -30,11 +30,16 @@ func NewHuobi() *Huobi {
 }
 
 
-func (hb *Huobi) Buy(price float64) int64 {
-    q := map[string]interface{}{
-        "method": "buy_market",
-        "coin_type": 1,
-        "amount": fmt.Sprintf("%.2f", price),
+func (hb *Huobi) Buy(price, amount float64) int64 {
+    q := make(map[string]interface{}, 4)
+    q["coin_type"] = 1
+    if amount > 0 {
+        q["method"] = "buy"
+        q["price"] = fmt.Sprintf("%.2f", price)
+        q["amount"] = fmt.Sprintf("%.4f", amount)
+    } else {
+        q["method"] = "buy_market"
+        q["amount"] = fmt.Sprintf("%.2f", price)
     }
 
     rs := hb.Call("", nil, q)
@@ -46,11 +51,16 @@ func (hb *Huobi) Buy(price float64) int64 {
 }
 
 
-func (hb *Huobi) Sell(amount float64) int64 {
-    q := map[string]interface{}{
-        "method": "sell_market",
-        "coin_type": 1,
-        "amount": fmt.Sprintf("%.4f", amount),
+func (hb *Huobi) Sell(price, amount float64) int64 {
+    q := make(map[string]interface{}, 4)
+    q["coin_type"] = 1
+    if price > 0 {
+        q["method"] = "sell"
+        q["price"] = fmt.Sprintf("%.2f", price)
+        q["amount"] = fmt.Sprintf("%.4f", amount)
+    } else {
+        q["method"] = "buy_market"
+        q["amount"] = fmt.Sprintf("%.4f", amount)
     }
 
     rs := hb.Call("", nil, q)
@@ -96,6 +106,24 @@ func (hb *Huobi) OrderInfo(id int64) Order {
     return order
 }
 
+func (hb *Huobi) CancelOrder(id int64) bool {
+    params := map[string]interface{} {
+        "method": "cancel_order",
+        "coin_type": 1,
+        "id": id,
+    }
+
+    rs := hb.Call("", nil, params)
+    if rs == nil {
+        return false
+    }
+
+    if result, _ := rs.String("result"); result == "success" {
+        return true
+    }
+
+    return false
+}
 
 func (hb *Huobi) LastTicker() Ticker {
     t := Ticker{}

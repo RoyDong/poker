@@ -176,6 +176,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             continue
         }
 
+        //获取最新盘口深度
         wg.Add(2)
         go func() {
             hg.zuo.UpdateDepth()
@@ -259,13 +260,19 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
     var sorder, lorder Order
     go func() {
         sorder = hg.openShort(short, shortSellPrice)
+        short.amountChange -= sorder.DealAmount
+        short.cnyChange += sorder.AvgPrice * sorder.DealAmount
         wg.Done()
     }()
     go func() {
         lorder = hg.openLong(long, longBuyPrice)
+        long.amountChange += lorder.DealAmount
+        long.cnyChange -= lorder.AvgPrice * lorder.DealAmount
         wg.Done()
     }()
     wg.Wait()
+
+    //回补差额，如果成交量为0，重新开始
 
     hg.state = StateOpen
 
@@ -279,29 +286,77 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
 
 func (hg *Hedge) openShort(short *Market, sellPrice float64) Order {
     hg.short = short
-    id := short.Sell(hg.tradeAmount + short.amountChange)
+    var id int64
+
+    //下单，如果失败重试2次
+    for i := 0; i < 3; i++ {
+        id = short.Sell(sellPrice, hg.tradeAmount)
+        if id > 0 {
+            break
+        }
+    }
+
     return hg.orderInfo(id, short)
 }
 
 func (hg *Hedge) openLong(long *Market, buyPrice float64) Order {
-    id := long.Buy(hg.tradeAmount * buyPrice)
     hg.long = long
-    return hg.orderInfo(id, long)
-}
+    var id int64
 
-func (hg *Hedge) orderInfo(id int64, market *Market) {
-    var order Order
-    for _ = range time.Tick(500 * time.Millisecond) {
-        order = market.OrderInfo(id)
-        if order.Status == 2 {
-            market.amountChange -= order.DealAmount
-            market.cnyChange += order.AvgPrice * order.DealAmount
-            hg.cny += order.AvgPrice
+    //下单，如果失败重试2次
+    for i := 0; i < 3; i++ {
+        id = long.Buy(buyPrice, hg.tradeAmount)
+        if id > 0 {
             break
         }
     }
-    return order
 
+    return hg.orderInfo(id, long)
+}
+
+/*
+获取订单结果
+ */
+func (hg *Hedge) orderInfo(id int64, market *Market) {
+    var order Order
+    if id > 0 {
+        //每隔0.5s读取一次，最多等带5s
+        for i := 0; i < 10; i++ {
+            time.Sleep(500 * time.Millisecond)
+            order = market.OrderInfo(id)
+            if order.Status == 2 {
+                break
+            }
+        }
+
+        //如果订单没有完全成交
+        if order.Status != 2 {
+            canceled := false
+
+            //重试两次，如果都失败中断程序
+            for i := 0; i < 2; i++ {
+                canceled = market.CancelOrder(id)
+            }
+
+            if !canceled {
+                gmvc.Logger.Println(fmt.Sprintf("cancel order failed v% order id = v%", market.Name(), id))
+            }
+
+            //更新order info
+            for i := 0; i < 3; i++ {
+                order = market.OrderInfo(id)
+                if order.Id > 0 {
+                    break
+                }
+            }
+
+            if order.Id == 0 {
+                gmvc.Logger.Println(fmt.Sprintf("update order info failed v% order id = v%", market.Name(), id))
+            }
+        }
+    }
+
+    return order
 }
 
 
@@ -330,7 +385,6 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
         if sorder.Status == 2 {
             hg.short.amountChange += sorder.DealAmount
             hg.short.cnyChange -= sorder.AvgPrice * sorder.DealAmount
-            hg.cny -= sorder.AvgPrice
             break
         }
     }
@@ -339,7 +393,6 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
         if lorder.Status == 2 {
             hg.long.amountChange -= lorder.DealAmount
             hg.long.cnyChange += lorder.AvgPrice * lorder.DealAmount
-            hg.cny += lorder.AvgPrice
             break
         }
     }
@@ -352,9 +405,9 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
 
     now := time.Now()
     d := time.Unix(now.Unix() - hg.started.Unix() - 28800, 0)
-    gmvc.Logger.Println(fmt.Sprintf("result: %.4f btc, %.2f cny, %.2f cny, %v/%v",
+    gmvc.Logger.Println(fmt.Sprintf("result: %.4f btc, %.2f cny, %v/%v",
                                     hg.long.amountChange + hg.short.amountChange,
-                                    hg.long.cnyChange + hg.short.cnyChange, hg.cny * hg.tradeAmount,
+                                    hg.long.cnyChange + hg.short.cnyChange,
                                     hg.roundNum, d.Format("15:04:05")))
     gmvc.Logger.Println("")
 }
