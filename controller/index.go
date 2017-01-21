@@ -86,7 +86,7 @@ func init() {
         huobi := market.NewMarket("huobi")
 
         //id := huobi.Buy(50)
-        id := huobi.Sell(0.01)
+        id := huobi.Sell(0, 0.01)
 
         return r.TextResponse(fmt.Sprintf("order_id: %v", id))
 
@@ -107,8 +107,8 @@ func init() {
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         haobtc := market.NewMarket("haobtc")
 
-        haobtc.Sell(0.02)
-        haobtc.Buy(50)
+        haobtc.Sell(0, 0.02)
+        haobtc.Buy(50, 0)
 
         return r.TextResponse("done")
 
@@ -119,7 +119,7 @@ func init() {
         ok := market.NewMarket("okcoin")
 
         //id := ok.Buy(50)
-        id := ok.Sell(0.01)
+        id := ok.Sell(0, 0.01)
 
         return r.JsonResponse(id)
 

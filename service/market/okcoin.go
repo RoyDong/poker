@@ -103,7 +103,7 @@ func (ok *OKCoin) OrderInfo(id int64) Order {
     return order
 }
 
-func (ok *OKCoin) CancleOrder(id int64) bool {
+func (ok *OKCoin) CancelOrder(id int64) bool {
     params := map[string]interface{} {
         "symbol": "btc_cny",
         "order_id": id,
@@ -144,7 +144,6 @@ func (ok *OKCoin) GetDepth() ([][]float64, [][]float64) {
     query := map[string]interface{}{
         "symbol": "btc_cny",
         "size": 50,
-        "merge": 0,
     }
 
     rs := ok.Call("depth.do", query, nil)
