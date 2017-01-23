@@ -236,6 +236,7 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
     }
 
     var sorder, lorder Order
+    /*
     if short.Name() == "huobi" {
         sorder = hg.openShort(short, shortSellPrice)
         if sorder.DealAmount > 0.0001 {
@@ -251,11 +252,24 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
             return
         }
     }
+    */
+
+    wg := &sync.WaitGroup{}
+    wg.Add(2)
+    go func() {
+        lorder = hg.openLong(long, longBuyPrice)
+        wg.Done()
+    }()
+    go func() {
+        sorder = hg.openShort(short, shortSellPrice)
+        wg.Done()
+    }()
+    wg.Wait()
 
     /*
     检查下单结果，补齐对冲敞口，暂时使用市价交易
-    1. 当空头交易过多，则空方市价买入差额
-    2. 当多头交易过多，则多方市价卖出差额
+    1. 当空头交易过多，则空方市价平仓买入差额
+    2. 当多头交易过多，则多方市价平仓卖出差额
      */
     if sorder.DealAmount > lorder.DealAmount + 0.001 {
         delta := sorder.DealAmount * sorder.AvgPrice - lorder.DealAmount * lorder.AvgPrice
