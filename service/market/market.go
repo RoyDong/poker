@@ -69,6 +69,8 @@ type Market struct {
 
     lastAsks [][]float64
     lastBids [][]float64
+
+    minTradeAmount float64
 }
 
 
@@ -87,8 +89,6 @@ func NewMarket(name string) *Market {
         m.exchanger = NewHuobi()
     case "okfuture_quarter":
         m.exchanger = NewOKFutureWS("quarter")
-    case "haobtc":
-        //m.exchanger = NewHaobtc()
 
     default:
         gmvc.Logger.Fatalln("invalid market " + m.name)
@@ -102,6 +102,10 @@ func NewMarket(name string) *Market {
 
 func (m *Market) Name() string {
     return m.name
+}
+
+func (m *Market) SetMinTradeAmount(amount float64) {
+    m.minTradeAmount = amount
 }
 
 func (m *Market) addTicker(t Ticker) {

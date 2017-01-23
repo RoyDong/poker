@@ -68,10 +68,11 @@ func (hg *Hedge) Start() {
     hg.you.SyncBalance()
     amount := hg.zuo.amount + hg.you.amount
     cny := hg.zuo.cny + hg.you.cny
-    gmvc.Logger.Println("--------")
+    gmvc.Logger.Println(fmt.Sprintf("hedge start %v <---> %v", hg.zuo.Name(), hg.you.Name()))
     gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.zuo.Name(), hg.zuo.amount, hg.zuo.cny))
     gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.you.Name(), hg.you.amount, hg.you.cny))
     gmvc.Logger.Println(fmt.Sprintf("total: %.4f btc, %.2f cny", amount, cny))
+    gmvc.Logger.Println("--------")
 
     hg.running = true
     hg.started = time.Now()
@@ -258,13 +259,13 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
      */
     if sorder.DealAmount > lorder.DealAmount + 0.001 {
         delta := sorder.DealAmount * sorder.AvgPrice - lorder.DealAmount * lorder.AvgPrice
-        if id := short.Close(PosTypeShort, delta, 0); id > 0 {
+        if id := short.CloseShort(delta, 0); id > 0 {
             order := hg.closeOrder(id, short)
             sorder.DealAmount -= order.DealAmount
         }
     } else if lorder.DealAmount > sorder.DealAmount + 0.001 {
         delta := lorder.DealAmount - sorder.DealAmount
-        if id := long.Close(PosTypeLong, 0, delta); id > 0 {
+        if id := long.CloseLong(0, delta); id > 0 {
             lorder.DealAmount -= delta
         }
     }
@@ -292,7 +293,7 @@ func (hg *Hedge) openShort(short *Market, sellPrice float64) Order {
 
     //下单，如果失败重试2次
     for i := 0; i < 3; i++ {
-        id = short.Open(PosTypeShort, sellPrice, hg.tradeAmount + short.amountChange) //加上上次交易后的差额
+        id = short.OpenShort(sellPrice, hg.tradeAmount + short.amountChange) //加上上次交易后的差额
         if id > 0 {
             short.amountChange = 0
             break
@@ -308,7 +309,7 @@ func (hg *Hedge) openLong(long *Market, buyPrice float64) Order {
 
     //下单，如果失败重试2次
     for i := 0; i < 3; i++ {
-        id = long.Open(PosTypeLong, buyPrice, hg.tradeAmount)
+        id = long.OpenLong(buyPrice, hg.tradeAmount)
         if id > 0 {
             break
         }
@@ -407,13 +408,13 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
 
 func (hg *Hedge) closeShort(price float64) {
     amount := -hg.short.amountChange
-    id := hg.short.Close(PosTypeShort, price, amount)
+    id := hg.short.CloseShort(price, amount)
     order := hg.closeOrder(id, hg.short)
 
     //未完全成交差额使用市价交易来回补
     if order.DealAmount < amount {
         delta := (amount - order.DealAmount) * order.AvgPrice
-        if id := hg.short.Close(PosTypeShort, delta, 0); id > 0 {
+        if id := hg.short.CloseShort(delta, 0); id > 0 {
             o := hg.closeOrder(id, hg.short)
             order.DealAmount += o.DealAmount
         }
@@ -423,13 +424,13 @@ func (hg *Hedge) closeShort(price float64) {
 
 func (hg *Hedge) closeLong(price float64) {
     amount := hg.long.amountChange
-    id := hg.long.Close(PosTypeLong, price, amount)
+    id := hg.long.CloseLong(price, amount)
     order := hg.closeOrder(id, hg.long)
 
     //未完全成交差额使用市价交易来回补
     if order.DealAmount < amount {
         delta := amount - order.DealAmount
-        if id := hg.long.Close(PosTypeLong, 0, delta); id > 0 {
+        if id := hg.long.CloseLong(0, delta); id > 0 {
             order.DealAmount -= amount
         }
     }

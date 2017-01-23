@@ -54,8 +54,6 @@ type OKFutureWS struct {
 
     dealAmount []float64
     totalPrice []float64
-
-    hasPosition bool
 }
 
 func NewOKFutureWS(contractType string) *OKFutureWS {
