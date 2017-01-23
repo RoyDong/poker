@@ -26,6 +26,21 @@ func NewOKCoin() *OKCoin {
     return ok
 }
 
+func (ok *OKCoin) OpenLong(price, amount float64) int64 {
+    return ok.Buy(price, amount)
+}
+
+func (ok *OKCoin) CloseLong(price, amount float64) int64 {
+    return ok.Sell(price, amount)
+}
+
+func (ok *OKCoin) OpenShort(price, amount float64) int64 {
+    return ok.Sell(price, amount)
+}
+
+func (ok *OKCoin) CloseShort(price, amount float64) int64 {
+    return ok.Buy(price, amount)
+}
 
 func (ok *OKCoin)Buy(price, amount float64) int64 {
     p := map[string]interface{}{

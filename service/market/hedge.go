@@ -258,13 +258,13 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
      */
     if sorder.DealAmount > lorder.DealAmount + 0.001 {
         delta := sorder.DealAmount * sorder.AvgPrice - lorder.DealAmount * lorder.AvgPrice
-        if id := short.Buy(delta, 0); id > 0 {
+        if id := short.Close(PosTypeShort, delta, 0); id > 0 {
             order := hg.closeOrder(id, short)
             sorder.DealAmount -= order.DealAmount
         }
     } else if lorder.DealAmount > sorder.DealAmount + 0.001 {
         delta := lorder.DealAmount - sorder.DealAmount
-        if id := long.Sell(0, delta); id > 0 {
+        if id := long.Close(PosTypeLong, 0, delta); id > 0 {
             lorder.DealAmount -= delta
         }
     }
@@ -292,7 +292,7 @@ func (hg *Hedge) openShort(short *Market, sellPrice float64) Order {
 
     //下单，如果失败重试2次
     for i := 0; i < 3; i++ {
-        id = short.Sell(sellPrice, hg.tradeAmount + short.amountChange) //加上上次交易后的差额
+        id = short.Open(PosTypeShort, sellPrice, hg.tradeAmount + short.amountChange) //加上上次交易后的差额
         if id > 0 {
             short.amountChange = 0
             break
@@ -308,7 +308,7 @@ func (hg *Hedge) openLong(long *Market, buyPrice float64) Order {
 
     //下单，如果失败重试2次
     for i := 0; i < 3; i++ {
-        id = long.Buy(buyPrice, hg.tradeAmount)
+        id = long.Open(PosTypeLong, buyPrice, hg.tradeAmount)
         if id > 0 {
             break
         }
@@ -407,13 +407,13 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
 
 func (hg *Hedge) closeShort(price float64) {
     amount := -hg.short.amountChange
-    id := hg.short.Buy(price, amount)
+    id := hg.short.Close(PosTypeShort, price, amount)
     order := hg.closeOrder(id, hg.short)
 
     //未完全成交差额使用市价交易来回补
     if order.DealAmount < amount {
         delta := (amount - order.DealAmount) * order.AvgPrice
-        if id := hg.short.Buy(delta, 0); id > 0 {
+        if id := hg.short.Close(PosTypeShort, delta, 0); id > 0 {
             o := hg.closeOrder(id, hg.short)
             order.DealAmount += o.DealAmount
         }
@@ -423,13 +423,13 @@ func (hg *Hedge) closeShort(price float64) {
 
 func (hg *Hedge) closeLong(price float64) {
     amount := hg.long.amountChange
-    id := hg.long.Sell(price, amount)
+    id := hg.long.Close(PosTypeLong, price, amount)
     order := hg.closeOrder(id, hg.long)
 
     //未完全成交差额使用市价交易来回补
     if order.DealAmount < amount {
         delta := amount - order.DealAmount
-        if id := hg.long.Sell(0, delta); id > 0 {
+        if id := hg.long.Close(PosTypeLong, 0, delta); id > 0 {
             order.DealAmount -= amount
         }
     }

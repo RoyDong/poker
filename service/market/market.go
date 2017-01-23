@@ -9,9 +9,13 @@ import (
 var maxTickerNum = 300
 
 type exchanger interface {
-    Sell(price, amount float64) int64
+    OpenLong(price, amount float64) int64
 
-    Buy(price, amount float64) int64
+    OpenShort(price, amount float64) int64
+
+    CloseLong(price, amount float64) int64
+
+    CloseShort(price, amount float64) int64
 
     OrderInfo(id int64) Order
 
@@ -81,6 +85,8 @@ func NewMarket(name string) *Market {
         m.exchanger = NewOKCoin()
     case "huobi":
         m.exchanger = NewHuobi()
+    case "okfuture_quarter":
+        m.exchanger = NewOKFutureWS("quarter")
     case "haobtc":
         //m.exchanger = NewHaobtc()
 

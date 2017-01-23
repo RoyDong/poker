@@ -30,6 +30,22 @@ func NewHuobi() *Huobi {
 }
 
 
+func (hb *Huobi) OpenLong(price, amount float64) int64 {
+    return hb.Buy(price, amount)
+}
+
+func (hb *Huobi) CloseLong(price, amount float64) int64 {
+    return hb.Sell(price, amount)
+}
+
+func (hb *Huobi) OpenShort(price, amount float64) int64 {
+    return hb.Sell(price, amount)
+}
+
+func (hb *Huobi) CloseShort(price, amount float64) int64 {
+    return hb.Buy(price, amount)
+}
+
 func (hb *Huobi) Buy(price, amount float64) int64 {
     q := make(map[string]interface{}, 4)
     q["coin_type"] = 1

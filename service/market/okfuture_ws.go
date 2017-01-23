@@ -8,15 +8,16 @@ import (
     "strings"
     "sync"
     "math"
-    "log"
 )
 
+
 const (
-    TypeOpenLong = 1
-    TypeOpenShort = 2
+    TypeOpenLong = 1     //多头仓位
+    TypeOpenShort = 2    //空头仓位
     TypeCloseLong = 3
     TypeCloseShort = 4
 )
+
 
 type OKFutureWS struct {
     *gmvc.Event
@@ -53,6 +54,8 @@ type OKFutureWS struct {
 
     dealAmount []float64
     totalPrice []float64
+
+    hasPosition bool
 }
 
 func NewOKFutureWS(contractType string) *OKFutureWS {
@@ -158,6 +161,7 @@ type Trade struct {
     Type string
 }
 
+
 func (ok *OKFutureWS) syncTrade(args ...interface{}) {
     rs, _ := args[0].(*gmvc.Tree)
     if rs == nil {
@@ -235,13 +239,27 @@ func (ok *OKFutureWS) syncBalance(args ...interface{}) {
 func (ok *OKFutureWS) GetBalance() (float64, float64) {
     ok.lastBtcLocker.Lock()
     defer ok.lastBtcLocker.Unlock()
-    st := time.Now().UnixNano()
     ok.addChannel("ok_futureusd_userinfo", make(map[string]interface{}))
     r, _ :=  <-ok.lastBtc, 0
-    et := time.Now().UnixNano()
-    log.Println((et - st)/ 1000000)
-    return r,0
+    return r, 0
 }
+
+func (ok *OKFutureWS) OpenLong(price, amount float64) int64 {
+    return ok.Trade(TypeOpenLong, amount, price)
+}
+
+func (ok *OKFutureWS) CloseLong(price, amount float64) int64 {
+    return ok.Trade(TypeCloseLong, amount, price)
+}
+
+func (ok *OKFutureWS) OpenShort(price, amount float64) int64 {
+    return ok.Trade(TypeOpenShort, amount, price)
+}
+
+func (ok *OKFutureWS) CloseShort(price, amount float64) int64 {
+    return ok.Trade(TypeCloseShort, amount, price)
+}
+
 
 func (ok *OKFutureWS) Trade(typ int, amount, price float64) int64 {
     ok.tradeLocker.Lock()
@@ -391,6 +409,10 @@ func (ok *OKFutureWS) syncTradeResult(args ...interface{}) {
         id, _ = rs.Int64("order_id")
     }
     ok.lastOrderId <-id
+}
+
+func (ok *OKFutureWS) OrderInfo(id int64) Order {
+    return ok.currentOrders[id]
 }
 
 func (ok *OKFutureWS) CancelOrder(id int64) int64 {
