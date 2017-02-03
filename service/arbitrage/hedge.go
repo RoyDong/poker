@@ -1,4 +1,4 @@
-package market
+package arbitrage
 
 import (
     "time"
@@ -9,45 +9,39 @@ import (
     "math"
 )
 
-
 const (
     StateStop         = 0
     StateOpen         = 1
-    StateClose        = 3
+    StateClose        = 2
 )
 
 type Hedge struct {
-    zuo, you *Market
-    short, long *Market
+    zuo, you *Exchange
+    long, short *Exchange
 
     tradeAmount float64
     maxTradeAmount float64
     minTradeMargin float64
 
-    avg, minAvg, maxAvg *averager
+    avg, low, high *averager
 
+    running       bool
     state         int
-    startTime     time.Time
-    roundNum      int
+    started       time.Time
+    counter       int
 
-    tcny        float64
-    cny         float64
-    amount      float64
-
-
-
-    test        bool
+    test          bool
 }
 
 
-func NewHedge(zuo, you *Market) *Hedge {
+func NewHedge(zuo, you *Exchange) *Hedge {
     hg := &Hedge{
         zuo: zuo,
         you: you,
 
         avg: newAverager(300),
-        minAvg: newAverager(20),
-        maxAvg: newAverager(20),
+        low: newAverager(20),
+        high: newAverager(20),
 
         minTradeMargin: 5,
     }
@@ -75,16 +69,16 @@ func (hg *Hedge) Start() {
     hg.zuo.SyncBalance()
     hg.you.SyncBalance()
     amount := hg.zuo.amount + hg.you.amount
-    cny := hg.zuo.cny + hg.you.cny
+    money := hg.zuo.money + hg.you.money
     gmvc.Logger.Println(fmt.Sprintf("hedge start %v <---> %v", hg.zuo.Name(), hg.you.Name()))
-    gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.zuo.Name(), hg.zuo.amount, hg.zuo.cny))
-    gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.you.Name(), hg.you.amount, hg.you.cny))
-    gmvc.Logger.Println(fmt.Sprintf("total: %.4f btc, %.2f cny", amount, cny))
+    gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.zuo.Name(), hg.zuo.amount, hg.zuo.money))
+    gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.you.Name(), hg.you.amount, hg.you.money))
+    gmvc.Logger.Println(fmt.Sprintf("total: %.4f btc, %.2f cny", amount, money))
     gmvc.Logger.Println("--------")
 
     hg.running = true
     hg.started = time.Now()
-    hg.roundNum = 0
+    hg.counter = 0
     hg.state = StateClose
 
     go hg.evalMargins(1000 * time.Millisecond)
@@ -119,34 +113,34 @@ func (hg *Hedge) evalMargins(interval time.Duration) {
 
         margin := youTicker.Last - zuoTicker.Last
         if hg.avg.Len() > 0 {
-            if margin <= hg.minAvgMargin() {
-                hg.minAvg.AddPeek(false, idx, margin)
-            } else if margin >= hg.maxAvgMargin() {
-                hg.maxAvg.AddPeek(true, idx, margin)
+            if margin <= hg.lowMargin() {
+                hg.low.AddPeek(false, idx, margin)
+            } else if margin >= hg.highMargin() {
+                hg.high.AddPeek(true, idx, margin)
             }
         }
         if overflow, i := hg.avg.Add(idx, margin); overflow {
-            hg.minAvg.CutTail(i)
-            hg.maxAvg.CutTail(i)
+            hg.low.CutTail(i)
+            hg.high.CutTail(i)
         }
 
         log.Println(fmt.Sprintf("%.2f(%v) <= %.2f(%.2f) => %.2f(%v)",
-                                hg.minAvgMargin(), hg.minAvg.Len(),
+                                hg.lowMargin(), hg.low.Len(),
                                 hg.avg.Avg(), margin,
-                                hg.maxAvgMargin(), hg.maxAvg.Len()))
+                                hg.highMargin(), hg.high.Len()))
     }
 }
 
-func (hg *Hedge) minAvgMargin() float64 {
-    if hg.minAvg.Len() > 5 {
-        return hg.minAvg.Avg()
+func (hg *Hedge) lowMargin() float64 {
+    if hg.low.Len() > 5 {
+        return hg.low.Avg()
     }
     return hg.avg.Avg() - hg.minTradeMargin
 }
 
-func (hg *Hedge) maxAvgMargin() float64 {
-    if hg.maxAvg.Len() > 5 {
-        return hg.maxAvg.Avg()
+func (hg *Hedge) highMargin() float64 {
+    if hg.high.Len() > 5 {
+        return hg.high.Avg()
     }
     return hg.avg.Avg() + hg.minTradeMargin
 }
@@ -190,10 +184,10 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
 
             //尝试判断是否可以右手做空(左手多), 以右手的最近买单价 - 左手的卖单价(margin)和(min max avg)相关参数比较
             margin = youSellPrice - zuoBuyPrice
-            //log.Println(fmt.Sprintf("margin: sell %.2f max %.2f", margin, hg.maxAvgMargin()))
+            //log.Println(fmt.Sprintf("margin: sell %.2f max %.2f", margin, hg.highMargin()))
 
             //满足最小差价条件,并且超过最大差价
-            if margin >= hg.maxAvgMargin() {
+            if margin >= hg.highMargin() {
                 gmvc.Logger.Println(fmt.Sprintf("open positoin(youSell - zuoBuy %.2f):", margin ))
                 hg.tradeAmount = math.Min(math.Min(youSellAmount, zuoBuyAmount), hg.maxTradeAmount)
                 hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
@@ -202,10 +196,10 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
 
             //尝试判断是否可以左手做空(右手多), 以右手的最近卖单价 - 左手的买单价(margin)和(min max avg)相关参数比较
             margin = youBuyPrice - zuoSellPrice
-            //log.Println(fmt.Sprintf("margin: buy %.2f min %.2f", margin, hg.minAvgMargin()))
+            //log.Println(fmt.Sprintf("margin: buy %.2f min %.2f", margin, hg.lowMargin()))
 
             //满足最小差价条件,并且低于最小差价
-            if margin <= hg.minAvgMargin() {
+            if margin <= hg.lowMargin() {
                 gmvc.Logger.Println(fmt.Sprintf("open position(youBuy - zuoSell %.2f):", margin))
                 hg.tradeAmount = math.Min(math.Min(youBuyAmount, zuoSellAmount), hg.maxTradeAmount)
                 hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
@@ -238,7 +232,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
     }
 }
 
-func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Market, longBuyPrice float64) {
+func (hg *Hedge) openPosition(short *Exchange, shortSellPrice float64, long *Exchange, longBuyPrice float64) {
     if hg.test {
         return
     }
@@ -309,7 +303,7 @@ func (hg *Hedge) openPosition(short *Market, shortSellPrice float64, long *Marke
     }
 }
 
-func (hg *Hedge) openShort(short *Market, sellPrice float64) Order {
+func (hg *Hedge) openShort(short *Exchange, sellPrice float64) Order {
     hg.short = short
     var id int64
 
@@ -325,7 +319,7 @@ func (hg *Hedge) openShort(short *Market, sellPrice float64) Order {
     return hg.closeOrder(id, short)
 }
 
-func (hg *Hedge) openLong(long *Market, buyPrice float64) Order {
+func (hg *Hedge) openLong(long *Exchange, buyPrice float64) Order {
     hg.long = long
     var id int64
 
@@ -343,7 +337,7 @@ func (hg *Hedge) openLong(long *Market, buyPrice float64) Order {
 /*
 完结订单，获取订单结果
  */
-func (hg *Hedge) closeOrder(id int64, market *Market) Order {
+func (hg *Hedge) closeOrder(id int64, market *Exchange) Order {
     var order Order
     if id > 0 {
         //每隔0.5s读取一次，最多等带5s
