@@ -1,7 +1,8 @@
 package arbitrage
 
 import (
-    "container/list"
+"container/list"
+"math"
 )
 
 type averager struct {
@@ -9,6 +10,7 @@ type averager struct {
     data map[int64]float64
     size int
     total, avg float64
+    minKey, maxKey int64
 }
 
 func newAverager(size int) *averager {
@@ -25,17 +27,23 @@ func (ar *averager) Add(key int64, val float64) (bool, int64) {
     ar.keys.PushFront(key)
     ar.total += val
 
+    var k int64
     overflow := false
     if ar.keys.Len() > ar.size {
         el := ar.keys.Back()
-        key, _ = el.Value.(int64)
-        val = ar.data[key]
-        ar.remove(key, val, el)
+        k, _ = el.Value.(int64)
+        ar.remove(k, ar.data[k], el)
         overflow = true
     }
 
+    if val < ar.Min() {
+        ar.minKey = key
+    } else if val > ar.Max() {
+        ar.maxKey = key
+    }
+
     ar.avg = ar.total / float64(ar.keys.Len())
-    return overflow, key
+    return overflow, k
 }
 
 func (ar *averager) AddPeek(top bool, key int64, val float64) (bool, int64) {
@@ -70,10 +78,43 @@ func (ar *averager) remove(key int64, val float64, el *list.Element) {
     ar.total -= val
     ar.keys.Remove(el)
     delete(ar.data, key)
+    if key == ar.minKey {
+        var key float64
+        var min = math.Inf(1)
+        for el := ar.keys.Back(); el != nil; el = el.Prev() {
+            k, _ := el.Value.(int64)
+            v := ar.data[k]
+            if v < min {
+                key = k
+                min = v
+            }
+        }
+        ar.minKey = key
+    } else if key == ar.maxKey {
+        var key float64
+        var max = math.Inf(-1)
+        for el := ar.keys.Back(); el != nil; el = el.Prev() {
+            k, _ := el.Value.(int64)
+            v := ar.data[k]
+            if v > max {
+                key = k
+                max = v
+            }
+        }
+        ar.maxKey = key
+    }
 }
 
 func (ar *averager) Avg() float64 {
     return ar.avg
+}
+
+func (ar *averager) Min() float64 {
+    return ar.data[ar.minKey]
+}
+
+func (ar *averager) Max() float64 {
+    return ar.data[ar.maxKey]
 }
 
 func (ar *averager) Len() int {
@@ -83,6 +124,5 @@ func (ar *averager) Len() int {
 func (ar *averager) Full() bool {
     return ar.keys.Len() >= ar.size
 }
-
 
 

@@ -23,12 +23,11 @@ type Hedge struct {
     maxTradeAmount float64
     minTradeMargin float64
 
-    avg, low, high *averager
-
-    running       bool
     state         int
     started       time.Time
     counter       int
+
+    margin *averager
 
     test          bool
 }
@@ -39,9 +38,7 @@ func NewHedge(zuo, you *Exchange) *Hedge {
         zuo: zuo,
         you: you,
 
-        avg: newAverager(300),
-        low: newAverager(20),
-        high: newAverager(20),
+        margin: newAverager(600),
 
         minTradeMargin: 5,
     }
@@ -76,90 +73,56 @@ func (hg *Hedge) Start() {
     gmvc.Logger.Println(fmt.Sprintf("total: %.4f btc, %.2f cny", amount, money))
     gmvc.Logger.Println("--------")
 
-    hg.running = true
+    hg.state = StateClose
     hg.started = time.Now()
     hg.counter = 0
-    hg.state = StateClose
 
-    go hg.evalMargins(1000 * time.Millisecond)
+    go hg.calcMargins()
     go hg.arbitrage(500 * time.Millisecond)
 }
 
 func (hg *Hedge) Stop() {
-    hg.running = false
-    hg.state = StateClose
+    hg.state = StateStop
 }
 
-func (hg *Hedge) evalMargins(interval time.Duration) {
+func (hg *Hedge) calcMargins() {
     wg := &sync.WaitGroup{}
-    var idx int64
-    for hg.running {
-        time.Sleep(interval)
-        idx++
-        var zuoTicker, youTicker Ticker
+    for now := range time.Tick(1 * time.Second) {
+        if hg.state == StateStop {
+            break
+        }
+        idx := now.Second()
         wg.Add(2)
         go func() {
-            zuoTicker = hg.zuo.LastTicker()
+            hg.zuo.calcMgm()
             wg.Done()
         }()
         go func() {
-            youTicker = hg.you.LastTicker()
+            hg.you.calcMgm()
             wg.Done()
         }()
         wg.Wait()
-        if zuoTicker.Last <= 0 || youTicker.Last <= 0 {
-            continue
-        }
 
-        margin := youTicker.Last - zuoTicker.Last
-        if hg.avg.Len() > 0 {
-            if margin <= hg.lowMargin() {
-                hg.low.AddPeek(false, idx, margin)
-            } else if margin >= hg.highMargin() {
-                hg.high.AddPeek(true, idx, margin)
-            }
-        }
-        if overflow, i := hg.avg.Add(idx, margin); overflow {
-            hg.low.CutTail(i)
-            hg.high.CutTail(i)
-        }
-
-        log.Println(fmt.Sprintf("%.2f(%v) <= %.2f(%.2f) => %.2f(%v)",
-                                hg.lowMargin(), hg.low.Len(),
-                                hg.avg.Avg(), margin,
-                                hg.highMargin(), hg.high.Len()))
+        hg.margin.Add(idx, hg.you.mgm - hg.zuo.mgm)
+        log.Println(fmt.Sprintf("%.2f <= %.2f => %.2f", hg.margin.Min(), hg.margin.Avg(), hg.margin.Max()))
     }
-}
-
-func (hg *Hedge) lowMargin() float64 {
-    if hg.low.Len() > 5 {
-        return hg.low.Avg()
-    }
-    return hg.avg.Avg() - hg.minTradeMargin
-}
-
-func (hg *Hedge) highMargin() float64 {
-    if hg.high.Len() > 5 {
-        return hg.high.Avg()
-    }
-    return hg.avg.Avg() + hg.minTradeMargin
 }
 
 func (hg *Hedge) arbitrage(interval time.Duration) {
     wg := &sync.WaitGroup{}
-    for hg.running {
+    for hg.state > StateStop {
         time.Sleep(interval)
-        if hg.avg.Len() < 50 {
+        if hg.margin.Len() < 50 {
             continue
         }
 
         wg.Add(2)
         go func() {
-            hg.zuo.UpdateDepth()
+            hg.zuo.SyncDepth()
             wg.Done()
         }()
         go func() {
-            hg.you.UpdateDepth()
+            hg.you.SyncDepth()
             wg.Done()
         }()
         wg.Wait()
@@ -186,8 +149,8 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             margin = youSellPrice - zuoBuyPrice
             //log.Println(fmt.Sprintf("margin: sell %.2f max %.2f", margin, hg.highMargin()))
 
-            //满足最小差价条件,并且超过最大差价
-            if margin >= hg.highMargin() {
+            //满足最小差价限制,并且超过最大差价
+            if margin >= hg.margin.Avg() + hg.minTradeMargin && margin >= hg.margin.Max() {
                 gmvc.Logger.Println(fmt.Sprintf("open positoin(youSell - zuoBuy %.2f):", margin ))
                 hg.tradeAmount = math.Min(math.Min(youSellAmount, zuoBuyAmount), hg.maxTradeAmount)
                 hg.openPosition(hg.you, youSellPrice, hg.zuo, zuoBuyPrice)
@@ -198,8 +161,8 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
             margin = youBuyPrice - zuoSellPrice
             //log.Println(fmt.Sprintf("margin: buy %.2f min %.2f", margin, hg.lowMargin()))
 
-            //满足最小差价条件,并且低于最小差价
-            if margin <= hg.lowMargin() {
+            //满足最小差价限制,并且低于最小差价
+            if margin <= hg.margin.Avg() - hg.minTradeMargin && margin <= hg.margin.Min() {
                 gmvc.Logger.Println(fmt.Sprintf("open position(youBuy - zuoSell %.2f):", margin))
                 hg.tradeAmount = math.Min(math.Min(youBuyAmount, zuoSellAmount), hg.maxTradeAmount)
                 hg.openPosition(hg.zuo, zuoSellPrice, hg.you, youBuyPrice)
@@ -213,7 +176,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
                 margin = youBuyPrice - zuoSellPrice
 
                 //差价低于平均差价即可平仓
-                if margin <= hg.avg.Avg() {
+                if margin <= hg.margin.Avg() {
                     gmvc.Logger.Println(fmt.Sprintf("close position(youBuy - zuoSell %.2f):", margin))
                     hg.closePosition(youBuyPrice, zuoSellPrice)
                 }
@@ -223,7 +186,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
                 margin = youSellPrice - zuoBuyPrice
 
                 //差价高于平均差价即可平仓
-                if margin >= hg.avg.Avg() {
+                if margin >= hg.margin.Avg() {
                     gmvc.Logger.Println(fmt.Sprintf("close position(youSell - zuoBuy %.2f):", margin))
                     hg.closePosition(zuoBuyPrice, youSellPrice)
                 }
@@ -343,7 +306,7 @@ func (hg *Hedge) closeOrder(id int64, market *Exchange) Order {
         //每隔0.5s读取一次，最多等带5s
         for i := 0; i < 10; i++ {
             time.Sleep(500 * time.Millisecond)
-            order = market.OrderInfo(id)
+            order = market.Order(id)
             if order.Status == 2 {
                 break
             }
@@ -364,7 +327,7 @@ func (hg *Hedge) closeOrder(id int64, market *Exchange) Order {
 
             //更新order info
             for i := 0; i < 3; i++ {
-                order = market.OrderInfo(id)
+                order = market.Order(id)
                 if order.Id > 0 {
                     break
                 }
@@ -400,7 +363,7 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     wg.Wait()
 
     hg.state = StateClose
-    hg.roundNum++
+    hg.counter++
 
     //交易统计
     gmvc.Logger.Println(fmt.Sprintf("   short: %v + %.4f btc - %.2f(%.2f) cny",
@@ -413,12 +376,12 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     d := time.Unix(now.Unix() - hg.started.Unix() - 28800, 0)
     gmvc.Logger.Println(fmt.Sprintf("result: %.4f btc, %.2f cny, %v/%v",
                                     hg.long.amountChange + hg.short.amountChange,
-                                    hg.long.cnyChange + hg.short.cnyChange,
-                                    hg.roundNum, d.Format("15:04:05")))
+                                    hg.long.moneyChange+ hg.short.moneyChange,
+                                    hg.counter, d.Format("15:04:05")))
     hg.zuo.SyncBalance()
     hg.you.SyncBalance()
-    gmvc.Logger.Println(fmt.Sprintf("    %v: %.4f btc, %.2f cny", hg.zuo.Name(), hg.zuo.amount, hg.zuo.cny))
-    gmvc.Logger.Println(fmt.Sprintf("    %v: %.4f btc, %.2f cny", hg.you.Name(), hg.you.amount, hg.you.cny))
+    gmvc.Logger.Println(fmt.Sprintf("    %v: %.4f btc, %.2f cny", hg.zuo.Name(), hg.zuo.amount, hg.zuo.money))
+    gmvc.Logger.Println(fmt.Sprintf("    %v: %.4f btc, %.2f cny", hg.you.Name(), hg.you.amount, hg.you.money))
     gmvc.Logger.Println("")
 }
 

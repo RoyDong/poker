@@ -2,6 +2,7 @@ package arbitrage
 
 import (
     "github.com/roydong/gmvc"
+    "math"
 )
 
 
@@ -64,8 +65,8 @@ type Trade struct {
     Id int64
     Amount float64
     Price float64
-    Time int64
     Type string
+    Time int64
 }
 
 type Exchange struct {
@@ -82,6 +83,9 @@ type Exchange struct {
     fee float64
 
     lastAsks, lastBids [][]float64
+
+    trades []Trade
+    mgm float64
 }
 
 
@@ -157,4 +161,33 @@ func (e *Exchange) Balance() (float64, float64) {
     return e.amount, e.money
 }
 
+/*
+根据最近的交易计算出价格的几何平均数, 以及峰值和峰谷的几何平均数
+ */
+func (e *Exchange) calcMgm() {
+    trades := e.GetTrades()
+    if len(trades) < 300 {
+        return
+    }
+    if len(e.trades) > 0 && e.trades[0].Id == trades[0].Id {
+        return
+    }
+    e.trades = trades
+
+    var n, product float64
+    n = 0
+    product = 1
+    for i, trade := range trades {
+        if trade.Price > 0 {
+            product = product * trade.Price * trade.Amount
+            n = n + trade.Amount
+        }
+
+        //取最近600次交易
+        if i > 600 {
+            break
+        }
+    }
+    e.mgm = math.Pow(product, 1 / n)
+}
 
