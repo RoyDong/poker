@@ -71,6 +71,7 @@ func (hg *Hedge) Start() {
     gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.zuo.Name(), hg.zuo.amount, hg.zuo.money))
     gmvc.Logger.Println(fmt.Sprintf("%v: %.4f btc, %.2f cny", hg.you.Name(), hg.you.amount, hg.you.money))
     gmvc.Logger.Println(fmt.Sprintf("total: %.4f btc, %.2f cny", amount, money))
+    gmvc.Logger.Println(fmt.Sprintf("max trade: %.4f btc, min margin: %.2f", hg.maxTradeAmount, hg.minTradeMargin))
     gmvc.Logger.Println("--------")
 
     hg.state = StateClose
@@ -104,7 +105,8 @@ func (hg *Hedge) calcMargins() {
         wg.Wait()
 
         hg.margin.Add(idx, hg.you.ma - hg.zuo.ma)
-        log.Println(fmt.Sprintf("%.2f <= %.2f => %.2f", hg.margin.Min(), hg.margin.Avg(), hg.margin.Max()))
+        log.Println(fmt.Sprintf("%.2f <= %.2f(%v) => %.2f", hg.margin.Min(),
+            hg.margin.Avg(), hg.margin.Len(), hg.margin.Max()))
     }
 }
 
@@ -147,7 +149,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
 
             //尝试判断是否可以右手做空(左手多), 以右手的最近买单价 - 左手的卖单价(margin)和(min max avg)相关参数比较
             margin = youSellPrice - zuoBuyPrice
-            //log.Println(fmt.Sprintf("margin: sell %.2f max %.2f", margin, hg.highMargin()))
+            //log.Println(fmt.Sprintf("margin: sell %.2f max %.2f", margin, hg.margin.Max()))
 
             //满足最小差价限制,并且超过最大差价
             if margin >= hg.margin.Avg() + hg.minTradeMargin && margin >= hg.margin.Max() {
@@ -159,7 +161,7 @@ func (hg *Hedge) arbitrage(interval time.Duration) {
 
             //尝试判断是否可以左手做空(右手多), 以右手的最近卖单价 - 左手的买单价(margin)和(min max avg)相关参数比较
             margin = youBuyPrice - zuoSellPrice
-            //log.Println(fmt.Sprintf("margin: buy %.2f min %.2f", margin, hg.lowMargin()))
+            //log.Println(fmt.Sprintf("margin: buy %.2f min %.2f", margin, hg.margin.Min()))
 
             //满足最小差价限制,并且低于最小差价
             if margin <= hg.margin.Avg() - hg.minTradeMargin && margin <= hg.margin.Min() {

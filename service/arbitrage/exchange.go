@@ -5,7 +5,6 @@ import (
     //"math"
     "time"
     "fmt"
-    "log"
     "container/list"
 )
 
@@ -176,7 +175,7 @@ func (e *Exchange) Balance() (float64, float64) {
 }
 
 /*
-根据最近的交易计算出价格的几何平均数
+根据最近的交易计算出价格的平均数
  */
 func (e *Exchange) calcMa() {
     trades := e.IExchange.GetTrades()
@@ -185,13 +184,19 @@ func (e *Exchange) calcMa() {
         trade, _ = e.trades.Front().Value.(Trade)
     }
 
+    newTrade := false
     for _, t := range trades {
         if t.Id > trade.Id {
             e.trades.PushFront(t)
             if e.trades.Len() > 600 {
                 e.trades.Remove(e.trades.Back())
             }
+            newTrade = true
         }
+    }
+
+    if !newTrade {
+        return
     }
 
     var n, sum float64
@@ -203,7 +208,6 @@ func (e *Exchange) calcMa() {
         }
     }
     e.ma = sum / n
-    log.Println(e.Name(), e.ma)
 }
 
 /*

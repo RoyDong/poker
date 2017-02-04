@@ -5,6 +5,7 @@ import (
     "github.com/roydong/poker/service/market"
     "github.com/roydong/poker/service/arbitrage"
     "log"
+    "fmt"
 )
 
 func init() {
@@ -152,7 +153,8 @@ func init() {
 
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        a := market.NewOKFutureWS("this_week")
+        //a := arbitrage.NewExchange("okfuture_thisweek")
+        a := arbitrage.NewOKFuture("this_week", 20)
 
         gmvc.Store.Set("aa", a)
 
@@ -161,17 +163,14 @@ func init() {
     }, "/okfuture")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        a, _ := gmvc.Store.Get("aa").(*market.OKFutureWS)
+        a, _ := gmvc.Store.Get("aa").(*arbitrage.OKFuture)
 
         amount, _ := r.Float("amount")
         typ, _ := r.Int("type")
 
-        ticker := a.LastTicker()
+        id := a.Trade(typ, amount, 0)
 
-        id := a.Trade(typ, amount, ticker.Last - 10)
-        log.Println(id)
-
-        return r.TextResponse("done")
+        return r.TextResponse(fmt.Sprintf("id: %v", id))
 
     }, "/open")
 
@@ -186,6 +185,18 @@ func init() {
         return r.TextResponse("done")
 
     }, "/cancel")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        a, _ := gmvc.Store.Get("aa").(*arbitrage.OKFuture)
+
+        id, _ := r.Int64("id")
+
+        rs := a.Order(id)
+
+        log.Println(rs)
+        return r.TextResponse("done")
+
+    }, "/order")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         huobi := market.NewHuobiWS()

@@ -41,19 +41,19 @@ func (ok *OKFuture) Trade(position int, amount, price float64) int64 {
         "lever_rate": ok.leverRate,
     }
     if price == 0 {
-        params["mathc_price"] = 1
+        params["match_price"] = 1
     }
     rs := ok.Call("future_trade.do", nil, params)
     if rs == nil {
         return 0
     }
-    id, _ := rs.Float("order_id")
-    return int64(id)
+    id, _ := rs.Int64("order_id")
+    return id
 }
 
 func (ok *OKFuture) Order(id int64) Order {
     params := map[string]interface{}{
-        "symbol": "btc_cny",
+        "symbol": "btc_usd",
         "contract_type": ok.contractType,
         "order_id": id,
     }
@@ -70,14 +70,11 @@ func (ok *OKFuture) Order(id int64) Order {
     }
 
     order.Id = id
-
     order.Amount, _ = rst.Float("amount")
     order.Price, _ = rst.Float("price")
     order.DealAmount, _ = rst.Float("deal_amount")
     order.AvgPrice, _ = rst.Float("price_avg")
-
     order.Status, _ = rst.Int("status")
-
     t, _ := rst.Float("create_date")
     order.Time = int64(t)
 
