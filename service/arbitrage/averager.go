@@ -38,7 +38,8 @@ func (ar *averager) Add(key int64, val float64) (bool, int64) {
 
     if val < ar.Min() {
         ar.minKey = key
-    } else if val > ar.Max() {
+    }
+    if val > ar.Max() {
         ar.maxKey = key
     }
 
@@ -81,32 +82,6 @@ func (ar *averager) remove(key int64, val float64, el *list.Element) {
     ar.total -= val
     ar.keys.Remove(el)
     delete(ar.data, key)
-    if key == ar.minKey {
-        var min = math.Inf(1)
-        var minKey int64
-        for el := ar.keys.Back(); el != nil; el = el.Prev() {
-            k, _ := el.Value.(int64)
-            v := ar.data[k]
-            if v < min {
-                minKey = k
-                min = v
-            }
-        }
-        ar.minKey = minKey
-    }
-    if key == ar.maxKey {
-        var max = math.Inf(-1)
-        var maxKey int64
-        for el := ar.keys.Back(); el != nil; el = el.Prev() {
-            k, _ := el.Value.(int64)
-            v := ar.data[k]
-            if v > max {
-                maxKey = k
-                max = v
-            }
-        }
-        ar.maxKey = maxKey
-    }
 }
 
 func (ar *averager) Avg() float64 {
@@ -117,14 +92,36 @@ func (ar *averager) Min() float64 {
     if v, has := ar.data[ar.minKey]; has {
         return v
     }
-    return math.Inf(1)
+    var min = math.Inf(1)
+    var minKey int64
+    for el := ar.keys.Back(); el != nil; el = el.Prev() {
+        k, _ := el.Value.(int64)
+        v := ar.data[k]
+        if v < min {
+            minKey = k
+            min = v
+        }
+    }
+    ar.minKey = minKey
+    return min
 }
 
 func (ar *averager) Max() float64 {
     if v, has := ar.data[ar.maxKey]; has {
         return v
     }
-    return math.Inf(-1)
+    var max = math.Inf(-1)
+    var maxKey int64
+    for el := ar.keys.Back(); el != nil; el = el.Prev() {
+        k, _ := el.Value.(int64)
+        v := ar.data[k]
+        if v > max {
+            maxKey = k
+            max = v
+        }
+    }
+    ar.maxKey = maxKey
+    return max
 }
 
 func (ar *averager) Len() int {
