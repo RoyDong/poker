@@ -3,6 +3,8 @@ package arbitrage
 import (
     "github.com/roydong/gmvc"
     "math"
+    "time"
+    "fmt"
 )
 
 
@@ -20,16 +22,17 @@ type IExchange interface {
     /*
     position 开仓类型 开/平 多/空，对应现货买卖
     amount 数量
-    price 价格
-    marketPrice 是否以市场价或对手价快速成交
+    price 价格  如果price = 0 则为对手价
      */
-    Trade(position int, amount, price float64, marketPrice bool) Order
+    Trade(position int, amount, price float64) int64
+
+    Order(id int64) Order
 
     CancelOrder(order Order) bool
 
-    GetTicker() Ticker
+    //GetTicker() Ticker
 
-    GetTrade() Trade
+    //GetTrade() Trade
 
     GetTrades() []Trade
 
@@ -162,7 +165,7 @@ func (e *Exchange) Balance() (float64, float64) {
 }
 
 /*
-根据最近的交易计算出价格的几何平均数, 以及峰值和峰谷的几何平均数
+根据最近的交易计算出价格的几何平均数
  */
 func (e *Exchange) calcMgm() {
     trades := e.GetTrades()
@@ -189,5 +192,76 @@ func (e *Exchange) calcMgm() {
         }
     }
     e.mgm = math.Pow(product, 1 / n)
+}
+
+/*
+price = 0 对手价
+ */
+func (e *Exchange) Trade(position int, amount, price float64) Order {
+    var order Order
+    var id int64
+    for i := 0; i < 3; i++ {
+        id = e.IExchange.Trade(position, amount, price)
+        if id > 0 {
+            break
+        }
+    }
+    if id > 0 {
+        //每隔0.5s读取一次，最多等待5s
+        for i := 0; i < 10; i++ {
+            time.Sleep(500 * time.Millisecond)
+            order = e.IExchange.Order(id)
+            if order.Status == 2 {
+                break
+            }
+        }
+
+        //如果订单没有完全成交
+        if order.Status != 2 {
+            canceled := false
+
+            //重试两次，如果都失败中断程序
+            for i := 0; i < 2; i++ {
+                canceled = e.IExchange.CancelOrder(id)
+            }
+
+            if !canceled {
+                gmvc.Logger.Println(fmt.Sprintf("cancel order failed %v order id = %v", e.Name(), id))
+            }
+
+            //更新order info
+            for i := 0; i < 3; i++ {
+                order = e.IExchange.Order(id)
+                if order.Id > 0 {
+                    break
+                }
+            }
+
+            if order.Id == 0 {
+                gmvc.Logger.Println(fmt.Sprintf("update order info failed %v order id = %v", e.Name(), id))
+            }
+        }
+    } else {
+        gmvc.Logger.Println("3次下单失败")
+    }
+    return order
+}
+
+/*
+不断以对手价下单直到交易完amount数量
+ */
+func (e *Exchange) TradeAll(position int, amount float64) Order {
+    var order Order
+    var money float64
+    for order.DealAmount < amount {
+        o := e.Trade(position, amount - order.DealAmount, 0)
+        if order.Id <= 0 {
+            order.Id = o.Id
+        }
+        money += o.DealAmount * o.AvgPrice
+        order.DealAmount += o.DealAmount
+    }
+    order.AvgPrice = order.DealAmount / money
+    return order
 }
 

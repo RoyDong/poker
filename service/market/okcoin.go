@@ -42,7 +42,7 @@ func (ok *OKCoin) CloseShort(price, amount float64) int64 {
     return ok.Buy(price, amount)
 }
 
-func (ok *OKCoin)Buy(price, amount float64) int64 {
+func (ok *OKCoin) Buy(price, amount float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
         "price": price,
@@ -64,7 +64,7 @@ func (ok *OKCoin)Buy(price, amount float64) int64 {
 }
 
 
-func (ok *OKCoin)Sell(price, amount float64) int64 {
+func (ok *OKCoin) Sell(price, amount float64) int64 {
     p := map[string]interface{}{
         "symbol": "btc_cny",
         "type": "sell_market",

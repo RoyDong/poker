@@ -46,6 +46,9 @@ func (ar *averager) Add(key int64, val float64) (bool, int64) {
     return overflow, k
 }
 
+/*
+添加最大/小值，如果size满了，则一一比较所有值去除掉比新值小/大的值
+ */
 func (ar *averager) AddPeek(top bool, key int64, val float64) (bool, int64) {
     if ar.Full() {
         for el := ar.keys.Back(); el != nil; el = el.Prev() {

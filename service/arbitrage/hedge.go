@@ -38,7 +38,7 @@ func NewHedge(zuo, you *Exchange) *Hedge {
         zuo: zuo,
         you: you,
 
-        margin: newAverager(600),
+        margin: newAverager(300),
 
         minTradeMargin: 5,
     }
@@ -222,30 +222,31 @@ func (hg *Hedge) openPosition(short *Exchange, shortSellPrice float64, long *Exc
     wg := &sync.WaitGroup{}
     wg.Add(2)
     go func() {
-        lorder = hg.openLong(long, longBuyPrice)
+        hg.long = long
+        lorder = long.Trade(OpenLongPosition, hg.tradeAmount, longBuyPrice)
         wg.Done()
     }()
     go func() {
-        sorder = hg.openShort(short, shortSellPrice)
+        hg.short = short
+        sorder = short.Trade(OpenShortPosition, hg.tradeAmount, shortSellPrice)
         wg.Done()
     }()
     wg.Wait()
 
     /*
-    检查下单结果，补齐对冲敞口，暂时使用市价交易
+    检查下单结果，补齐对冲敞口
     1. 当空头交易过多，则空方市价平仓买入差额
     2. 当多头交易过多，则多方市价平仓卖出差额
      */
-    if sorder.DealAmount > lorder.DealAmount + 0.001 {
-        delta := sorder.DealAmount * sorder.AvgPrice - lorder.DealAmount * lorder.AvgPrice
-        if id := short.CloseShort(delta, 0); id > 0 {
-            order := hg.closeOrder(id, short)
+    if sorder.DealAmount > lorder.DealAmount {
+        delta := sorder.DealAmount - lorder.DealAmount
+        if order := short.TradeAll(CloseShortPosition, delta); order.DealAmount > 0 {
             sorder.DealAmount -= order.DealAmount
         }
-    } else if lorder.DealAmount > sorder.DealAmount + 0.001 {
+    } else if lorder.DealAmount > sorder.DealAmount {
         delta := lorder.DealAmount - sorder.DealAmount
-        if id := long.CloseLong(0, delta); id > 0 {
-            lorder.DealAmount -= delta
+        if order := long.TradeAll(CloseLongPosition, delta); order.DealAmount > 0 {
+            lorder.DealAmount -= order.DealAmount
         }
     }
 
@@ -258,90 +259,13 @@ func (hg *Hedge) openPosition(short *Exchange, shortSellPrice float64, long *Exc
     gmvc.Logger.Println(fmt.Sprintf("   long: %v + %.4f btc - %.2f(%.2f) cny",
         long.name, lorder.DealAmount, longBuyPrice, lorder.AvgPrice))
 
-    if sorder.DealAmount <= 0.001 || lorder.DealAmount <= 0.001 {
+    if sorder.DealAmount <= 0.0001 || lorder.DealAmount <= 0.0001 {
         gmvc.Logger.Println("closed")
     } else {
         hg.state = StateOpen
         gmvc.Logger.Println("openned")
     }
 }
-
-func (hg *Hedge) openShort(short *Exchange, sellPrice float64) Order {
-    hg.short = short
-    var id int64
-
-    //下单，如果失败重试2次
-    for i := 0; i < 3; i++ {
-        id = short.OpenShort(sellPrice, hg.tradeAmount + short.amountChange) //加上上次交易后的差额
-        if id > 0 {
-            short.amountChange = 0
-            break
-        }
-    }
-
-    return hg.closeOrder(id, short)
-}
-
-func (hg *Hedge) openLong(long *Exchange, buyPrice float64) Order {
-    hg.long = long
-    var id int64
-
-    //下单，如果失败重试2次
-    for i := 0; i < 3; i++ {
-        id = long.OpenLong(buyPrice, hg.tradeAmount)
-        if id > 0 {
-            break
-        }
-    }
-
-    return hg.closeOrder(id, long)
-}
-
-/*
-完结订单，获取订单结果
- */
-func (hg *Hedge) closeOrder(id int64, market *Exchange) Order {
-    var order Order
-    if id > 0 {
-        //每隔0.5s读取一次，最多等带5s
-        for i := 0; i < 10; i++ {
-            time.Sleep(500 * time.Millisecond)
-            order = market.Order(id)
-            if order.Status == 2 {
-                break
-            }
-        }
-
-        //如果订单没有完全成交
-        if order.Status != 2 {
-            canceled := false
-
-            //重试两次，如果都失败中断程序
-            for i := 0; i < 2; i++ {
-                canceled = market.CancelOrder(id)
-            }
-
-            if !canceled {
-                gmvc.Logger.Println(fmt.Sprintf("cancel order failed %v order id = %v", market.Name(), id))
-            }
-
-            //更新order info
-            for i := 0; i < 3; i++ {
-                order = market.Order(id)
-                if order.Id > 0 {
-                    break
-                }
-            }
-
-            if order.Id == 0 {
-                gmvc.Logger.Println(fmt.Sprintf("update order info failed %v order id = %v", market.Name(), id))
-            }
-        }
-    }
-
-    return order
-}
-
 
 func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     if hg.test {
@@ -351,13 +275,18 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     wg := &sync.WaitGroup{}
     wg.Add(2)
 
+    /*
+    立即使用对价完成所有交易
+     */
     var sorder, lorder Order
     go func() {
-        hg.closeShort(buyPrice)
+        sorder = hg.short.TradeAll(CloseShortPosition, -hg.short.amountChange)
+        hg.short.amountChange += sorder.DealAmount
         wg.Done()
     }()
     go func() {
-        hg.closeLong(sellPrice)
+        lorder = hg.long.TradeAll(CloseLongPosition, hg.long.amountChange)
+        hg.short.amountChange -= lorder.DealAmount
         wg.Done()
     }()
     wg.Wait()
@@ -384,35 +313,3 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     gmvc.Logger.Println(fmt.Sprintf("    %v: %.4f btc, %.2f cny", hg.you.Name(), hg.you.amount, hg.you.money))
     gmvc.Logger.Println("")
 }
-
-func (hg *Hedge) closeShort(price float64) {
-    amount := -hg.short.amountChange
-    id := hg.short.CloseShort(price, amount)
-    order := hg.closeOrder(id, hg.short)
-
-    //未完全成交差额使用市价交易来回补
-    if order.DealAmount < amount {
-        delta := (amount - order.DealAmount) * order.AvgPrice
-        if id := hg.short.CloseShort(delta, 0); id > 0 {
-            o := hg.closeOrder(id, hg.short)
-            order.DealAmount += o.DealAmount
-        }
-    }
-    hg.short.amountChange += order.DealAmount
-}
-
-func (hg *Hedge) closeLong(price float64) {
-    amount := hg.long.amountChange
-    id := hg.long.CloseLong(price, amount)
-    order := hg.closeOrder(id, hg.long)
-
-    //未完全成交差额使用市价交易来回补
-    if order.DealAmount < amount {
-        delta := amount - order.DealAmount
-        if id := hg.long.CloseLong(0, delta); id > 0 {
-            order.DealAmount -= amount
-        }
-    }
-    hg.short.amountChange = 0
-}
-
