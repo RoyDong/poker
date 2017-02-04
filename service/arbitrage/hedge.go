@@ -94,16 +94,16 @@ func (hg *Hedge) calcMargins() {
         idx := int64(now.Second())
         wg.Add(2)
         go func() {
-            hg.zuo.calcMgm()
+            hg.zuo.calcMa()
             wg.Done()
         }()
         go func() {
-            hg.you.calcMgm()
+            hg.you.calcMa()
             wg.Done()
         }()
         wg.Wait()
 
-        hg.margin.Add(idx, hg.you.mgm - hg.zuo.mgm)
+        hg.margin.Add(idx, hg.you.ma - hg.zuo.ma)
         log.Println(fmt.Sprintf("%.2f <= %.2f => %.2f", hg.margin.Min(), hg.margin.Avg(), hg.margin.Max()))
     }
 }

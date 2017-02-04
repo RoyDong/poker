@@ -49,3 +49,8 @@ market:
 
     haobtc:
         api_host: https://api.huobi.com/apiv3/
+
+hedge:
+    test: 0
+    min_trade_margin: 3
+    max_trade_amount: 1

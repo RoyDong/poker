@@ -82,29 +82,30 @@ func (ar *averager) remove(key int64, val float64, el *list.Element) {
     ar.keys.Remove(el)
     delete(ar.data, key)
     if key == ar.minKey {
-        var key int64
         var min = math.Inf(1)
+        var minKey int64
         for el := ar.keys.Back(); el != nil; el = el.Prev() {
             k, _ := el.Value.(int64)
             v := ar.data[k]
             if v < min {
-                key = k
+                minKey = k
                 min = v
             }
         }
-        ar.minKey = key
-    } else if key == ar.maxKey {
-        var key int64
+        ar.minKey = minKey
+    }
+    if key == ar.maxKey {
         var max = math.Inf(-1)
+        var maxKey int64
         for el := ar.keys.Back(); el != nil; el = el.Prev() {
             k, _ := el.Value.(int64)
             v := ar.data[k]
             if v > max {
-                key = k
+                maxKey = k
                 max = v
             }
         }
-        ar.maxKey = key
+        ar.maxKey = maxKey
     }
 }
 
@@ -113,11 +114,17 @@ func (ar *averager) Avg() float64 {
 }
 
 func (ar *averager) Min() float64 {
-    return ar.data[ar.minKey]
+    if v, has := ar.data[ar.minKey]; has {
+        return v
+    }
+    return math.Inf(1)
 }
 
 func (ar *averager) Max() float64 {
-    return ar.data[ar.maxKey]
+    if v, has := ar.data[ar.maxKey]; has {
+        return v
+    }
+    return math.Inf(-1)
 }
 
 func (ar *averager) Len() int {

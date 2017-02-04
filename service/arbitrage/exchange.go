@@ -2,9 +2,11 @@ package arbitrage
 
 import (
     "github.com/roydong/gmvc"
-    "math"
+    //"math"
     "time"
     "fmt"
+    "log"
+    "container/list"
 )
 
 
@@ -92,8 +94,8 @@ type Exchange struct {
 
     lastAsks, lastBids [][]float64
 
-    trades []Trade
-    mgm float64
+    trades *list.List
+    ma float64
 }
 
 
@@ -101,6 +103,7 @@ func NewExchange(name string) *Exchange {
     e := &Exchange{
         name: name,
         currency: "cny",
+        trades: list.New(),
     }
 
     switch e.name {
@@ -116,7 +119,7 @@ func NewExchange(name string) *Exchange {
         e.currency = "usd"
 
     default:
-        gmvc.Logger.Fatalln("invalid market " + e.name)
+        gmvc.Logger.Fatalln("invalid exchange " + e.name)
     }
 
     return e
@@ -175,31 +178,32 @@ func (e *Exchange) Balance() (float64, float64) {
 /*
 根据最近的交易计算出价格的几何平均数
  */
-func (e *Exchange) calcMgm() {
+func (e *Exchange) calcMa() {
     trades := e.IExchange.GetTrades()
-    if len(trades) < 300 {
-        return
+    var trade Trade
+    if e.trades.Len() > 1 {
+        trade, _ = e.trades.Front().Value.(Trade)
     }
-    if len(e.trades) > 0 && e.trades[0].Id == trades[0].Id {
-        return
-    }
-    e.trades = trades
 
-    var n, product float64
-    n = 0
-    product = 1
-    for i, trade := range trades {
+    for _, t := range trades {
+        if t.Id > trade.Id {
+            e.trades.PushFront(t)
+            if e.trades.Len() > 600 {
+                e.trades.Remove(e.trades.Back())
+            }
+        }
+    }
+
+    var n, sum float64
+    for el := e.trades.Back(); el != nil; el = el.Prev() {
+        trade, _ := el.Value.(Trade)
         if trade.Price > 0 {
-            product = product * trade.Price * trade.Amount
+            sum = sum + trade.Price * trade.Amount
             n = n + trade.Amount
         }
-
-        //取最近600次交易
-        if i > 600 {
-            break
-        }
     }
-    e.mgm = math.Pow(product, 1 / n)
+    e.ma = sum / n
+    log.Println(e.Name(), e.ma)
 }
 
 /*
@@ -250,7 +254,7 @@ func (e *Exchange) Trade(position int, amount, price float64) Order {
             }
         }
     } else {
-        gmvc.Logger.Println("3次下单失败")
+        gmvc.Logger.Println(fmt.Sprintf("make order failed %v", e.Name()))
     }
     return order
 }
