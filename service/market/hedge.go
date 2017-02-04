@@ -82,8 +82,7 @@ func (hg *Hedge) Start() {
     gmvc.Logger.Println(fmt.Sprintf("total: %.4f btc, %.2f cny", amount, cny))
     gmvc.Logger.Println("--------")
 
-    hg.running = true
-    hg.started = time.Now()
+    hg.startTime = time.Now()
     hg.roundNum = 0
     hg.state = StateClose
 
@@ -92,14 +91,13 @@ func (hg *Hedge) Start() {
 }
 
 func (hg *Hedge) Stop() {
-    hg.running = false
-    hg.state = StateClose
+    hg.state = StateStop
 }
 
 func (hg *Hedge) evalMargins(interval time.Duration) {
     wg := &sync.WaitGroup{}
     var idx int64
-    for hg.running {
+    for hg.state > StateStop {
         time.Sleep(interval)
         idx++
         var zuoTicker, youTicker Ticker
@@ -153,7 +151,7 @@ func (hg *Hedge) maxAvgMargin() float64 {
 
 func (hg *Hedge) arbitrage(interval time.Duration) {
     wg := &sync.WaitGroup{}
-    for hg.running {
+    for hg.state > StateStop {
         time.Sleep(interval)
         if hg.avg.Len() < 50 {
             continue
@@ -416,7 +414,7 @@ func (hg *Hedge) closePosition(buyPrice, sellPrice float64) {
     gmvc.Logger.Println("")
 
     now := time.Now()
-    d := time.Unix(now.Unix() - hg.started.Unix() - 28800, 0)
+    d := time.Unix(now.Unix() - hg.startTime.Unix() - 28800, 0)
     gmvc.Logger.Println(fmt.Sprintf("result: %.4f btc, %.2f cny, %v/%v",
                                     hg.long.amountChange + hg.short.amountChange,
                                     hg.long.cnyChange + hg.short.cnyChange,

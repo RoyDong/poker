@@ -88,7 +88,7 @@ func NewMarket(name string) *Market {
     case "huobi":
         m.exchanger = NewHuobi()
     case "okfuture_quarter":
-        m.exchanger = NewOKFutureWS("quarter")
+        //m.exchanger = NewOKFutureWS("quarter")
 
     default:
         gmvc.Logger.Fatalln("invalid market " + m.name)

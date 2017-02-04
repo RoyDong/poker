@@ -3,7 +3,7 @@ package controller
 import (
     "github.com/roydong/gmvc"
     "github.com/roydong/poker/service/market"
-    "fmt"
+    "github.com/roydong/poker/service/arbitrage"
     "log"
 )
 
@@ -82,15 +82,6 @@ func init() {
         return r.JsonResponse([]float64{b, c, b1, c1, c + c1})
     }, "/balance")
 
-    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        huobi := market.NewMarket("huobi")
-
-        //id := huobi.Buy(50)
-        id := huobi.Sell(0, 0.01)
-
-        return r.TextResponse(fmt.Sprintf("order_id: %v", id))
-
-    }, "/trade_hb")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         name, _ := r.String("name")
@@ -104,26 +95,6 @@ func init() {
 
     }, "/order_info")
 
-    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        haobtc := market.NewMarket("haobtc")
-
-        haobtc.Sell(0, 0.02)
-        haobtc.Buy(50, 0)
-
-        return r.TextResponse("done")
-
-    }, "/trade_ht")
-
-    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-
-        ok := market.NewMarket("okcoin")
-
-        //id := ok.Buy(50)
-        id := ok.Sell(0, 0.01)
-
-        return r.JsonResponse(id)
-
-    }, "/trade_ok")
 
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
@@ -170,9 +141,9 @@ func init() {
     }, "/okcoin_future")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        week := market.NewOKFutureWS("this_week")
-        quarter := market.NewOKFutureWS("quarter")
-        hg := market.NewHedgeWS(week, quarter)
+        week := arbitrage.NewExchange("okfuture_thisweek")
+        quarter := arbitrage.NewExchange("okfuture_quarter")
+        hg := arbitrage.NewHedge(week, quarter)
         hg.Start()
 
         return r.TextResponse("done")
@@ -215,22 +186,6 @@ func init() {
         return r.TextResponse("done")
 
     }, "/cancel")
-
-    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
-        ok, _ := gmvc.Store.Get("aa").(*market.OKFutureWS)
-
-        t, _ := r.Int("t")
-        m, _ := r.Float("m")
-
-        log.Println("===========")
-        dm, ag := ok.FTrade(t, m, 1)
-        log.Println(dm, ag)
-
-
-
-        return r.TextResponse("done")
-
-    }, "/ftrade")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         huobi := market.NewHuobiWS()

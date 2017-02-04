@@ -91,7 +91,7 @@ func (hg *Hedge) calcMargins() {
         if hg.state == StateStop {
             break
         }
-        idx := now.Second()
+        idx := int64(now.Second())
         wg.Add(2)
         go func() {
             hg.zuo.calcMgm()

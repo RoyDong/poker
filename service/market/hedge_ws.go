@@ -18,11 +18,6 @@ const (
     OrderStatusCancel    = -1
     OrderStatusCanceling = 4
 
-    StateStop         = 0
-    StateOpen         = 1
-    StateOpenPending  = 2
-    StateClose        = 3
-    StateClosePending = 4
 )
 
 type HedgeWS struct {

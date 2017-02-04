@@ -13,11 +13,16 @@ const (
     OpenShortPosition = 2    //空头仓位
     CloseLongPosition = 3
     CloseShortPosition = 4
+
+
+    OrderStatusCreated   = 0
+    OrderStatusPartial   = 1
+    OrderStatusComplete  = 2
+    OrderStatusCancel    = -1
+    OrderStatusCanceling = 4
 )
 
 type IExchange interface {
-
-    Name() string
 
     /*
     position 开仓类型 开/平 多/空，对应现货买卖
@@ -28,7 +33,7 @@ type IExchange interface {
 
     Order(id int64) Order
 
-    CancelOrder(order Order) bool
+    CancelOrder(id int64) bool
 
     //GetTicker() Ticker
 
@@ -100,11 +105,14 @@ func NewExchange(name string) *Exchange {
 
     switch e.name {
     case "okcoin":
-        e.IExchange = NewOKCoin()
+        //e.IExchange = NewOKCoin()
     case "huobi":
-        e.IExchange = NewHuobi()
+        //e.IExchange = NewHuobi()
     case "okfuture_quarter":
-        e.IExchange = NewOKFutureWS("quarter")
+        e.IExchange = NewOKFuture("quarter", 20)
+        e.currency = "usd"
+    case "okfuture_thisweek":
+        e.IExchange = NewOKFuture("this_week", 20)
         e.currency = "usd"
 
     default:
@@ -168,7 +176,7 @@ func (e *Exchange) Balance() (float64, float64) {
 根据最近的交易计算出价格的几何平均数
  */
 func (e *Exchange) calcMgm() {
-    trades := e.GetTrades()
+    trades := e.IExchange.GetTrades()
     if len(trades) < 300 {
         return
     }
@@ -261,7 +269,7 @@ func (e *Exchange) TradeAll(position int, amount float64) Order {
         money += o.DealAmount * o.AvgPrice
         order.DealAmount += o.DealAmount
     }
-    order.AvgPrice = order.DealAmount / money
+    order.AvgPrice = money / order.DealAmount
     return order
 }
 
