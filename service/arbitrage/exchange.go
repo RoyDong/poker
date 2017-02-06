@@ -216,16 +216,16 @@ price = 0 对手价
 func (e *Exchange) Trade(position int, amount, price float64) Order {
     var order Order
     var id int64
-    for i := 0; i < 3; i++ {
+    for i := 0; i < 2; i++ {
         id = e.IExchange.Trade(position, amount, price)
         if id > 0 {
             break
         }
     }
     if id > 0 {
-        //每隔0.5s读取一次，最多等待5s
-        for i := 0; i < 10; i++ {
-            time.Sleep(500 * time.Millisecond)
+        //每隔0.5s读取一次，最多等待3次
+        for i := 0; i < 5; i++ {
+            time.Sleep(200 * time.Millisecond)
             order = e.IExchange.Order(id)
             if order.Status == 2 {
                 break
@@ -246,7 +246,7 @@ func (e *Exchange) Trade(position int, amount, price float64) Order {
             }
 
             //更新order info
-            for i := 0; i < 3; i++ {
+            for i := 0; i < 2; i++ {
                 order = e.IExchange.Order(id)
                 if order.Id > 0 {
                     break

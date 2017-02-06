@@ -27,13 +27,20 @@ func (ar *averager) Add(key int64, val float64) (bool, int64) {
     ar.keys.PushFront(key)
     ar.total += val
 
+    if ar.keys.Len() == 1 {
+        ar.minKey = key
+        ar.maxKey = key
+    }
+
     var k int64
     overflow := false
     if ar.keys.Len() > ar.size {
         el := ar.keys.Back()
-        k, _ = el.Value.(int64)
-        ar.remove(k, ar.data[k], el)
+        ar.keys.Remove(el)
         overflow = true
+
+        k, _ = el.Value.(int64)
+        ar.total -= ar.data[k]
     }
 
     if val < ar.Min() {
@@ -47,37 +54,6 @@ func (ar *averager) Add(key int64, val float64) (bool, int64) {
     return overflow, k
 }
 
-/*
-添加最大/小值，如果size满了，则一一比较所有值去除掉比新值小/大的值
- */
-func (ar *averager) AddPeek(top bool, key int64, val float64) (bool, int64) {
-    if ar.Full() {
-        for el := ar.keys.Back(); el != nil; el = el.Prev() {
-            k, _ := el.Value.(int64)
-            v := ar.data[k]
-            if (top && val > v) || (!top && val < v){
-                ar.remove(k, v, el)
-                return ar.Add(key, val)
-            }
-        }
-        return false, 0
-    }
-    return ar.Add(key, val)
-}
-
-func (ar *averager) CutTail(key int64) {
-    if val, has := ar.data[key]; has {
-        el := ar.keys.Back()
-        k, _ := el.Value.(int64)
-        if k == key {
-            ar.remove(key, val, el)
-            ar.avg = ar.total / float64(ar.keys.Len())
-        } else {
-            panic("data not sync")
-        }
-    }
-}
-
 func (ar *averager) remove(key int64, val float64, el *list.Element) {
     ar.total -= val
     ar.keys.Remove(el)
@@ -86,6 +62,10 @@ func (ar *averager) remove(key int64, val float64, el *list.Element) {
 
 func (ar *averager) Avg() float64 {
     return ar.avg
+}
+
+func (ar *averager) Mid() float64 {
+    return (ar.Min() + ar.Max()) / 2
 }
 
 func (ar *averager) Min() float64 {
