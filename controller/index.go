@@ -201,6 +201,13 @@ func init() {
     }, "/order")
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        lr := arbitrage.NewLeeksReaper(arbitrage.NewExchange("okfuture_quarter"))
+        go lr.Start()
+        return r.TextResponse("done")
+
+    }, "/leeks_reaper")
+
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         huobi := market.NewHuobiWS()
 
         huobi.Connect()

@@ -4,6 +4,7 @@ import (
     "strings"
     "github.com/roydong/gmvc"
     "fmt"
+    "math"
 )
 
 type OKFuture struct {
@@ -35,7 +36,7 @@ func (ok *OKFuture) Trade(position int, amount, price float64) int64 {
         "symbol": "btc_usd",
         "contract_type": ok.contractType,
         "type": position,
-        "amount": amount,
+        "amount": math.Floor(amount),
         "price": price,
         "match_price": 0,
         "lever_rate": ok.leverRate,
@@ -233,8 +234,6 @@ func (ok *OKFuture) GetBalance() Balance {
     balance.ShortAmount, _ = holding.Float("sell_amount")
     balance.ShortPrice, _ = holding.Float("sell_price_avg")
     balance.ShortProfit, _ = holding.Float("sell_profit_real")
-
-    gmvc.Logger.Println(balance.Deposit, balance.AccountRights)
 
     return balance
 }
