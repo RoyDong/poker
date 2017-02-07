@@ -44,7 +44,7 @@ type IExchange interface {
 
     GetDepth() ([][]float64, [][]float64)
 
-    GetBalance() (float64, float64)
+    GetBalance() Balance
 }
 
 type Ticker struct {
@@ -76,6 +76,20 @@ type Trade struct {
     Price float64
     Type string
     Time int64
+}
+
+type Balance struct {
+    Amount, Money float64
+
+    ContractId int64
+
+    LongAmount, LongPrice, LongProfit float64
+
+    ShortAmount, ShortPrice, ShortProfit float64
+
+    AccountRights float64
+
+    Deposit float64
 }
 
 type Exchange struct {
@@ -167,7 +181,8 @@ func (e *Exchange) SyncDepth() {
 }
 
 func (e *Exchange) SyncBalance() {
-    e.amount, e.money = e.GetBalance()
+    b := e.GetBalance()
+    e.amount, e.money = b.Amount, b.Money
 }
 
 func (e *Exchange) Balance() (float64, float64) {

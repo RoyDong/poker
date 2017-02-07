@@ -196,9 +196,47 @@ func (ok *OKFuture) Index() float64 {
 }
 
 
-func (ok *OKFuture) GetBalance() (float64, float64) {
-    ok.Call("future_userinfo_4fix.do", nil, map[string]interface{}{})
-    return 0, 0
+func (ok *OKFuture) GetBalance() Balance {
+    var balance Balance
+    rs := ok.Call("future_userinfo.do", nil, map[string]interface{}{})
+    if rs == nil {
+        return balance
+    }
+
+    btcInfo := rs.Tree("info.btc")
+    if btcInfo == nil {
+        return balance
+    }
+
+    balance.AccountRights, _ = btcInfo.Float("account_rights")
+    balance.Deposit, _ = btcInfo.Float("keep_deposit")
+
+    params := map[string]interface{} {
+        "symbol": "btc_usd",
+        "contract_type": ok.contractType,
+    }
+    rs = ok.Call("future_position.do", nil, params)
+    if rs == nil {
+        return balance
+    }
+
+    holding := rs.Tree("holding.0")
+    if holding == nil {
+        return balance
+    }
+
+    balance.ContractId , _ = holding.Int64("contract_id")
+    balance.LongAmount, _ = holding.Float("buy_amount")
+    balance.LongPrice, _ = holding.Float("buy_price_cost")
+    balance.LongProfit, _ = holding.Float("buy_profit_real")
+
+    balance.ShortAmount, _ = holding.Float("sell_amount")
+    balance.ShortPrice, _ = holding.Float("sell_price_avg")
+    balance.ShortProfit, _ = holding.Float("sell_profit_real")
+
+    gmvc.Logger.Println(balance.Deposit, balance.AccountRights)
+
+    return balance
 }
 
 

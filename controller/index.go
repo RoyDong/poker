@@ -154,9 +154,11 @@ func init() {
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         //a := arbitrage.NewExchange("okfuture_thisweek")
-        a := arbitrage.NewOKFuture("this_week", 20)
+        a := arbitrage.NewOKFuture("quarter", 20)
 
         gmvc.Store.Set("aa", a)
+
+        a.GetBalance()
 
         return r.TextResponse("done")
 
