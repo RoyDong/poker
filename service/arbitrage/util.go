@@ -8,6 +8,7 @@ import (
     "sort"
     "github.com/roydong/gmvc"
     "io/ioutil"
+    "math"
 )
 
 func CallRest(api string, query, data map[string]interface{}) *gmvc.Tree {
@@ -103,3 +104,29 @@ func GetBuyPrice(amount float64, asks [][]float64) float64 {
     }
     return price
 }
+
+func max(nums ...[]float64) float64 {
+    var max float64
+    for i, n := range nums {
+        if i == 0 {
+            max = n
+        } else {
+            max = math.Max(max, n)
+        }
+    }
+    return max
+}
+
+func min(nums ...[]float64) float64 {
+    var min float64
+    for i, n := range nums {
+        if i == 0 {
+            min = n
+        } else {
+            min = math.Min(min, n)
+        }
+    }
+    return min
+}
+
+

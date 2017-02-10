@@ -3,6 +3,8 @@ package arbitrage
 import (
     "time"
     "github.com/roydong/gmvc"
+    "fmt"
+    "math"
 )
 
 type LeeksReaper struct {
@@ -14,10 +16,15 @@ type LeeksReaper struct {
 
     bidPrice, askPrice float64
 
+    asks, bids [][]float64
     prices []float64
     trades []Trade
     vol float64
     initPosition bool
+
+    minTradeAmount float64
+
+    burstThresholdPct, burstThresholdVol float64
 }
 
 func NewLeeksReaper(ex *Exchange) *LeeksReaper {
@@ -25,16 +32,12 @@ func NewLeeksReaper(ex *Exchange) *LeeksReaper {
         exchange: ex,
         initPosition: true,
         state: StateStop,
+
+        minTradeAmount: 1,
     }
     return lr
 }
 
-func (lr *LeeksReaper) Start() {
-    lr.state = StateOpen
-    for lr.state == StateOpen {
-        lr.balancePosition()
-    }
-}
 /*
 更新最近的交易，计算出当前的交易量
  */
@@ -49,15 +52,15 @@ func (lr *LeeksReaper) updateTrades() {
 }
 
 /*
-根据盘口预估交易价格
+更新盘口数据
  */
-func (lr *LeeksReaper) updatePrice() {
-    asks, bids := lr.exchange.GetDepth()
-    lr.bidPrice = bids[0][0] * 0.618 + asks[0][0] * 0.382 + 0.01
-    lr.askPrice = bids[0][0] * 0.382 + asks[0][0] * 0.618 - 0.01
-    price := (bids[0][0] + asks[0][0]) * 0.35 +
-             (bids[1][0] + asks[1][0]) * 0.10 +
-             (bids[2][0] + asks[2][0]) * 0.05
+func (lr *LeeksReaper) updateOrderBook() {
+    lr.asks, lr.bids = lr.exchange.GetDepth()
+    lr.bidPrice = lr.bids[0][0] * 0.618 + lr.asks[0][0] * 0.382 + 0.01
+    lr.askPrice = lr.bids[0][0] * 0.382 + lr.asks[0][0] * 0.618 - 0.01
+    price := (lr.bids[0][0] + lr.asks[0][0]) * 0.35 +
+             (lr.bids[1][0] + lr.asks[1][0]) * 0.10 +
+             (lr.bids[2][0] + lr.asks[2][0]) * 0.05
     lr.prices = append(lr.prices, price)
 }
 
@@ -69,11 +72,11 @@ func (lr *LeeksReaper) balancePosition() {
         return
     }
     lr.updateTrades()
-    lr.updatePrice()
+    lr.updateOrderBook()
     //开始计算仓位
     price := lr.prices[len(lr.prices) - 1]
     shortValue := lr.balance.ShortAmount * 100 //空头仓位价值
-    totalValue := lr.balance.AccountRights * price //多头仓位价值
+    totalValue := lr.balance.AccountRights * price //保证金价值
     var order Order
     oids := make([]int64, 0, 5)
     //第一次需要初始化仓位，保持50%
@@ -95,9 +98,9 @@ func (lr *LeeksReaper) balancePosition() {
     } else {
         position := shortValue / totalValue
         if position < 0.48 {
-            order = lr.exchange.Trade(OpenShortPosition, 1, lr.askPrice)
+            order = lr.exchange.Trade(OpenShortPosition, lr.minTradeAmount, lr.askPrice)
         } else if position > 0.52 {
-            order = lr.exchange.Trade(CloseShortPosition, 1, lr.bidPrice)
+            order = lr.exchange.Trade(CloseShortPosition, lr.minTradeAmount, lr.bidPrice)
         }
         if order.Id > 0 {
             oids = append(oids, order.Id)
@@ -116,8 +119,93 @@ func (lr *LeeksReaper) cancelOrders(ids []int64) {
 /*
 追随趋势下单
  */
-func (lr *LeeksReaper) follow() {
+func (lr *LeeksReaper) Start() {
+    lr.state = StateOpen
+    numTick := 0
+    for lr.state == StateOpen {
+        lr.updateTrades()
+        lr.updateOrderBook()
+        lr.balancePosition()
 
+        var bull, bear bool
+        priceLen := len(lr.prices)
+        lastPrice := lr.prices[priceLen - 1]
+        burstPrice := lastPrice * lr.burstThresholdPct
+        if lr.balance.AccountRights > 0 {
+            gmvc.Logger.Println(fmt.Sprintf("Tick: %v, lastPrice: %v, burstPrice %.2f", numTick, lastPrice, burstPrice))
+        }
+
+        if numTick > 2 {
+            if lastPrice - max(lr.prices[priceLen - 6:priceLen - 2]...) > burstPrice ||
+            lastPrice - max(lr.prices[priceLen - 6:priceLen - 3]...) > burstPrice &&
+            lastPrice > lr.prices[priceLen - 2] {
+                bull = true
+            } else if lastPrice - min(lr.prices[priceLen - 6:priceLen - 2]...) < -burstPrice ||
+            lastPrice - min(lr.prices[priceLen - 6:priceLen - 3]...) < - burstPrice &&
+            lastPrice < lr.prices[priceLen - 2] {
+                bear = true
+            }
+        }
+
+        amount := lr.balance.ShortAmount
+        //成交量小，减少力度
+        if lr.vol < lr.burstThresholdVol {
+            amount = amount * lr.vol / lr.burstThresholdVol
+        }
+        //次数
+        if numTick < 5 {
+            amount *= 0.8 * 0.8
+        } else if amount < 10 {
+            amount *= 0.8
+        }
+        //当前价格与突破方向不明显，涨时当前价格不是最近的最高价，跌时当前价格不是最近的最底价
+        if bull && lastPrice < max(lr.prices...) {
+            amount *= 0.9
+        }
+        if bear && lastPrice > min(lr.prices...) {
+            amount *= 0.9
+        }
+        //最近2次价格变动较大
+        if math.Abs(lastPrice - lr.prices[priceLen - 2]) > burstPrice * 2 {
+            amount *= 0.9
+        }
+        if math.Abs(lastPrice - lr.prices[priceLen - 2]) > burstPrice * 3 {
+            amount *= 0.9
+        }
+        if math.Abs(lastPrice - lr.prices[priceLen - 2]) > burstPrice * 4 {
+            amount *= 0.9
+        }
+        //盘口差价较大
+        if lr.asks[0][0] - lr.bids[0][0] > burstPrice * 2 {
+            amount *= 0.9
+        }
+        if lr.asks[0][0] - lr.bids[0][0] > burstPrice * 3 {
+            amount *= 0.9
+        }
+        if lr.asks[0][0] - lr.bids[0][0] > burstPrice * 4 {
+            amount *= 0.9
+        }
+
+        for amount >= 1 {
+            var order Order
+            if bull {
+                order = lr.exchange.Trade(CloseShortPosition, amount, lr.bidPrice)
+            } else {
+                order = lr.exchange.trades(OpenShortPosition, amount, lr.askPrice)
+            }
+            if order.Id > 0 {
+                time.Sleep(200 * time.Millisecond)
+                lr.exchange.CancelOrder(order.Id)
+            }
+            amount -= order.DealAmount
+            amount *= 0.98
+        }
+        numTick++
+    }
+}
+
+func (lr *LeeksReaper) Stop() {
+    lr.state = StateStop
 }
 
 
