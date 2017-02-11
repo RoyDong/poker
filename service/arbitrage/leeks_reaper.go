@@ -186,7 +186,7 @@ func (lr *LeeksReaper) followTrend() {
         //开始下单
         if numTick > 2 && amount >= 1 {
             if len(arrow) > 0 {
-                log.Println(fmt.Sprintf("Tick: %v, Price: %.2f, BurstPrice %.2f%v, Amount: %.2f\n",
+                log.Println(fmt.Sprintf("Tick: %v, Price: %.2f, BurstPrice %.2f%v, Amount: %.0f\n",
                     numTick, lastPrice, burstPrice, arrow, amount))
             }
             for amount >= 1 {
