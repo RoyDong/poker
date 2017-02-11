@@ -37,9 +37,9 @@ func NewLeeksReaper(ex *Exchange) *LeeksReaper {
         exchange: ex,
         state: StateStop,
         minTradeAmount: 1,
-        maxPositionAmount: 200,
+        maxPositionAmount: 100,
         burstThresholdPct: 0.0005,
-        burstThresholdVol: 200,
+        burstThresholdVol: 100,
     }
     return lr
 }
@@ -83,9 +83,6 @@ func (lr *LeeksReaper) updateOrderBook() {
 func (lr *LeeksReaper) updateBalance() {
     b := lr.exchange.GetBalance()
     if b.AccountRights > 0 {
-        if b.AccountRights < 1.8 {
-            panic("losing money")
-        }
         lr.balance = b
     }
 }
@@ -99,19 +96,13 @@ func (lr *LeeksReaper) balancePosition() {
         lr.updateBalance()
         lr.updateTrades()
         lr.updateOrderBook()
-        log.Println(fmt.Sprintf("Position: %.0f/%.0f(long/short), Total: %.4f",
-                lr.balance.LongAmount, lr.balance.ShortAmount, lr.balance.AccountRights))
-        if lr.balance.LongAmount - lr.balance.ShortAmount >= 2 * lr.minTradeAmount {
+        log.Println(fmt.Sprintf("Position: %.0f(%.4f)/%.0f(%.4f), Total: %.4f",
+                lr.balance.LongAmount, lr.balance.LongProfit,
+                lr.balance.ShortAmount, lr.balance.ShortProfit, lr.balance.AccountRights))
+        if lr.balance.LongAmount - lr.balance.ShortAmount >= lr.minTradeAmount {
             lr.exchange.Trade(CloseLongPosition, lr.minTradeAmount, lr.askPrice)
-        } else if lr.balance.ShortAmount - lr.balance.LongAmount >= 2 * lr.minTradeAmount {
+        } else if lr.balance.ShortAmount - lr.balance.LongAmount >= lr.minTradeAmount {
             lr.exchange.Trade(CloseShortPosition, lr.minTradeAmount, lr.bidPrice)
-        } else if lr.balance.LongAmount + lr.balance.ShortAmount >= lr.maxPositionAmount * 0.5 {
-            //如果总持仓超过最大限制的50%，无论多空仓位百分比都要减少持仓
-            if lr.balance.LongProfit >= lr.balance.ShortProfit {
-                lr.exchange.Trade(CloseLongPosition, lr.minTradeAmount, lr.askPrice)
-            } else {
-                lr.exchange.Trade(CloseShortPosition, lr.minTradeAmount, lr.bidPrice)
-            }
         }
     }
 }
@@ -127,8 +118,7 @@ func (lr *LeeksReaper) followTrend() {
         lr.updateOrderBook()
         var bull, bear bool
         var arrow string
-        var amount = math.Min(lr.maxPositionAmount / 2,
-                        lr.maxPositionAmount - lr.balance.LongAmount - lr.balance.ShortAmount)
+        var amount float64
         priceLen := len(lr.prices)
         lastPrice := lr.prices[priceLen - 1]
         burstPrice := lastPrice * lr.burstThresholdPct
@@ -136,11 +126,13 @@ func (lr *LeeksReaper) followTrend() {
             if lastPrice - max(lr.prices[priceLen - 6:priceLen - 2]...) > burstPrice ||
                     lastPrice - max(lr.prices[priceLen - 6:priceLen - 3]...) > burstPrice &&
                     lastPrice > lr.prices[priceLen - 2] {
+                amount = math.Min(lr.maxPositionAmount / 2, lr.maxPositionAmount * 0.8 - lr.balance.LongAmount)
                 bull = true
                 arrow = "↑"
             } else if lastPrice - min(lr.prices[priceLen - 6:priceLen - 2]...) < -burstPrice ||
                     lastPrice - min(lr.prices[priceLen - 6:priceLen - 3]...) < - burstPrice &&
                     lastPrice < lr.prices[priceLen - 2] {
+                amount = math.Min(lr.maxPositionAmount / 2, lr.maxPositionAmount * 0.8 - lr.balance.ShortAmount)
                 bear = true
                 arrow = "↓"
             }
@@ -185,24 +177,28 @@ func (lr *LeeksReaper) followTrend() {
         }
         //开始下单
         if numTick > 2 && amount >= 1 {
-            if len(arrow) > 0 {
-                log.Println(fmt.Sprintf("Tick: %v, Price: %.2f, BurstPrice %.2f%v, Amount: %.0f\n",
-                    numTick, lastPrice, burstPrice, arrow, amount))
-            }
+            openAmount := math.Min(lr.maxPositionAmount - lr.balance.ShortAmount - lr.balance.LongAmount, amount)
+            log.Println(fmt.Sprintf("Tick: %v, Price: %.2f, BurstPrice %.2f, Amount: %.0f/%.0f%v\n",
+                                    numTick, lastPrice, burstPrice, openAmount, amount, arrow))
             for amount >= 1 {
                 var order Order
                 if bull {
-                    order = lr.exchange.Trade(OpenLongPosition, amount, lr.bidPrice)
+                    if openAmount > 1 {
+                        order = lr.exchange.Trade(OpenLongPosition, openAmount, lr.bidPrice)
+                        openAmount -= order.DealAmount
+                    } else if amount > 1 {
+                        order = lr.exchange.Trade(CloseShortPosition, amount, lr.bidPrice)
+                    }
                 }
                 if bear {
-                    order = lr.exchange.Trade(OpenShortPosition, amount, lr.askPrice)
-                }
-                if order.Id > 0 {
-                    time.Sleep(200 * time.Millisecond)
-                    lr.exchange.CancelOrder(order.Id)
+                    if openAmount > 1 {
+                        order = lr.exchange.Trade(OpenShortPosition, openAmount, lr.askPrice)
+                        openAmount -= order.DealAmount
+                    } else if amount > 1 {
+                        order = lr.exchange.Trade(CloseLongPosition, amount, lr.askPrice)
+                    }
                 }
                 amount -= order.DealAmount
-                amount *= 0.98
             }
         }
         numTick++
