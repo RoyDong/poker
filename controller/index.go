@@ -151,6 +151,13 @@ func init() {
 
     }, "/week_quarter")
 
+    gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
+        quarter := arbitrage.NewExchange("okfuture_quarter")
+        lr := arbitrage.NewLeeksReaper(quarter)
+        lr.Start()
+        return r.TextResponse("done")
+    }, "/okfuture_leeksreaper")
+
 
     gmvc.SetAction(func(r *gmvc.Request) *gmvc.Response {
         //a := arbitrage.NewExchange("okfuture_thisweek")

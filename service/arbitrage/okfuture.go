@@ -4,7 +4,6 @@ import (
     "strings"
     "github.com/roydong/gmvc"
     "fmt"
-    "math"
 )
 
 type OKFuture struct {
@@ -36,7 +35,7 @@ func (ok *OKFuture) Trade(position int, amount, price float64) int64 {
         "symbol": "btc_usd",
         "contract_type": ok.contractType,
         "type": position,
-        "amount": math.Floor(amount),
+        "amount": fmt.Sprintf("%.0f", amount),
         "price": price,
         "match_price": 0,
         "lever_rate": ok.leverRate,
@@ -84,7 +83,7 @@ func (ok *OKFuture) Order(id int64) Order {
 
 func (ok *OKFuture) CancelOrder(id int64) bool {
     params := map[string]interface{} {
-        "symbol": "btc_cny",
+        "symbol": "btc_usd",
         "contract_type": ok.contractType,
         "order_id": id,
     }

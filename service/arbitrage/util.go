@@ -105,7 +105,7 @@ func GetBuyPrice(amount float64, asks [][]float64) float64 {
     return price
 }
 
-func max(nums ...[]float64) float64 {
+func max(nums ...float64) float64 {
     var max float64
     for i, n := range nums {
         if i == 0 {
@@ -117,7 +117,7 @@ func max(nums ...[]float64) float64 {
     return max
 }
 
-func min(nums ...[]float64) float64 {
+func min(nums ...float64) float64 {
     var min float64
     for i, n := range nums {
         if i == 0 {
