@@ -3,7 +3,7 @@ package controller
 import (
     "github.com/roydong/gmvc"
     "github.com/roydong/poker/service/market"
-    "github.com/roydong/poker/service/arbitrage"
+    "github.com/roydong/poker/arbitrage"
     "log"
     "fmt"
 )
