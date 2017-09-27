@@ -4,6 +4,7 @@ import (
     "time"
     "fmt"
     "sync"
+    "errors"
 )
 
 /*
@@ -169,77 +170,5 @@ func AddExchange(ex IExchange) {
 
 func GetExchange(name string) IExchange {
     return exchanges[name]
-}
-
-
-type Exchange struct {
-    IExchange
-
-    lock sync.RWMutex
-    inloop bool
-    maxTradeLen int
-    trades []Trade
-}
-
-func NewExchange(api IExchange) *Exchange {
-    ex := &Exchange{
-        IExchange: api,
-    }
-
-    ex.inloop = true
-    ex.maxTradeLen = 1000
-    ex.trades = make([]Trade, 0, ex.maxTradeLen)
-    go ex.syncTrades()
-    return ex
-}
-
-func (ex *Exchange) MaxPrice(t time.Duration) float64 {
-
-    return 0
-}
-
-func (ex *Exchange) MinPrice(t time.Duration) float64 {
-
-    return 0
-}
-
-
-func (ex *Exchange) syncTrades() {
-    for ex.inloop {
-        <- time.After(200 * time.Millisecond)
-        trades, err := ex.GetTrades()
-        if err != nil {
-            continue
-        }
-        newTrades := make([]Trade, 0, len(trades))
-        for _, trade := range trades {
-            for i := len(ex.trades); i >= 0; i-- {
-                t := ex.trades[i]
-                delta := trade.CreateTime.Sub(t.CreateTime)
-                if delta > 0 {
-                    newTrades = append(newTrades, trade)
-                    break
-                }
-                if delta == 0 {
-                    if trade.Id == t.Id {
-                        break
-                    } else {
-                        continue
-                    }
-                }
-                if delta < 0 {
-                    break
-                }
-            }
-        }
-        if len(newTrades) > 0 {
-            ex.lock.Lock()
-            if overflow := len(ex.trades) + len(newTrades) - ex.maxTradeLen; overflow > 0 {
-                ex.trades = ex.trades[overflow:]
-            }
-            ex.trades = append(ex.trades, newTrades...)
-            ex.lock.Unlock()
-        }
-    }
 }
 
