@@ -1,0 +1,24 @@
+server:
+  hostname: poker
+  host: 127.0.0.1:10080
+  sockfile: /tmp/poker.sock
+  debug: true
+
+alertmail:
+  host: "smtp.exmail.qq.com"
+  server: "smtp.exmail.qq.com:25"
+  sender: "poker@roydong.com"
+  username: "poker@roydong.com"
+  subject: "poker"
+  password: "123abC"
+  receiver: ["i@roydong.com"]
+
+log:
+  logrotate: daily
+  logdir: ./log
+
+market:
+  okex:
+    httphost: "https://www.okex.com/api/v1/"
+    apikey: ""
+    apisecret: ""

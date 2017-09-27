@@ -1,0 +1,245 @@
+package market
+
+import (
+    "time"
+    "fmt"
+    "sync"
+)
+
+/*
+货币单位
+ */
+type CurrencyUnit string
+
+/*
+仓位（头寸）方向
+ */
+type PositionType string
+
+/*
+交易动作
+ */
+type TradeAction string
+
+const (
+    Long  = PositionType("Long")
+    Short = PositionType("Short")
+
+    OpenLong   = TradeAction("OpenLong")
+    OpenShort  = TradeAction("OpenShort")
+    CloseLong  = TradeAction("CloseLong")
+    CloseShort = TradeAction("CloseShort")
+
+    Buy  = TradeAction("Buy")
+    Sell = TradeAction("Sell")
+
+    CNY = CurrencyUnit("CNY")
+    USD = CurrencyUnit("USD")
+    BTC = CurrencyUnit("BTC")
+    LTC = CurrencyUnit("LTC")
+
+    OrderStatusCreated   = 0
+    OrderStatusPartial   = 1 //部分成交
+    OrderStatusComplete  = 2
+    OrderStatusCanceled  = 3
+    OrderStatusCanceling = 4
+)
+
+type Order struct {
+    Id      string
+    TAction TradeAction
+    Amount  float64
+    Price   float64
+
+    DealAmount float64
+    DealMoney  float64
+    AvgPrice   float64
+    Fee        float64
+    Status     int
+
+    CreateTime time.Time
+}
+
+type Trade struct {
+    Id         string
+    TAction    TradeAction
+    Amount     float64
+    Price      float64
+    Fee        float64
+    CreateTime time.Time
+}
+
+type Position struct {
+    Id              string
+    PType           PositionType
+    Amount          float64
+    AvailableAmount float64
+    AvgPrice        float64
+    Money           float64
+    Deposit         float64
+    Leverage        float64
+    ForceClosePrice float64
+}
+
+func (this Position) GetProfit(price float64) float64 {
+    profit := this.Amount * (price - this.AvgPrice)
+    if this.PType == Long {
+        return profit
+    }
+    return -profit
+}
+
+func (this Position) GetROP(price float64) float64 {
+    if this.Deposit > 0 {
+        return this.GetProfit(price) / this.Deposit
+    }
+    return 0
+}
+
+func (this Position) String() string {
+    return fmt.Sprintf("%s %.4f/%.4f, AvgPrice %.4f, Money %.4f ForceClose %.4f, lever %.0f",
+        this.PType, this.AvailableAmount, this.Amount, this.AvgPrice, this.Money, this.ForceClosePrice, this.Leverage)
+}
+
+type Ticker struct {
+    High       float64
+    Low        float64
+    Ask        float64
+    Bid        float64
+    Last       float64
+    Vol        float64
+    CreateTime time.Time
+}
+
+type Balance struct {
+    //总保证金,总余额
+    Amount float64
+    //使用的保证金
+    Deposit      float64
+    RealProfit   float64
+    UnrealProfit float64
+    RiskRate     float64
+    Currency     CurrencyUnit
+}
+
+func (this Balance) String() string {
+    return fmt.Sprintf("BTC %.2f(%.2f), Profit %.2f %.2f, %.2f", this.Amount, this.Deposit,
+        this.RealProfit, this.UnrealProfit, this.RiskRate)
+}
+
+type IExchange interface {
+    Name() string
+
+    GetCurrencyUnit() CurrencyUnit
+
+    OpenTime() time.Time
+
+    CloseTime() time.Time
+
+    /*
+    pos    开仓类型
+    amount 数量
+    price 价格  price = 0 市价, price = -1 对手价
+     */
+    MakeOrder(ta TradeAction, amount, price float64) (Order, error)
+
+    CancelOrder(id ...string) error
+
+    GetOrder(id ...string) ([]Order, error)
+
+    GetTicker() (Ticker, error)
+
+    GetTrades() ([]Trade, error)
+
+    GetDepth() ([]Order, []Order, error)
+
+    GetIndex() (float64, error)
+
+    GetBalance() (Balance, error)
+
+    GetPosition() (Position, Position, error)
+}
+
+
+var exchanges = make(map[string]IExchange, 0)
+
+func AddExchange(ex IExchange) {
+    exchanges[ex.Name()] = ex
+}
+
+func GetExchange(name string) IExchange {
+    return exchanges[name]
+}
+
+
+type Exchange struct {
+    IExchange
+
+    lock sync.RWMutex
+    inloop bool
+    maxTradeLen int
+    trades []Trade
+}
+
+func NewExchange(api IExchange) *Exchange {
+    ex := &Exchange{
+        IExchange: api,
+    }
+
+    ex.inloop = true
+    ex.maxTradeLen = 1000
+    ex.trades = make([]Trade, 0, ex.maxTradeLen)
+    go ex.syncTrades()
+    return ex
+}
+
+func (ex *Exchange) MaxPrice(t time.Duration) float64 {
+
+    return 0
+}
+
+func (ex *Exchange) MinPrice(t time.Duration) float64 {
+
+    return 0
+}
+
+
+func (ex *Exchange) syncTrades() {
+    for ex.inloop {
+        <- time.After(200 * time.Millisecond)
+        trades, err := ex.GetTrades()
+        if err != nil {
+            continue
+        }
+        newTrades := make([]Trade, 0, len(trades))
+        for _, trade := range trades {
+            for i := len(ex.trades); i >= 0; i-- {
+                t := ex.trades[i]
+                delta := trade.CreateTime.Sub(t.CreateTime)
+                if delta > 0 {
+                    newTrades = append(newTrades, trade)
+                    break
+                }
+                if delta == 0 {
+                    if trade.Id == t.Id {
+                        break
+                    } else {
+                        continue
+                    }
+                }
+                if delta < 0 {
+                    break
+                }
+            }
+        }
+        if len(newTrades) > 0 {
+            ex.lock.Lock()
+            if overflow := len(ex.trades) + len(newTrades) - ex.maxTradeLen; overflow > 0 {
+                ex.trades = ex.trades[overflow:]
+            }
+            ex.trades = append(ex.trades, newTrades...)
+            ex.lock.Unlock()
+        }
+    }
+}
+
