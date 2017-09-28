@@ -50,8 +50,9 @@ func (this *Future) MakeOrder(ta market.TradeAction, amount, price float64) (mar
         ptype = 3
     case market.CloseLong:
         ptype = 4
+    default:
+        panic("trade action not support")
     }
-
     params := map[string]interface{}{
         "symbol": "btc_usd",
         "contract_type": this.contractType,
@@ -61,11 +62,9 @@ func (this *Future) MakeOrder(ta market.TradeAction, amount, price float64) (mar
         "match_price": 0,
         "lever_rate": this.leverage,
     }
-
     if price <= 0 {
         params["match_price"] = 1
     }
-
     order := market.Order{}
     mkr := makeOrderResp{}
     err := this.callHttpJson(&mkr, "future_trade.do", nil, params)
@@ -75,7 +74,6 @@ func (this *Future) MakeOrder(ta market.TradeAction, amount, price float64) (mar
     if !mkr.Result || mkr.OrderId <= 0 {
         return order, errors.New("make order error")
     }
-
     order.Id = okidToOrderid(mkr.OrderId)
     return order, nil
 }

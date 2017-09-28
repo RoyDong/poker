@@ -135,16 +135,17 @@ func (ex *Exchange) GetBidPrice(depth float64) (float64, error) {
 }
 
 /*
-直接吃掉对手挂单
+直接吃掉对手挂单一定数量的深度
+快速交易，止损
  */
 func (ex *Exchange) TakeDepth(ta TradeAction, amount float64) (Order, error) {
     var price float64
     var err error
     var order Order
     switch ta {
-    case OpenLong, CloseShort:
+    case OpenLong, CloseShort, Buy:
         price, err = ex.GetAskPrice(amount)
-    case OpenShort, CloseLong:
+    case OpenShort, CloseLong, Sell:
         price, err = ex.GetBidPrice(amount)
     }
     if err != nil {
