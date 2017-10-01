@@ -40,6 +40,9 @@ func (this *Mailer) Send(m Mail) {
 }
 
 func (this *Mailer) StartLoop() {
+    if this.inLoop {
+        return
+    }
     this.inLoop = true
     go this.mailLoop()
 }

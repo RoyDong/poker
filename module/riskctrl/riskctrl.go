@@ -1,7 +1,6 @@
 package riskctrl
 
 import (
-    "github.com/roydong/poker/common"
     "github.com/roydong/poker/market"
     "errors"
     "github.com/roydong/poker/utils"
@@ -10,6 +9,7 @@ import (
     "fmt"
     "github.com/roydong/poker/market/okex"
     "strings"
+    "github.com/roydong/poker/context"
 )
 
 type RiskCtrl struct {
@@ -17,12 +17,12 @@ type RiskCtrl struct {
 }
 
 
-func (this *RiskCtrl) Init(conf *common.Config) error {
+func (this *RiskCtrl) Init(conf *context.Config) error {
     return nil
 }
 
 
-func (this *RiskCtrl) Run(ctx *common.Context) error {
+func (this *RiskCtrl) Run(ctx *context.Context) error {
     go baseCtrl()
     ctx.RespBody = []byte("base control n")
     return nil

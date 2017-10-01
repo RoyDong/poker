@@ -2,7 +2,7 @@ package utils
 
 import (
     "github.com/roydong/poker/lib"
-    "github.com/roydong/poker/common"
+    "github.com/roydong/poker/context"
 )
 
 
@@ -14,7 +14,7 @@ var FatalLog *lib.Logger
 var Mailer *lib.Mailer
 var sysMail lib.Mail
 
-func Init(conf *common.Config) {
+func Init(conf *context.Config) {
     dir := conf.Log.LogDir
     rotate := conf.Log.LogRotate
     DebugLog   = lib.NewLogger(dir, "debug", rotate, true)

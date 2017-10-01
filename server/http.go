@@ -5,30 +5,30 @@ import (
     "net/http"
     "log"
     "github.com/roydong/poker/utils"
-    "github.com/roydong/poker/common"
     "gopkg.in/yaml.v2"
     "io/ioutil"
     "runtime"
     "net"
     "golang.org/x/net/netutil"
     "time"
+    "github.com/roydong/poker/context"
 )
 
 
 func Run(filename string) {
     runtime.GOMAXPROCS(runtime.NumCPU())
 
-    var conf = &common.Config{}
+    var conf = &context.Config{}
     yml, err := ioutil.ReadFile(filename)
     if err != nil {
-        log.Fatalf("error read yml config")
+        log.Fatalf("error read yml config %s", err.Error())
     }
     err = yaml.Unmarshal(yml, conf)
     if err != nil {
         log.Fatalf("error parse yml config  [%s]", err.Error())
     }
     if err != nil {
-        log.Fatalf("init global conf fail . err[%s]", err.Error())
+        log.Fatalf("init config fail . err[%s]", err.Error())
     }
 
     //init log

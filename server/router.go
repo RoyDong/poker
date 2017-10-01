@@ -1,7 +1,7 @@
 package server
 
 import (
-    "github.com/roydong/poker/common"
+    "github.com/roydong/poker/context"
     "github.com/roydong/poker/utils"
     "github.com/roydong/poker/module/market"
     "github.com/roydong/poker/module/riskctrl"
@@ -10,8 +10,8 @@ import (
 )
 
 type IModule interface {
-    Init(conf *common.Config) error
-    Run(ctx *common.Context) error
+    Init(conf *context.Config) error
+    Run(ctx *context.Context) error
 }
 
 var routes = map[string][]IModule{
@@ -24,7 +24,7 @@ var routes = map[string][]IModule{
 }
 
 
-func initRouter(conf *common.Config) error {
+func initRouter(conf *context.Config) error {
     for path, modules := range routes {
         for i := 0; i < len(modules); i++ {
             err := modules[i].Init(conf)
@@ -37,8 +37,8 @@ func initRouter(conf *common.Config) error {
     return nil
 }
 
-func initContext(route string) *common.Context {
-    return &common.Context{}
+func initContext(route string) *context.Context {
+    return &context.Context{}
 }
 
 var defaultRoute = "/"

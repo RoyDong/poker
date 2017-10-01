@@ -1,12 +1,11 @@
 package market
 
 import (
-    "github.com/roydong/poker/common"
+    "github.com/roydong/poker/context"
     "github.com/roydong/poker/market"
     "fmt"
     "strings"
     "github.com/roydong/poker/market/okex"
-    "time"
 )
 
 type Market struct {
@@ -14,14 +13,14 @@ type Market struct {
 }
 
 
-func (this *Market) Init(conf *common.Config) error {
+func (this *Market) Init(conf *context.Config) error {
     okconf := conf.Market.Okex
     ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret)
     market.AddExchange(market.NewExchange(ok))
     return nil
 }
 
-func (this *Market) Run(ctx *common.Context) error {
+func (this *Market) Run(ctx *context.Context) error {
     ok := market.GetExchange("okex/quarter")
     rows := make([]string, 0, 5)
 
