@@ -363,7 +363,6 @@ func (this *Future) GetPosition() (market.Position, market.Position, error) {
             short.Amount = holding.BuyAmount
             short.AvailableAmount = holding.BuyAvailable
             short.AvgPrice = FutureUSD_BTC(holding.BuyAvgPrice)
-            short.Leverage = this.leverage
             short.Deposit = short.Amount * 5 / holding.BuyAvgPrice
             short.Money = short.Deposit
         }
@@ -372,7 +371,6 @@ func (this *Future) GetPosition() (market.Position, market.Position, error) {
             long.Amount = holding.SellAmount
             long.AvailableAmount = holding.SellAvailable
             long.AvgPrice = FutureUSD_BTC(holding.SellAvgPrice)
-            long.Leverage = this.leverage
             long.Deposit = long.Amount * 5 / holding.SellAvgPrice
             long.Money = long.Deposit
         }
@@ -380,7 +378,9 @@ func (this *Future) GetPosition() (market.Position, market.Position, error) {
     fcp, err := strconv.ParseFloat(strings.Replace(resp.ForceLiquPrice, ",", "", -1), 64)
     fcp = FutureUSD_BTC(fcp)
     long.ForceClosePrice = fcp
+    long.Leverage = this.leverage
     short.ForceClosePrice = fcp
+    short.Leverage = this.leverage
 
 
     return long, short, err

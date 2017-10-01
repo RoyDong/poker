@@ -6,6 +6,7 @@ import (
     "fmt"
     "strings"
     "github.com/roydong/poker/market/okex"
+    "time"
 )
 
 type Market struct {
@@ -16,7 +17,7 @@ type Market struct {
 func (this *Market) Init(conf *common.Config) error {
     okconf := conf.Market.Okex
     ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret)
-    market.AddExchange(ok)
+    market.AddExchange(market.NewExchange(ok))
     return nil
 }
 

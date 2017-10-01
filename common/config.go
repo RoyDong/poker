@@ -5,7 +5,10 @@ type Config struct {
         Hostname string
         Host     string
         SockFile string
+        MaxConn  int
+        Timeout  int
         Debug    bool
+        PProfHost string
     }
 
     AlertMail struct {

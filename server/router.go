@@ -3,10 +3,10 @@ package server
 import (
     "github.com/roydong/poker/common"
     "github.com/roydong/poker/utils"
-    "net/http"
-    "strings"
     "github.com/roydong/poker/module/market"
     "github.com/roydong/poker/module/riskctrl"
+    "net/http"
+    "strings"
 )
 
 type IModule interface {
@@ -43,7 +43,9 @@ func initContext(route string) *common.Context {
 
 var defaultRoute = "/"
 
-func dispatch(resp http.ResponseWriter, req *http.Request) {
+type handler string
+
+func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
     path := strings.ToLower(strings.TrimSpace(req.URL.Path))
     modules := routes[path]
     if len(modules) <= 0 && len(defaultRoute) > 0 {

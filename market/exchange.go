@@ -3,6 +3,7 @@ package market
 import (
     "sync"
     "time"
+    "github.com/roydong/poker/utils"
 )
 
 
@@ -10,7 +11,7 @@ type Exchange struct {
     IExchange
 
     lock sync.RWMutex
-    inloop bool
+    inLoop bool
     maxTradeLen int
     trades []Trade
 }
@@ -20,28 +21,31 @@ func NewExchange(api IExchange) *Exchange {
         IExchange: api,
     }
 
-    ex.inloop = true
     ex.maxTradeLen = 1000
-    ex.trades = make([]Trade, 0, ex.maxTradeLen)
+    ex.inLoop = true
     go ex.syncTrades()
     return ex
 }
 
 
 func (ex *Exchange) syncTrades() {
-    for ex.inloop {
-        <- time.After(200 * time.Millisecond)
+    if len(ex.trades) <= 0 {
+        ex.trades = make([]Trade, 1, ex.maxTradeLen)
+    }
+    for ex.inLoop {
+        <- time.After(500 * time.Millisecond)
         trades, err := ex.GetTrades()
         if err != nil {
             continue
         }
         newTrades := make([]Trade, 0, len(trades))
         for _, trade := range trades {
-            for i := len(ex.trades); i >= 0; i-- {
+            for i := len(ex.trades) - 1; i >= 0; i-- {
                 t := ex.trades[i]
                 delta := trade.CreateTime.Sub(t.CreateTime)
                 if delta > 0 {
                     newTrades = append(newTrades, trade)
+                    utils.DebugLog.Write("new trade: %v", trade)
                     break
                 }
                 if delta == 0 {
@@ -65,6 +69,12 @@ func (ex *Exchange) syncTrades() {
             ex.lock.Unlock()
         }
     }
+}
+
+func (ex *Exchange) LastTrade() Trade {
+    ex.lock.RLock()
+    defer ex.lock.RUnlock()
+    return ex.trades[len(ex.trades) - 1]
 }
 
 /*
@@ -135,7 +145,7 @@ func (ex *Exchange) GetBidPrice(depth float64) (float64, error) {
 }
 
 /*
-直接吃掉对手挂单一定数量的深度
+直接吃掉对手挂单指定数量(amount)的深度
 快速交易，止损
  */
 func (ex *Exchange) TakeDepth(ta TradeAction, amount float64) (Order, error) {
@@ -153,4 +163,22 @@ func (ex *Exchange) TakeDepth(ta TradeAction, amount float64) (Order, error) {
     }
     return ex.MakeOrder(ta, amount, price)
 }
+
+
+func (ex *Exchange) Trade(ta TradeAction, amount, price float64) (Order, error) {
+    var order Order
+    var err error
+    for i := 0; i < 3; i++ {
+        //price <0 use TakeDepth   // price >0  check 3s  or price changed
+        order, err = ex.MakeOrder(ta, amount, price)
+
+        for {
+            //check order
+        }
+
+    }
+
+
+}
+
 

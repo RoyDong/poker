@@ -69,12 +69,12 @@ func baseCtrl() error {
         msg := make([]string, 0, 2)
         msg = append(msg, fmt.Sprintf("Price %.4f Index %.4f", okex.FutureBTC_USD(ticker.Last), okex.FutureBTC_USD(index)))
         if lrop < -0.20 {
-            ok.MakeOrder(market.CloseLong, long.AvailableAmount, 0)
+            ok.TakeDepth(market.CloseLong, long.AvailableAmount)
             tpl := `空头(usd long) %.4f/%.4f Deposit %.4f Profit %.4f`
             msg = append(msg, fmt.Sprintf(tpl, long.Amount, long.AvailableAmount, long.Deposit, lprofit))
         }
         if srop < -0.20 {
-            ok.MakeOrder(market.CloseShort, short.AvailableAmount, 0)
+            ok.TakeDepth(market.CloseShort, short.AvailableAmount)
             tpl := `多头(usd short) %.4f/%.4f Deposit %.4f Profit %.4f`
             msg = append(msg, fmt.Sprintf(tpl, short.Amount, short.AvailableAmount, short.Deposit, sprofit))
         }

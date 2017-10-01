@@ -3,8 +3,6 @@ package market
 import (
     "time"
     "fmt"
-    "sync"
-    "errors"
 )
 
 /*
@@ -23,13 +21,13 @@ type PositionType string
 type TradeAction string
 
 const (
-    Long  = PositionType("Long")
-    Short = PositionType("Short")
+    Long  PositionType = "Long"
+    Short PositionType = "Short"
 
-    OpenLong   = TradeAction("OpenLong")
-    OpenShort  = TradeAction("OpenShort")
-    CloseLong  = TradeAction("CloseLong")
-    CloseShort = TradeAction("CloseShort")
+    OpenLong   TradeAction = "OpenLong"
+    OpenShort  TradeAction = "OpenShort"
+    CloseLong  TradeAction = "CloseLong"
+    CloseShort TradeAction = "CloseShort"
 
     Buy  = TradeAction("Buy")
     Sell = TradeAction("Sell")
@@ -161,14 +159,12 @@ type IExchange interface {
     GetPosition() (Position, Position, error)
 }
 
+var exchanges = make(map[string]*Exchange, 0)
 
-var exchanges = make(map[string]IExchange, 0)
-
-func AddExchange(ex IExchange) {
+func AddExchange(ex *Exchange) {
     exchanges[ex.Name()] = ex
 }
 
-func GetExchange(name string) IExchange {
+func GetExchange(name string) *Exchange {
     return exchanges[name]
 }
-
