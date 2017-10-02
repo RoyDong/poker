@@ -1,0 +1,6 @@
+.*
+.idea
+poker*
+log/
+config.conf
+config.yml
