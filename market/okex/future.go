@@ -94,7 +94,19 @@ type getOrderResp struct {
     } `json:"orders"`
     Result bool `json:"result"`
 }
-func (this *Future) GetOrder(ids ...string) ([]market.Order, error) {
+
+func (this *Future) GetOrder(id string) (market.Order, error) {
+    orders, err := this.GetOrders([]string{id})
+    if err != nil {
+        return market.Order{}, err
+    }
+    if len(orders) == 0 {
+        return market.Order{}, errors.New("no order is found id = " + id)
+    }
+    return orders[0]
+}
+
+func (this *Future) GetOrders(ids []string) ([]market.Order, error) {
     okids := make([]string, 0, len(ids))
     for _, id := range ids {
         okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))

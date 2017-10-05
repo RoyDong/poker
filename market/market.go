@@ -144,7 +144,9 @@ type IExchange interface {
 
     CancelOrder(id ...string) error
 
-    GetOrder(id ...string) ([]Order, error)
+    GetOrder(id string) (Order, error)
+
+    GetOrders(ids []string) ([]Order, error)
 
     GetTicker() (Ticker, error)
 

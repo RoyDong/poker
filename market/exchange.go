@@ -164,6 +164,23 @@ func (ex *Exchange) TakeDepth(ta TradeAction, amount float64) (Order, error) {
     return ex.MakeOrder(ta, amount, price)
 }
 
+func (ex *Exchange) SyncOrder(order Order, retry int) (Order, bool) {
+    for i := 0; i < retry; i++ {
+        time.After(200 * time.Millisecond)
+        o, err := ex.GetOrder(order.Id)
+        if err == nil {
+            if o.DealAmount > order.DealAmount {
+                return o, true
+            }
+            if o.Status != order.Status {
+                return o, true
+            }
+        } else {
+            utils.WarningLog.Write("sync order error %s", err.Error())
+        }
+    }
+    return order, false
+}
 
 func (ex *Exchange) Trade(ta TradeAction, amount, price float64) (Order, error) {
     var order Order
@@ -171,14 +188,11 @@ func (ex *Exchange) Trade(ta TradeAction, amount, price float64) (Order, error) 
     for i := 0; i < 3; i++ {
         //price <0 use TakeDepth   // price >0  check 3s  or price changed
         order, err = ex.MakeOrder(ta, amount, price)
-
         for {
             //check order
+
         }
-
     }
-
-
 }
 
 
