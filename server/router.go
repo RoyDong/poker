@@ -7,6 +7,7 @@ import (
     "github.com/roydong/poker/module/riskctrl"
     "net/http"
     "strings"
+    "github.com/roydong/poker/module/account"
 )
 
 type IModule interface {
@@ -15,8 +16,8 @@ type IModule interface {
 }
 
 var routes = map[string][]IModule{
-    "/market": {
-        &market.Market{},
+    "/account": {
+        &account.Account{},
     },
     "/riskctrl": {
         &riskctrl.RiskCtrl{},

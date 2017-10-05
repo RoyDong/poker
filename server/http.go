@@ -12,6 +12,7 @@ import (
     "golang.org/x/net/netutil"
     "time"
     "github.com/roydong/poker/context"
+    "github.com/roydong/poker/market"
 )
 
 
@@ -37,6 +38,8 @@ func Run(filename string) {
     if err != nil {
         log.Fatalf("init router fail . err[%s]", err.Error())
     }
+
+    market.Init(conf)
 
     go func() {
         log.Println(http.ListenAndServe(conf.Server.PProfHost, nil))
