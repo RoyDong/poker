@@ -8,11 +8,10 @@ import (
     "gopkg.in/yaml.v2"
     "io/ioutil"
     "runtime"
-    "net"
-    "golang.org/x/net/netutil"
     "time"
     "dw/poker/context"
     "dw/poker/market"
+    "fmt"
 )
 
 
@@ -42,25 +41,42 @@ func Run(filename string) {
     market.Init(conf)
 
     go func() {
-        log.Println(http.ListenAndServe(conf.Server.PProfHost, nil))
+        http.ListenAndServe(conf.Server.PProfHost, nil)
     }()
 
-    lis, err := net.Listen("tcp", conf.Server.Host)
-    if err != nil {
-        log.Fatalf("listen to port failed [%s]", err.Error())
+    h := handler{
+        sem: make(chan struct{}, conf.Server.MaxConn),
+        timeout: time.Duration(conf.Server.MaxExecTime) * time.Millisecond,
     }
-    if conf.Server.MaxConn > 0 {
-        lis = netutil.LimitListener(lis, conf.Server.MaxConn)
-    }
-
-    h := http.Handler(handler("http"))
-    if conf.Server.Timeout > 0 {
-        timeout := time.Duration(conf.Server.Timeout) * time.Millisecond
-        h = http.TimeoutHandler(h, timeout, "")
-    }
-
     log.Printf("start listen [%s]", conf.Server.Host)
-    log.Fatal(http.Serve(lis, h))
+    log.Fatal(http.ListenAndServe(conf.Server.Host, h))
+}
+
+type handler struct {
+    sem chan struct{}
+    timeout time.Duration
+}
+
+func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+    h.sem <-struct{}{}
+    done := make(chan struct{})
+    var body []byte
+    var code int
+    go func() {
+        defer func() {
+            close(done)
+            <-h.sem
+        }()
+        body, code = runHttpThread(req)
+    }()
+    select {
+    case <-done:
+        resp.WriteHeader(code)
+        resp.Write(body)
+    case <-time.After(h.timeout):
+        resp.WriteHeader(http.StatusGatewayTimeout)
+        resp.Write([]byte(fmt.Sprintf("reach max exec time %v", h.timeout)))
+    }
 }
 
 

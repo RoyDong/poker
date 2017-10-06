@@ -42,9 +42,7 @@ func initContext(route string) *context.Context {
 
 var defaultRoute = "/"
 
-type handler string
-
-func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func runHttpThread(req *http.Request) ([]byte, int) {
     path := strings.ToLower(strings.TrimSpace(req.URL.Path))
     modules := routes[path]
     if len(modules) <= 0 && len(defaultRoute) > 0 {
@@ -52,9 +50,7 @@ func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
     }
     if len(modules) <= 0 {
         utils.WarningLog.Write("http not found[%s]", req.URL.Path)
-        resp.WriteHeader(http.StatusNotFound)
-        resp.Write([]byte("404 not found"))
-        return
+        return []byte("404 not found"), http.StatusNotFound
     }
     ctx := initContext(path)
     ctx.Request = req
@@ -62,10 +58,9 @@ func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
         err := modules[i].Run(ctx)
         if err != nil {
             utils.FatalLog.Write("run modules[%s/%d] fail. err[%s]", path, i, err.Error())
-            resp.Write([]byte(err.Error()))
-            return
+            return []byte(err.Error()), http.StatusInternalServerError
         }
     }
-    resp.Write(ctx.RespBody)
+    return ctx.RespBody, http.StatusOK
 }
 
