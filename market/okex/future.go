@@ -7,8 +7,8 @@ import (
     "errors"
     "encoding/json"
     "strconv"
-    "github.com/roydong/poker/market/base"
-    "github.com/roydong/poker/market/utils"
+    "dw/poker/market/context"
+    "dw/poker/market/utils"
 )
 
 type Future struct {
@@ -39,17 +39,17 @@ type makeOrderResp struct {
     OrderId int64 `json:"order_id"`
     Result bool `json:"result"`
 }
-func (this *Future) MakeOrder(ta base.TradeAction, amount, price float64) (base.Order, error) {
+func (this *Future) MakeOrder(ta context.TradeAction, amount, price float64) (context.Order, error) {
     price = FutureBTC_USD(price)
     ptype := 0
     switch ta {
-    case base.OpenShort:
+    case context.OpenShort:
         ptype = 1
-    case base.OpenLong:
+    case context.OpenLong:
         ptype = 2
-    case base.CloseShort:
+    case context.CloseShort:
         ptype = 3
-    case base.CloseLong:
+    case context.CloseLong:
         ptype = 4
     default:
         panic("trade action not support")
@@ -66,7 +66,7 @@ func (this *Future) MakeOrder(ta base.TradeAction, amount, price float64) (base.
     if price <= 0 {
         params["match_price"] = 1
     }
-    order := base.Order{}
+    order := context.Order{}
     mkr := makeOrderResp{}
     err := this.callHttpJson(&mkr, "future_trade.do", nil, params)
     if err != nil {
@@ -96,18 +96,18 @@ type getOrderResp struct {
     Result bool `json:"result"`
 }
 
-func (this *Future) GetOrder(id string) (base.Order, error) {
+func (this *Future) GetOrder(id string) (context.Order, error) {
     orders, err := this.GetOrders([]string{id})
     if err != nil {
-        return base.Order{}, err
+        return context.Order{}, err
     }
     if len(orders) == 0 {
-        return base.Order{}, errors.New("no order is found id = " + id)
+        return context.Order{}, errors.New("no order is found id = " + id)
     }
-    return orders[0]
+    return orders[0], err
 }
 
-func (this *Future) GetOrders(ids []string) ([]base.Order, error) {
+func (this *Future) GetOrders(ids []string) ([]context.Order, error) {
     okids := make([]string, 0, len(ids))
     for _, id := range ids {
         okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))
@@ -122,9 +122,9 @@ func (this *Future) GetOrders(ids []string) ([]base.Order, error) {
     if err != nil {
         return nil, err
     }
-    orders := make([]base.Order, 0, len(ids))
+    orders := make([]context.Order, 0, len(ids))
     for _, v := range resp.Orders {
-        order := base.Order{}
+        order := context.Order{}
         order.Id = okidToOrderid(v.OrderId)
         order.Amount = v.Amount
         order.Price = FutureUSD_BTC(v.Price)
@@ -173,7 +173,7 @@ type getTradesResp struct {
     Price float64 `json:"price"`
     Datems int64 `json:"date_ms"`
 }
-func (this *Future) GetTrades() ([]base.Trade, error) {
+func (this *Future) GetTrades() ([]context.Trade, error) {
     params := map[string]interface{}{
         "symbol": "btc_usd",
         "contract_type": this.contractType,
@@ -185,16 +185,16 @@ func (this *Future) GetTrades() ([]base.Trade, error) {
         return nil, err
     }
 
-    trades := make([]base.Trade, 0, len(resp))
+    trades := make([]context.Trade, 0, len(resp))
     for _, t := range resp {
-        trade := base.Trade{}
+        trade := context.Trade{}
         trade.Id = fmt.Sprintf("okex/%d", t.Tid)
         trade.Amount = t.Amount
         trade.Price = FutureUSD_BTC(t.Price)
         if t.Type == "buy" {
-            trade.TAction = base.Buy
+            trade.TAction = context.Buy
         } else {
-            trade.TAction = base.Sell
+            trade.TAction = context.Sell
         }
         trade.CreateTime = time.Unix(0, t.Datems * 1e6)
         trades = append(trades, trade)
@@ -214,10 +214,10 @@ type getTickerResp struct {
         Vol float64 `json:"vol"`
     } `json:"ticker"`
 }
-func (this *Future) GetTicker() (base.Ticker, error) {
+func (this *Future) GetTicker() (context.Ticker, error) {
     q := map[string]interface{}{"symbol": "btc_usd", "contract_type": this.contractType}
     resp := getTickerResp{}
-    t := base.Ticker{}
+    t := context.Ticker{}
     err := this.callHttpJson(&resp, "future_ticker.do", q, nil)
     if err != nil {
         return t, err
@@ -239,7 +239,7 @@ type getDepthResp struct {
     Asks [][]float64 `json:"asks"`
     Bids [][]float64 `json:"bids"`
 }
-func (this *Future) GetDepth() ([]base.Order, []base.Order, error) {
+func (this *Future) GetDepth() ([]context.Order, []context.Order, error) {
     query := map[string]interface{}{
         "symbol": "btc_usd",
         "size": 50,
@@ -253,18 +253,18 @@ func (this *Future) GetDepth() ([]base.Order, []base.Order, error) {
         return nil, nil, err
     }
 
-    asks := make([]base.Order, 0, len(resp.Asks))
+    asks := make([]context.Order, 0, len(resp.Asks))
     for _, v := range resp.Asks {
-        order := base.Order{}
+        order := context.Order{}
         order.Amount = v[1]
         order.Price = FutureUSD_BTC(v[0])
         order.AvgPrice = order.Price
         asks = append(asks, order)
     }
 
-    bids := make([]base.Order, 0, len(resp.Bids))
+    bids := make([]context.Order, 0, len(resp.Bids))
     for _, v := range resp.Asks {
-        order := base.Order{}
+        order := context.Order{}
         order.Amount = v[1]
         order.Price = FutureUSD_BTC(v[0])
         order.AvgPrice = order.Price
@@ -310,10 +310,10 @@ type getBalanceResp struct {
 
     Result bool `json:"result"`
 }
-func (this *Future) GetBalance() (base.Balance, error) {
+func (this *Future) GetBalance() (context.Balance, error) {
     resp := getBalanceResp{}
     err := this.callHttpJson(&resp, "future_userinfo.do", nil, map[string]interface{}{})
-    b := base.Balance{}
+    b := context.Balance{}
     if err != nil {
         return b, err
     }
@@ -354,15 +354,15 @@ type getPositionResp struct {
     } `json:"holding"`
     Result bool `json:"result"`
 }
-func (this *Future) GetPosition() (base.Position, base.Position, error) {
+func (this *Future) GetPosition() (context.Position, context.Position, error) {
     p := map[string]interface{}{
         "symbol": "btc_usd",
         "contract_type": this.contractType,
     }
     resp := getPositionResp{}
     err := this.callHttpJson(&resp, "future_position.do", nil, p)
-    long := base.Position{PType: base.Long}
-    short := base.Position{PType: base.Short}
+    long := context.Position{PType: context.Long}
+    short := context.Position{PType: context.Short}
     if err != nil {
         return long, short, err
     }
@@ -412,16 +412,8 @@ func (this *Future) callHttpJson(data interface{}, api string, query, params map
     return json.Unmarshal(resp, data)
 }
 
-func (this *Future) GetCurrencyUnit() base.CurrencyUnit {
-    return base.BTC
-}
-
-func (this *Future) OpenTime() time.Time {
-    return time.Now()
-}
-
-func (this *Future) CloseTime() time.Time {
-    return time.Now()
+func (this *Future) GetCurrencyUnit() context.CurrencyUnit {
+    return context.BTC
 }
 
 func okidToOrderid(id int64) string {

@@ -1,15 +1,16 @@
 package riskctrl
 
 import (
-    "github.com/roydong/poker/market"
     "errors"
-    "github.com/roydong/poker/utils"
     "time"
     "sync"
     "fmt"
-    "github.com/roydong/poker/market/okex"
     "strings"
-    "github.com/roydong/poker/context"
+    "dw/poker/utils"
+    "dw/poker/context"
+    "dw/poker/market"
+    "dw/poker/market/okex"
+    mctx "dw/poker/market/context"
 )
 
 type RiskCtrl struct {
@@ -39,9 +40,9 @@ func baseCtrl() error {
         <- time.After(5 * time.Second)
         wg := sync.WaitGroup{}
         wg.Add(4)
-        var balance market.Balance
-        var long, short market.Position
-        var ticker market.Ticker
+        var balance mctx.Balance
+        var long, short mctx.Position
+        var ticker mctx.Ticker
         var index float64
         go func() {
             balance, _ = ok.GetBalance()
@@ -69,12 +70,12 @@ func baseCtrl() error {
         msg := make([]string, 0, 2)
         msg = append(msg, fmt.Sprintf("Price %.4f Index %.4f", okex.FutureBTC_USD(ticker.Last), okex.FutureBTC_USD(index)))
         if lrop < -0.20 {
-            ok.TakeDepth(market.CloseLong, long.AvailableAmount)
+            ok.TakeDepth(mctx.CloseLong, long.AvailableAmount)
             tpl := `空头(usd long) %.4f/%.4f Deposit %.4f Profit %.4f`
             msg = append(msg, fmt.Sprintf(tpl, long.Amount, long.AvailableAmount, long.Deposit, lprofit))
         }
         if srop < -0.20 {
-            ok.TakeDepth(market.CloseShort, short.AvailableAmount)
+            ok.TakeDepth(mctx.CloseShort, short.AvailableAmount)
             tpl := `多头(usd short) %.4f/%.4f Deposit %.4f Profit %.4f`
             msg = append(msg, fmt.Sprintf(tpl, short.Amount, short.AvailableAmount, short.Deposit, sprofit))
         }

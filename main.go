@@ -1,7 +1,7 @@
 package main
 
 import (
-    "github.com/roydong/poker/server"
+    "dw/poker/server"
 )
 
 func main() {

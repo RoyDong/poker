@@ -1,13 +1,12 @@
 package server
 
 import (
-    "github.com/roydong/poker/context"
-    "github.com/roydong/poker/utils"
-    "github.com/roydong/poker/module/market"
-    "github.com/roydong/poker/module/riskctrl"
+    "dw/poker/context"
+    "dw/poker/utils"
+    "dw/poker/module/riskctrl"
     "net/http"
     "strings"
-    "github.com/roydong/poker/module/account"
+    "dw/poker/module/account"
 )
 
 type IModule interface {
@@ -23,7 +22,6 @@ var routes = map[string][]IModule{
         &riskctrl.RiskCtrl{},
     },
 }
-
 
 func initRouter(conf *context.Config) error {
     for path, modules := range routes {
