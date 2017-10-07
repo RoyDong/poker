@@ -101,10 +101,12 @@ func (this *RiskCtrl) baseCtrl() {
 
         subject := strings.Join(rows, " ")
         utils.DebugLog.Write(subject)
-        if (hasPosition && n > 60) || n > 360 || loss {
+        if (hasPosition && n > 60) || n > 300 || loss {
             utils.SendSysMail(strings.Join(msg, "\n===============\n"), subject)
+            utils.DebugLog.Write("send mail")
             n = 0
         }
         n++
     }
 }
+
