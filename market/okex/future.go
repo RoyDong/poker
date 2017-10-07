@@ -266,7 +266,6 @@ func (this *Future) GetDepth() ([]context.Order, []context.Order, error) {
         order.Price = FutureUSD_BTC(v[0])
         order.AvgPrice = order.Price
         bids = append(bids, order)
-        putils.DebugLog.Write("%v", order)
     }
 
     asks := make([]context.Order, 0, len(resp.Bids))
@@ -276,7 +275,6 @@ func (this *Future) GetDepth() ([]context.Order, []context.Order, error) {
         order.Price = FutureUSD_BTC(v[0])
         order.AvgPrice = order.Price
         asks = append(asks, order)
-        putils.DebugLog.Write("%v", order)
     }
 
     return asks, bids, nil
