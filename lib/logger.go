@@ -123,7 +123,13 @@ func (this *Logger) flushLoop() {
         now := time.Now()
         if lineNum > 0 && this.needRotate(now, cutTime) {
             this.file.Close()
-            filename := fmt.Sprintf("%s-%s", this.Filename(), now.Add(-5 * time.Minute).Format("2006010215"))
+            filename := ""
+            switch this.rotate {
+            case "daily":
+                filename = fmt.Sprintf("%s-%s", this.Filename(), now.Add(-5 * time.Minute).Format("20060102"))
+            case "hourly":
+                filename = fmt.Sprintf("%s-%s", this.Filename(), now.Add(-5 * time.Minute).Format("2006010215"))
+            }
             os.Rename(this.file.Name(), filename)
             this.openFile()
             lineNum = 0
