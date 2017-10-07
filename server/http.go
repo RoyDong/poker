@@ -8,10 +8,10 @@ import (
     "gopkg.in/yaml.v2"
     "io/ioutil"
     "runtime"
-    "time"
     "dw/poker/context"
     "dw/poker/market"
-    "fmt"
+    "net"
+    "golang.org/x/net/netutil"
 )
 
 
@@ -43,40 +43,14 @@ func Run(filename string) {
     go func() {
         http.ListenAndServe(conf.Server.PProfHost, nil)
     }()
-
-    h := handler{
-        sem: make(chan struct{}, conf.Server.MaxConn),
-        timeout: time.Duration(conf.Server.MaxExecTime) * time.Millisecond,
+    listener, err := net.Listen("tcp", conf.Server.Host)
+    if err != nil {
+        log.Fatalf("failed to listen %v", conf.Server.Host)
+    }
+    if conf.Server.MaxConn > 0 {
+        listener = netutil.LimitListener(listener, conf.Server.MaxConn)
     }
     log.Printf("start listen [%s]", conf.Server.Host)
-    log.Fatal(http.ListenAndServe(conf.Server.Host, h))
+    log.Fatal(http.Serve(listener, handler{}))
 }
-
-type handler struct {
-    sem chan struct{}
-    timeout time.Duration
-}
-
-func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-    h.sem <-struct{}{}
-    done := make(chan struct{})
-    var body []byte
-    var code int
-    go func() {
-        defer func() {
-            close(done)
-            <-h.sem
-        }()
-        body, code = runHttpThread(req)
-    }()
-    select {
-    case <-done:
-        resp.WriteHeader(code)
-        resp.Write(body)
-    case <-time.After(h.timeout):
-        resp.WriteHeader(http.StatusGatewayTimeout)
-        resp.Write([]byte(fmt.Sprintf("reach max exec time %v", h.timeout)))
-    }
-}
-
 

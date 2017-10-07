@@ -6,7 +6,6 @@ type Config struct {
         Host     string
         SockFile string
         MaxConn  int
-        MaxExecTime  int
         Debug    bool
         PProfHost string
     }
