@@ -9,6 +9,7 @@ import (
     "strconv"
     "dw/poker/market/context"
     "dw/poker/market/utils"
+    putils "dw/poker/utils"
 )
 
 type Future struct {
@@ -253,22 +254,29 @@ func (this *Future) GetDepth() ([]context.Order, []context.Order, error) {
         return nil, nil, err
     }
 
-    asks := make([]context.Order, 0, len(resp.Asks))
-    for _, v := range resp.Asks {
-        order := context.Order{}
-        order.Amount = v[1]
-        order.Price = FutureUSD_BTC(v[0])
-        order.AvgPrice = order.Price
-        asks = append(asks, order)
-    }
-
-    bids := make([]context.Order, 0, len(resp.Bids))
+    /*
+    以usd计价转化为以btc计价
+    usd ask -> btc bid
+    usd bid -> btc ask
+     */
+    bids := make([]context.Order, 0, len(resp.Asks))
     for _, v := range resp.Asks {
         order := context.Order{}
         order.Amount = v[1]
         order.Price = FutureUSD_BTC(v[0])
         order.AvgPrice = order.Price
         bids = append(bids, order)
+        putils.DebugLog.Write("%v", order)
+    }
+
+    asks := make([]context.Order, 0, len(resp.Bids))
+    for _, v := range resp.Bids {
+        order := context.Order{}
+        order.Amount = v[1]
+        order.Price = FutureUSD_BTC(v[0])
+        order.AvgPrice = order.Price
+        asks = append(asks, order)
+        putils.DebugLog.Write("%v", order)
     }
 
     return asks, bids, nil

@@ -47,10 +47,10 @@ type handler struct {}
 func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
     path := strings.ToLower(strings.TrimSpace(req.URL.Path))
     modules := routes[path]
-    if len(modules) <= 0 && len(defaultRoute) > 0 {
+    if len(modules) == 0 && len(defaultRoute) > 0 {
         modules = routes[defaultRoute]
     }
-    if len(modules) <= 0 {
+    if len(modules) == 0 {
         utils.WarningLog.Write("page not found[%s]", req.URL.Path)
         resp.WriteHeader(http.StatusNotFound)
         resp.Write([]byte("page not found"))
@@ -63,7 +63,6 @@ func (h handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
         if err != nil {
             utils.FatalLog.Write("run modules[%s/%d] fail. err[%s]", path, i, err.Error())
             resp.WriteHeader(http.StatusInternalServerError)
-            resp.Write([]byte(err.Error()))
             return
         }
     }

@@ -77,7 +77,11 @@ func (this *Logger) Write(format string, args ...interface{}) {
     } else {
         head = fmt.Sprintf("%s ", now.Format("2006-01-02 15:04:05"))
     }
-    this.msgPipe <- []byte(head + fmt.Sprintf(format, args...) + "\n")
+    if len(args) > 0 {
+        this.msgPipe <- []byte(head + fmt.Sprintf(format, args...) + "\n")
+    } else {
+        this.msgPipe <- []byte(head + format + "\n")
+    }
 }
 
 func (this *Logger) StartLoop() error {

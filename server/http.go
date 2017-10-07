@@ -31,14 +31,14 @@ func Run(filename string) {
         log.Fatalf("init config fail . err[%s]", err.Error())
     }
 
+    market.Init(conf)
+
     //init log
     utils.Init(conf)
     err = initRouter(conf)
     if err != nil {
         log.Fatalf("init router fail . err[%s]", err.Error())
     }
-
-    market.Init(conf)
 
     go func() {
         http.ListenAndServe(conf.Server.PProfHost, nil)

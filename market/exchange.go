@@ -9,6 +9,37 @@ import (
     "errors"
 )
 
+type IExchange interface {
+    Name() string
+
+    GetCurrencyUnit() context.CurrencyUnit
+
+    /*
+    pos    开仓类型
+    amount 数量
+    price 价格  price = 0 市价, price = -1 对手价
+     */
+    MakeOrder(ta context.TradeAction, amount, price float64) (context.Order, error)
+
+    CancelOrder(id ...string) error
+
+    GetOrder(id string) (context.Order, error)
+
+    GetOrders(ids []string) ([]context.Order, error)
+
+    GetTicker() (context.Ticker, error)
+
+    GetTrades() ([]context.Trade, error)
+
+    GetDepth() ([]context.Order, []context.Order, error)
+
+    GetIndex() (float64, error)
+
+    GetBalance() (context.Balance, error)
+
+    GetPosition() (context.Position, context.Position, error)
+}
+
 type Exchange struct {
     IExchange
 
