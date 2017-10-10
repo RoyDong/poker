@@ -47,7 +47,7 @@ func (this *RiskCtrl) baseCtrl() {
     for this.inLoop {
         <- time.After(10 * time.Second)
         wg := sync.WaitGroup{}
-        wg.Add(3)
+        wg.Add(2)
         var long, short mctx.Position
         var index float64
         var err error
