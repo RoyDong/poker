@@ -88,32 +88,35 @@ func (this *RiskCtrl) baseCtrl() {
         msg := make([]string, 0, 2)
         hasPosition := false
         if long.Amount > 0 {
-            tpl := `空头(usd long) %.4f/%.4f Deposit %.4f Profit %.4f`
+            tpl := `空头(usd long) %.0f/%.0f Deposit %.4f Profit %.4f`
             msg = append(msg, fmt.Sprintf(tpl, long.Amount, long.AvailableAmount, long.Deposit, lprofit))
             rows = append(rows, fmt.Sprintf("S[%.0f %.4f %.1f%%]", long.Amount, lprofit, lrop * 100))
             hasPosition = true
         }
         if short.Amount > 0 {
-            tpl := `多头(usd short) %.4f/%.4f Deposit %.4f Profit %.4f`
+            tpl := `多头(usd short) %.0f/%.0f Deposit %.4f Profit %.4f`
             msg = append(msg, fmt.Sprintf(tpl, short.Amount, short.AvailableAmount, short.Deposit, sprofit))
             rows = append(rows, fmt.Sprintf("L[%.0f %.4f %.1f%%]", short.Amount, sprofit, srop * 100))
             hasPosition = true
         }
 
-        loss := false
-        if lrop < lMaxRop - 0.15 {
+        //回调20%止盈  亏损15%止损
+        stop := false
+        if (lrop < lMaxRop - 0.2) || lrop < -0.15 {
             ok.Trade(mctx.CloseLong, long.AvailableAmount, 0)
-            loss = true
+            msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", mctx.CloseLong, long.AvailableAmount))
+            stop = true
         }
-        if srop < sMaxRop - 0.15 {
+        if (srop < sMaxRop - 0.2) || srop < -0.15 {
             ok.Trade(mctx.CloseShort, short.AvailableAmount, 0)
-            loss = true
+            msg = append(msg, fmt.Sprintf("多单平仓 %v %.0f", mctx.CloseShort, short.AvailableAmount))
+            stop = true
         }
 
         subject := strings.Join(rows, " ")
         utils.DebugLog.Write(subject)
-        if (hasPosition && n > 60) || n > 300 || loss {
-            utils.SendSysMail(strings.Join(msg, "\n===============\n"), subject)
+        if (hasPosition && n > 60) || n > 300 || stop {
+            utils.SendSysMail(strings.Join(msg, "\n\n"), subject)
             utils.DebugLog.Write("send mail")
             n = 0
         }
