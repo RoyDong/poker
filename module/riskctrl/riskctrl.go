@@ -41,6 +41,7 @@ func (this *RiskCtrl) baseCtrl() {
         return
     }
     n := 0
+    stop := false
     this.inLoop = true
     var sMaxRop = math.Inf(-1)
     var lMaxRop = math.Inf(-1)
@@ -105,13 +106,12 @@ func (this *RiskCtrl) baseCtrl() {
         }
 
         //回调20%止盈  亏损15%止损
-        stop := false
-        if (lrop < lMaxRop - 0.2) || lrop < -0.15 {
+        if long.AvailableAmount > 0 && ((lrop < lMaxRop - 0.3) || lrop < -0.15) {
             ok.Trade(mctx.CloseLong, long.AvailableAmount, 0)
             msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", mctx.CloseLong, long.AvailableAmount))
             stop = true
         }
-        if (srop < sMaxRop - 0.2) || srop < -0.15 {
+        if short.AvailableAmount > 0 && ((srop < sMaxRop - 0.3) || srop < -0.15) {
             ok.Trade(mctx.CloseShort, short.AvailableAmount, 0)
             msg = append(msg, fmt.Sprintf("多单平仓 %v %.0f", mctx.CloseShort, short.AvailableAmount))
             stop = true
@@ -123,6 +123,7 @@ func (this *RiskCtrl) baseCtrl() {
             utils.SendSysMail(strings.Join(msg, "\n\n"), subject)
             utils.DebugLog.Write("send mail")
             n = 0
+            stop = false
         }
         n++
     }
