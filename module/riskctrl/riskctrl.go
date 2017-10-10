@@ -10,6 +10,7 @@ import (
     "dw/poker/market"
     "dw/poker/market/okex"
     mctx "dw/poker/market/context"
+    "math"
 )
 
 type RiskCtrl struct {
@@ -41,19 +42,17 @@ func (this *RiskCtrl) baseCtrl() {
     }
     n := 0
     this.inLoop = true
+    var sMaxRop = math.Inf(-1)
+    var lMaxRop = math.Inf(-1)
     for this.inLoop {
         <- time.After(10 * time.Second)
         wg := sync.WaitGroup{}
         wg.Add(3)
-        var balance mctx.Balance
         var long, short mctx.Position
         var index float64
+        var err error
         go func() {
-            balance, _ = ok.GetBalance()
-            wg.Done()
-        }()
-        go func() {
-            long, short, _ = ok.GetPosition()
+            long, short, err = ok.GetPosition()
             wg.Done()
         }()
         go func() {
@@ -62,11 +61,23 @@ func (this *RiskCtrl) baseCtrl() {
         }()
         wg.Wait()
 
+        if err != nil {
+            utils.WarningLog.Write("req api error %s", err.Error())
+            continue
+        }
+
         price := ok.LastnAvgPrice(5)
         lprofit := long.GetProfit(price)
         lrop := long.GetROP(price)
+        if lrop > lMaxRop {
+            lMaxRop = lrop
+        }
+
         sprofit := short.GetProfit(price)
         srop := short.GetROP(price)
+        if srop > sMaxRop {
+            sMaxRop = srop
+        }
 
         usdprice := okex.FutureBTC_USD(price)
         usdindex := okex.FutureBTC_USD(index)
@@ -90,11 +101,11 @@ func (this *RiskCtrl) baseCtrl() {
         }
 
         loss := false
-        if lrop < -0.15 {
+        if lrop < lMaxRop - 0.15 {
             ok.Trade(mctx.CloseLong, long.AvailableAmount, 0)
             loss = true
         }
-        if srop < -0.15 {
+        if srop < sMaxRop - 0.15 {
             ok.Trade(mctx.CloseShort, short.AvailableAmount, 0)
             loss = true
         }
