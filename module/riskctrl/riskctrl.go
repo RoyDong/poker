@@ -106,12 +106,12 @@ func (this *RiskCtrl) baseCtrl() {
         }
 
         //回调30%止盈  亏损15%止损
-        if long.AvailableAmount > 0 && ((lrop < lMaxRop - 0.3) || lrop < -0.15) {
+        if long.AvailableAmount > 0 && lrop < -0.15 {
             ok.Trade(mctx.CloseLong, long.AvailableAmount, 0)
             msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", mctx.CloseLong, long.AvailableAmount))
             stop = true
         }
-        if short.AvailableAmount > 0 && ((srop < sMaxRop - 0.3) || srop < -0.15) {
+        if short.AvailableAmount > 0 && srop < -0.15 {
             ok.Trade(mctx.CloseShort, short.AvailableAmount, 0)
             msg = append(msg, fmt.Sprintf("多单平仓 %v %.0f", mctx.CloseShort, short.AvailableAmount))
             stop = true
