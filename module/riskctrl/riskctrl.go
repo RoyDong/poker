@@ -2,7 +2,6 @@ package riskctrl
 
 import (
     "time"
-    "sync"
     "fmt"
     "strings"
     "dw/poker/utils"
@@ -47,27 +46,17 @@ func (this *RiskCtrl) baseCtrl() {
     var lMaxRop = math.Inf(-1)
     for this.inLoop {
         <- time.After(10 * time.Second)
-        wg := sync.WaitGroup{}
-        wg.Add(2)
-        var long, short mctx.Position
-        var index float64
-        var err error
-        go func() {
-            long, short, err = ok.GetPosition()
-            wg.Done()
-        }()
-        go func() {
-            index, _ = ok.GetIndex()
-            wg.Done()
-        }()
-        wg.Wait()
-
+        ticker, err := ok.Tick()
         if err != nil {
-            utils.WarningLog.Write("req api error %s", err.Error())
+            utils.WarningLog.Write(err.Error())
             continue
         }
 
-        price := ok.LastnAvgPrice(5)
+        long := ticker.Long
+        short := ticker.Short
+        price := ticker.Price
+        index := ticker.Index
+
         lprofit := long.GetProfit(price)
         lrop := long.GetROP(price)
         if lrop > lMaxRop {
@@ -105,7 +94,6 @@ func (this *RiskCtrl) baseCtrl() {
             sMaxRop = 0
         }
 
-        //回调30%止盈  亏损15%止损
         if long.AvailableAmount > 0 && lrop < -0.15 {
             ok.Trade(mctx.CloseLong, long.AvailableAmount, 0)
             msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", mctx.CloseLong, long.AvailableAmount))

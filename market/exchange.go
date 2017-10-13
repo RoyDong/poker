@@ -7,6 +7,7 @@ import (
     "dw/poker/market/context"
     "math"
     "errors"
+    "fmt"
 )
 
 type IExchange interface {
@@ -259,5 +260,36 @@ func (ex *Exchange) Trade(ta context.TradeAction, amount, price float64) (contex
     return order, err
 }
 
+type Ticker struct {
+    Balance context.Balance
+    Long context.Position
+    Short context.Position
+    Price float64
+    Index float64
+}
 
+func (ex *Exchange) Tick() (Ticker, error) {
+    ticker := Ticker{}
+    var e1, e2, e3 error
+    wg := sync.WaitGroup{}
+    wg.Add(3)
+    go func() {
+        ticker.Balance, e1 = ex.GetBalance()
+        wg.Done()
+    }()
+    go func() {
+        ticker.Long, ticker.Short, e2 = ex.GetPosition()
+        wg.Done()
+    }()
+    go func() {
+        ticker.Index, e3 = ex.GetIndex()
+        wg.Done()
+    }()
+    wg.Wait()
+    ticker.Price = ex.LastnAvgPrice(5)
+    if e1 == nil && e2 == nil && e3 == nil {
+        return ticker, nil
+    }
+    return ticker, errors.New(fmt.Sprint("exchange.Tick error %s %s %s", e1.Error(), e2.Error(), e3.Error()))
+}
 

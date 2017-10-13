@@ -31,10 +31,10 @@ func Run(filename string) {
         log.Fatalf("init config fail . err[%s]", err.Error())
     }
 
+    utils.Init(conf)
+
     market.Init(conf)
 
-    //init log
-    utils.Init(conf)
     err = initRouter(conf)
     if err != nil {
         log.Fatalf("init router fail . err[%s]", err.Error())
