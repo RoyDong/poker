@@ -44,18 +44,17 @@ type IExchange interface {
 type Exchange struct {
     IExchange
 
-    lock sync.RWMutex
+    tradeMu sync.RWMutex
     inLoop bool
     maxTradeLen int
     trades []context.Trade
 }
 
 func NewExchange(api IExchange) *Exchange {
-    ex := &Exchange{
-        IExchange: api,
-    }
-
+    ex := &Exchange{}
+    ex.IExchange = api
     ex.maxTradeLen = 1000
+    ex.trades = make([]context.Trade, 1, ex.maxTradeLen)
     ex.inLoop = true
     go ex.syncTrades()
     return ex
@@ -63,9 +62,6 @@ func NewExchange(api IExchange) *Exchange {
 
 
 func (ex *Exchange) syncTrades() {
-    if len(ex.trades) <= 0 {
-        ex.trades = make([]context.Trade, 1, ex.maxTradeLen)
-    }
     for ex.inLoop {
         <- time.After(500 * time.Millisecond)
         trades, err := ex.GetTrades()
@@ -95,19 +91,20 @@ func (ex *Exchange) syncTrades() {
             }
         }
         if len(newTrades) > 0 {
-            ex.lock.Lock()
-            if overflow := len(ex.trades) + len(newTrades) - ex.maxTradeLen; overflow > 0 {
-                ex.trades = ex.trades[overflow:]
+            overflow := len(ex.trades) + len(newTrades) - ex.maxTradeLen
+            if overflow < 0 {
+                overflow = 0
             }
-            ex.trades = append(ex.trades, newTrades...)
-            ex.lock.Unlock()
+            ex.tradeMu.Lock()
+            ex.trades = append(ex.trades[overflow:], newTrades...)
+            ex.tradeMu.Unlock()
         }
     }
 }
 
 func (ex *Exchange) LastTrade() context.Trade {
-    ex.lock.RLock()
-    defer ex.lock.RUnlock()
+    ex.tradeMu.RLock()
+    defer ex.tradeMu.RUnlock()
     if l := len(ex.trades); l > 0 {
         return ex.trades[l - 1]
     }
@@ -115,8 +112,8 @@ func (ex *Exchange) LastTrade() context.Trade {
 }
 
 func (ex *Exchange) LastnAvgPrice(n int) float64 {
-    ex.lock.RLock()
-    defer ex.lock.RUnlock()
+    ex.tradeMu.RLock()
+    defer ex.tradeMu.RUnlock()
     var sum float64
     if l := len(ex.trades); l > 0 {
         m := l - n
@@ -290,6 +287,6 @@ func (ex *Exchange) Tick() (Ticker, error) {
     if e1 == nil && e2 == nil && e3 == nil {
         return ticker, nil
     }
-    return ticker, errors.New(fmt.Sprint("exchange.Tick error %s %s %s", e1.Error(), e2.Error(), e3.Error()))
+    return ticker, errors.New(fmt.Sprintf("exchange.Tick error %s %s %s", e1.Error(), e2.Error(), e3.Error()))
 }
 
