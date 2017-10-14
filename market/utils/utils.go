@@ -14,7 +14,7 @@ import (
     "errors"
 )
 
-var HTTPTimeout = 5 * time.Second
+var HTTPTimeout = time.Second
 
 func CallRest(api string, query, data map[string]interface{}) ([]byte, error) {
     if query != nil {
