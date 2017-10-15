@@ -60,10 +60,9 @@ func NewExchange(api IExchange) *Exchange {
     return ex
 }
 
-
 func (ex *Exchange) syncTrades() {
     for ex.inLoop {
-        <- time.After(500 * time.Millisecond)
+        time.After(200 * time.Millisecond)
         trades, err := ex.GetTrades()
         if err != nil {
             continue
@@ -217,17 +216,17 @@ func (ex *Exchange) TakeDepth(ta context.TradeAction, amount float64) (context.O
     return ex.MakeOrder(ta, amount, price)
 }
 
-func (ex *Exchange) OrderCompleteOrPriceChange(order context.Order, spread float64, retry int) (context.Order, bool) {
-    for i := 0; i < retry; i++ {
+func (ex *Exchange) OrderCompleteOrPriceChange(order context.Order, spread float64) (context.Order, bool) {
+    for i := 0; i < 20; i++ {
         o, err := ex.GetOrder(order.Id)
-        if err != nil {
-            utils.WarningLog.Write("sync order error %s", err.Error())
-        }
-        if o.Status == context.OrderStatusComplete || o.Status == context.OrderStatusCanceled {
-            return o, true
+        if err == nil {
+            if o.Status == context.OrderStatusComplete || o.Status == context.OrderStatusCanceled {
+                return o, true
+            }
+            order = o
         }
         price := ex.LastnAvgPrice(5)
-        if math.Abs(price - order.Price) >= spread {
+        if math.Abs(price - order.Price) >= spread || i >= 15 {
             err = ex.CancelOrder(order.Id)
             if err != nil {
                 utils.WarningLog.Write("cancel order error %s", err.Error())
@@ -238,7 +237,7 @@ func (ex *Exchange) OrderCompleteOrPriceChange(order context.Order, spread float
     return order, false
 }
 
-func (ex *Exchange) Trade(ta context.TradeAction, amount, price float64) (context.Order, error) {
+func (ex *Exchange) Trade(ta context.TradeAction, amount, price, spread float64) (context.Order, error) {
     var order context.Order
     var err error
     if price > 0 {
@@ -250,7 +249,7 @@ func (ex *Exchange) Trade(ta context.TradeAction, amount, price float64) (contex
         return order, err
     }
     var ok bool
-    order, ok = ex.OrderCompleteOrPriceChange(order, 10, 10)
+    order, ok = ex.OrderCompleteOrPriceChange(order, spread)
     if !ok {
         err = errors.New("exchange trade error Order not complete")
     }
