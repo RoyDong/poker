@@ -286,6 +286,6 @@ func (ex *Exchange) Tick() (Ticker, error) {
     if e1 == nil && e2 == nil && e3 == nil {
         return ticker, nil
     }
-    return ticker, errors.New(fmt.Sprintf("exchange.Tick error %s %s %s", e1.Error(), e2.Error(), e3.Error()))
+    return ticker, errors.New(fmt.Sprintf("exchange.Tick error"))
 }
 
