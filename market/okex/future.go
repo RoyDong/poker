@@ -17,6 +17,7 @@ type Future struct {
     apiSecret string
 
     contractType string
+    symbol string
     leverage float64
 }
 
@@ -27,6 +28,7 @@ func NewFuture(httpHost, apiKey, apiSecret string) *Future {
     this.apiSecret = apiSecret
 
     this.contractType = "quarter"
+    this.symbol = "btc_usd"
     this.leverage = 20
     return this
 }
@@ -55,7 +57,7 @@ func (this *Future) MakeOrder(ta context.TradeAction, amount, price float64) (co
         panic("trade action not support")
     }
     params := map[string]interface{}{
-        "symbol": "btc_usd",
+        "symbol": this.symbol,
         "contract_type": this.contractType,
         "type": ptype,
         "amount": fmt.Sprintf("%.0f", amount),
@@ -113,7 +115,7 @@ func (this *Future) GetOrders(ids []string) ([]context.Order, error) {
         okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))
     }
     params := map[string]interface{}{
-        "symbol": "btc_usd",
+        "symbol": this.symbol,
         "contract_type": this.contractType,
         "order_id": strings.Join(okids, ","),
     }
@@ -149,7 +151,7 @@ func (this *Future) CancelOrder(ids ...string) error {
         okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))
     }
     params := map[string]interface{} {
-        "symbol": "btc_usd",
+        "symbol": this.symbol,
         "contract_type": this.contractType,
         "order_id": strings.Join(okids, ","),
     }
@@ -175,7 +177,7 @@ type getTradesResp struct {
 }
 func (this *Future) GetTrades() ([]context.Trade, error) {
     params := map[string]interface{}{
-        "symbol": "btc_usd",
+        "symbol": this.symbol,
         "contract_type": this.contractType,
     }
 
@@ -215,7 +217,7 @@ type getTickerResp struct {
     } `json:"ticker"`
 }
 func (this *Future) GetTicker() (context.Ticker, error) {
-    q := map[string]interface{}{"symbol": "btc_usd", "contract_type": this.contractType}
+    q := map[string]interface{}{"symbol": this.symbol, "contract_type": this.contractType}
     resp := getTickerResp{}
     t := context.Ticker{}
     err := this.callHttpJson(&resp, "future_ticker.do", q, nil)
@@ -241,7 +243,7 @@ type getDepthResp struct {
 }
 func (this *Future) GetDepth() ([]context.Order, []context.Order, error) {
     query := map[string]interface{}{
-        "symbol": "btc_usd",
+        "symbol": this.symbol,
         "size": 50,
         "merge": 0,
         "contract_type": this.contractType,
@@ -283,7 +285,7 @@ type getIndexResp struct {
     FutureIndex float64 `json:"future_index"`
 }
 func (this *Future) GetIndex() (float64, error) {
-    q := map[string]interface{}{"symbol": "btc_usd"}
+    q := map[string]interface{}{"symbol": this.symbol}
     resp := getIndexResp{}
     err := this.callHttpJson(&resp, "future_index.do", q, nil)
     if err != nil {
@@ -361,7 +363,7 @@ type getPositionResp struct {
 }
 func (this *Future) GetPosition() (context.Position, context.Position, error) {
     p := map[string]interface{}{
-        "symbol": "btc_usd",
+        "symbol": this.symbol,
         "contract_type": this.contractType,
     }
     resp := getPositionResp{}
@@ -418,7 +420,10 @@ func (this *Future) callHttpJson(data interface{}, api string, query, params map
 }
 
 func (this *Future) GetCurrencyUnit() context.CurrencyUnit {
-    return context.BTC
+    if this.symbol == "usd_btc" {
+        return context.BTC
+    }
+    return context.LTC
 }
 
 func okidToOrderid(id int64) string {
@@ -451,3 +456,16 @@ func FutureBTC_USD(btc float64) float64 {
     return 1 / btc * 100
 }
 
+func FutureUSD_LTC(usd float64) float64 {
+    if usd == 0 {
+        return 0
+    }
+    return 1 / usd * 10
+}
+
+func FutureLTC_USD(ltc float64) float64 {
+    if ltc == 0 {
+        return 0
+    }
+    return 1 / ltc * 10
+}

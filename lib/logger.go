@@ -153,7 +153,7 @@ func (this *Logger) needRotate(now, cutTime time.Time) bool {
 }
 
 func (this *Logger) openFile() (err error) {
-    this.file, err = os.OpenFile(this.Filename(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+    this.file, err = os.OpenFile(this.Filename(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
     return
 }
 

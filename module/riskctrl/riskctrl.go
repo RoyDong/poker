@@ -94,12 +94,12 @@ func (this *RiskCtrl) baseCtrl() {
             sMaxRop = 0
         }
 
-        if long.AvailableAmount > 0 && lrop < -0.18 {
+        if long.AvailableAmount > 0 && lrop < -0.15 {
             ok.Trade(mctx.CloseLong, long.AvailableAmount, 0, 10)
             msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", mctx.CloseLong, long.AvailableAmount))
             stop = true
         }
-        if short.AvailableAmount > 0 && srop < -0.18 {
+        if short.AvailableAmount > 0 && srop < -0.15 {
             ok.Trade(mctx.CloseShort, short.AvailableAmount, 0, 10)
             msg = append(msg, fmt.Sprintf("多单平仓 %v %.0f", mctx.CloseShort, short.AvailableAmount))
             stop = true
