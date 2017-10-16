@@ -30,17 +30,15 @@ func CallRest(api string, query, data map[string]interface{}) ([]byte, error) {
         for k, v := range data {
             form.Set(k, fmt.Sprintf("%v", v))
         }
-
         respond := make(chan bool)
         go func(){
             resp, err = http.PostForm(api, form)
             respond <- true
         }()
-
         select {
         case <- respond:
-        case t := <- time.After(HTTPTimeout):
-            err = errors.New(fmt.Sprintf("call api %s timeout %v", api, t))
+        case <- time.After(HTTPTimeout):
+            err = errors.New(fmt.Sprintf("call api %s timeout %v", api, HTTPTimeout))
         }
     }
     if err != nil {
