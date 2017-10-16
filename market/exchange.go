@@ -7,7 +7,6 @@ import (
     "dw/poker/market/context"
     "math"
     "errors"
-    "fmt"
 )
 
 type IExchange interface {
