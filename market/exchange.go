@@ -283,9 +283,15 @@ func (ex *Exchange) Tick() (Ticker, error) {
     }()
     wg.Wait()
     ticker.Price = ex.LastnAvgPrice(5)
-    if e1 == nil && e2 == nil && e3 == nil {
-        return ticker, nil
+    if e1 != nil {
+        return ticker, e1
     }
-    return ticker, errors.New(fmt.Sprintf("exchange.Tick error"))
+    if e2 != nil {
+        return ticker, e2
+    }
+    if e3 != nil {
+        return ticker, e3
+    }
+    return ticker, nil
 }
 
