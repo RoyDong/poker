@@ -61,7 +61,7 @@ func NewExchange(api IExchange) *Exchange {
 
 func (ex *Exchange) syncTrades() {
     for ex.inLoop {
-        time.After(200 * time.Millisecond)
+        time.Sleep(200 * time.Millisecond)
         trades, err := ex.GetTrades()
         if err != nil {
             continue
@@ -231,7 +231,7 @@ func (ex *Exchange) OrderCompleteOrPriceChange(order context.Order, spread float
                 utils.WarningLog.Write("cancel order error %s", err.Error())
             }
         }
-        time.After(100 * time.Millisecond)
+        time.Sleep(100 * time.Millisecond)
     }
     return order, false
 }
@@ -281,7 +281,6 @@ func (ex *Exchange) Tick() (Ticker, error) {
         wg.Done()
     }()
     wg.Wait()
-    ticker.Price = ex.LastnAvgPrice(5)
     if e1 != nil {
         return ticker, e1
     }
@@ -291,6 +290,7 @@ func (ex *Exchange) Tick() (Ticker, error) {
     if e3 != nil {
         return ticker, e3
     }
+    ticker.Price = ex.LastnAvgPrice(5)
     return ticker, nil
 }
 

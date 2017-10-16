@@ -45,7 +45,7 @@ func (this *RiskCtrl) baseCtrl() {
     var sMaxRop = math.Inf(-1)
     var lMaxRop = math.Inf(-1)
     for this.inLoop {
-        <- time.After(10 * time.Second)
+        time.Sleep(2 * time.Second)
         ticker, err := ok.Tick()
         if err != nil {
             utils.WarningLog.Write(err.Error())
@@ -107,7 +107,7 @@ func (this *RiskCtrl) baseCtrl() {
 
         subject := strings.Join(rows, " ")
         utils.DebugLog.Write(subject)
-        if (hasPosition && n > 60) || n > 300 || stop {
+        if (hasPosition && n > 300) || n > 1000 || stop {
             utils.SendSysMail(strings.Join(msg, "\n\n"), subject)
             utils.DebugLog.Write("send mail")
             n = 0

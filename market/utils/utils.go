@@ -40,7 +40,7 @@ func CallRest(api string, query, data map[string]interface{}) ([]byte, error) {
         select {
         case <- respond:
         case t := <- time.After(HTTPTimeout):
-            err = errors.New(fmt.Sprintf("call api %s timeout %d", api, t.Second()))
+            err = errors.New(fmt.Sprintf("call api %s timeout %v", api, t.Second()))
         }
     }
     if err != nil {
