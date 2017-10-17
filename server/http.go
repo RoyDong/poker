@@ -31,7 +31,10 @@ func Run(filename string) {
         log.Fatalf("init config fail . err[%s]", err.Error())
     }
 
-    utils.Init(conf)
+    err = utils.Init(conf)
+    if err != nil {
+        log.Fatalf("init utils fail . err[%s]", err.Error())
+    }
 
     market.Init(conf)
 

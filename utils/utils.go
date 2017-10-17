@@ -3,6 +3,9 @@ package utils
 import (
     "dw/poker/lib"
     "dw/poker/context"
+    "database/sql"
+    _ "github.com/go-sql-driver/mysql"
+    "fmt"
 )
 
 
@@ -14,7 +17,11 @@ var FatalLog *lib.Logger
 var Mailer *lib.Mailer
 var sysMail lib.Mail
 
-func Init(conf *context.Config) {
+var sqldb map[string]*sql.DB
+
+var MainDB *sql.DB
+
+func Init(conf *context.Config) error {
     dir := conf.Log.LogDir
     rotate := conf.Log.LogRotate
     DebugLog   = lib.NewLogger(dir, "debug", rotate, true)
@@ -38,6 +45,20 @@ func Init(conf *context.Config) {
     sysMail.Sender = conf.AlertMail.Sender
     sysMail.Receivers = conf.AlertMail.Receiver
     sysMail.Subject = conf.AlertMail.Subject
+
+    c := conf.Sqldb.Main
+    dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s", c.Username, c.Password,
+        c.Host, c.Port, c.Dbname, c.Charset)
+    db, err := sql.Open("mysql", dsn)
+    if err != nil {
+        return err
+    }
+    err = db.Ping()
+    if err != nil {
+        return err
+    }
+    MainDB = db
+    return nil
 }
 
 //content, subject, receivers...

@@ -97,7 +97,23 @@ func (ex *Exchange) syncTrades() {
             ex.trades = append(ex.trades[overflow:], newTrades...)
             ex.tradeMu.Unlock()
         }
+        for _, t := range trades {
+            err = ex.saveNewTrade(t)
+            if err != nil {
+                utils.FatalLog.Write(err.Error())
+            }
+        }
     }
+}
+
+func (ex *Exchange) saveNewTrade(trade context.Trade) error {
+    stmt, err := utils.MainDB.Prepare(
+        "insert into tradelog (`exname`,`exid`,`taction`,`amount`,`price`,`fee`,`create_time`) values (?,?,?,?,?,?,?)")
+    if err != nil {
+        return err
+    }
+    _, err = stmt.Exec(ex.Name(), trade.Id, string(trade.TAction), trade.Amount, trade.Price, trade.Fee, trade.CreateTime)
+    return err
 }
 
 func (ex *Exchange) LastTrade() context.Trade {

@@ -25,6 +25,17 @@ type Config struct {
         LogDir    string
     }
 
+    Sqldb struct {
+        Main struct {
+            Host string
+            Port int
+            Username string
+            Password string
+            Dbname string
+            Charset string
+        }
+    }
+
     Market struct {
         Okex struct{
             HttpHost  string
