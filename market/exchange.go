@@ -47,6 +47,7 @@ type Exchange struct {
     inLoop bool
     maxTradeLen int
     trades []context.Trade
+    kline *context.Kline
 }
 
 func NewExchange(api IExchange) *Exchange {
@@ -96,24 +97,22 @@ func (ex *Exchange) syncTrades() {
             ex.tradeMu.Lock()
             ex.trades = append(ex.trades[overflow:], newTrades...)
             ex.tradeMu.Unlock()
-        }
-        for _, t := range trades {
-            err = ex.saveNewTrade(t)
-            if err != nil {
-                utils.FatalLog.Write(err.Error())
+
+            //create kline and save to sql db
+            for _, t := range newTrades {
+                if ex.kline == nil {
+                    ex.kline = context.NewKline(ex.Name(), t, time.Minute)
+                } else {
+                    rt := ex.kline.AddTrade(t)
+                    if rt == 1 {
+                        //save
+                        utils.Save(ex.kline, "kline", utils.MainDB)
+                        ex.kline = context.NewKline(ex.Name(), t, time.Minute)
+                    }
+                }
             }
         }
     }
-}
-
-func (ex *Exchange) saveNewTrade(trade context.Trade) error {
-    stmt, err := utils.MainDB.Prepare(
-        "insert into tradelog (`exname`,`exid`,`taction`,`amount`,`price`,`fee`,`create_time`) values (?,?,?,?,?,?,?)")
-    if err != nil {
-        return err
-    }
-    _, err = stmt.Exec(ex.Name(), trade.Id, string(trade.TAction), trade.Amount, trade.Price, trade.Fee, trade.CreateTime)
-    return err
 }
 
 func (ex *Exchange) LastTrade() context.Trade {

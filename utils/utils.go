@@ -17,7 +17,6 @@ var FatalLog *lib.Logger
 var Mailer *lib.Mailer
 var sysMail lib.Mail
 
-var sqldb map[string]*sql.DB
 
 var MainDB *sql.DB
 
