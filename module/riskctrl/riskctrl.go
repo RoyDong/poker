@@ -39,6 +39,7 @@ func (this *RiskCtrl) baseCtrl() {
         utils.FatalLog.Write("okex exchange not found")
         return
     }
+    utils.SendSysMail("start risk control")
     n := 0
     stop := false
     this.inLoop = true

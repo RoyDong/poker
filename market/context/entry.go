@@ -127,7 +127,7 @@ func (this Balance) String() string {
 }
 
 type Kline struct {
-    Id         string `column:"id"`
+    Id         int `column:"id"`
     Exname     string `column:"exname"`
     OpenTime   time.Time `column:"open_time"`
     CloseTime  time.Time `column:"close_time"`
@@ -136,7 +136,7 @@ type Kline struct {
     HighPrice  float64 `column:"high_price"`
     LowPrice   float64 `column:"low_price"`
     Amount     float64 `column:"amount"`
-    AvgPrice   float64 `column:"price"`
+    AvgPrice   float64 `column:"avg_price"`
     Money      float64 `column:"money"`
     BuyNum     int `column:"buy_num"`
     SellNum    int `column:"sell_num"`
@@ -164,7 +164,7 @@ func (k *Kline) AddTrade(t Trade) int {
     if k.CloseTime.Minute() > t.CreateTime.Minute() {
         k.Amount += t.Amount
         k.Money += t.Amount * t.Price
-        k.AvgPrice = k.Amount / k.Money
+        k.AvgPrice = k.Money / k.Amount
         if t.Price > k.HighPrice {
             k.HighPrice = t.Price
         }

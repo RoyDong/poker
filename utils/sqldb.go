@@ -126,21 +126,16 @@ func save(dao interface{}, insert bool, tbl string, db *sql.DB) error {
             cs = append(cs, fmt.Sprintf("`%s`", col))
             ph = append(ph, "?")
         }
-
         stmt := fmt.Sprintf("INSERT INTO `%s` (%s)VALUES(%s)",
             tbl, strings.Join(cs, ","), strings.Join(ph, ","))
-        DebugLog.Write(stmt)
-
         result, err := db.Exec(stmt, vals...)
         if err != nil {
             return err
         }
-
         id, err := result.LastInsertId()
         if err != nil {
             return err
         }
-
         pk.SetInt(id)
         return nil
     }
@@ -153,9 +148,7 @@ func save(dao interface{}, insert bool, tbl string, db *sql.DB) error {
     for _, col := range cols {
         sets = append(sets, fmt.Sprintf("`%s` = ?", col))
     }
-
     stmt := fmt.Sprintf("UPDATE `%s` SET %s WHERE `id` = %d", tbl, strings.Join(sets, ","), pkv)
-    DebugLog.Write(stmt)
     _, err := db.Exec(stmt, vals...)
     return err
 }

@@ -106,7 +106,11 @@ func (ex *Exchange) syncTrades() {
                     rt := ex.kline.AddTrade(t)
                     if rt == 1 {
                         //save
-                        utils.Save(ex.kline, "kline", utils.MainDB)
+                        err := utils.Save(ex.kline, "kline", utils.MainDB)
+                        if err != nil {
+                            utils.FatalLog.Write(err.Error())
+                        }
+                        utils.DebugLog.Write("%v", ex.kline)
                         ex.kline = context.NewKline(ex.Name(), t, time.Minute)
                     }
                 }
