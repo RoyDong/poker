@@ -7,6 +7,7 @@ import (
     "reflect"
     "fmt"
     "errors"
+    _ "github.com/go-sql-driver/mysql"
 )
 
 var (

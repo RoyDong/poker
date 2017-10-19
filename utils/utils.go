@@ -4,7 +4,6 @@ import (
     "dw/poker/lib"
     "dw/poker/context"
     "database/sql"
-    _ "github.com/go-sql-driver/mysql"
     "fmt"
 )
 
