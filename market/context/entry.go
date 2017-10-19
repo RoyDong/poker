@@ -3,7 +3,6 @@ package context
 import (
     "time"
     "fmt"
-    "math"
 )
 
 /*
@@ -151,8 +150,8 @@ func NewKline(exname string, trade Trade, t time.Duration) *Kline {
         OpenTime: trade.CreateTime,
         CloseTime: trade.CreateTime.Add(t),
         OpenPrice: trade.Price,
-        HighPrice: math.Inf(-1),
-        LowPrice: math.Inf(1),
+        HighPrice: trade.Price,
+        LowPrice: trade.Price,
     }
     k.AddTrade(trade)
     return k
@@ -170,7 +169,7 @@ func (k *Kline) AddTrade(t Trade) int {
             k.HighPrice = t.Price
         }
         if t.Price < k.LowPrice {
-            k.LowPrice = k.HighPrice
+            k.LowPrice = t.Price
         }
         k.ClosePrice = t.Price
         k.TradeNum += 1
