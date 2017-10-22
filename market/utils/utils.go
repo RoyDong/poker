@@ -12,6 +12,8 @@ import (
     "encoding/hex"
     "time"
     "errors"
+    "crypto/sha256"
+    "crypto/hmac"
 )
 
 var HTTPTimeout = time.Second
@@ -83,4 +85,24 @@ func MD5(txt string) string {
     }
     return hex.EncodeToString(hash.Sum(nil))
 }
+
+func SHA256(txt string) string {
+    hash := sha256.New()
+    if _, err := io.WriteString(hash, txt); err != nil {
+        panic(err)
+    }
+    return hex.EncodeToString(hash.Sum(nil))
+}
+
+func HMAC_SHA256(k, v string) string {
+    hash := hmac.New(sha256.New, []byte(k))
+    if _, err := io.WriteString(hash, v); err != nil {
+        panic(err)
+    }
+    return hex.EncodeToString(hash.Sum(nil))
+}
+
+
+
+
 

@@ -10,8 +10,9 @@ import (
     _ "github.com/go-sql-driver/mysql"
 )
 
-var (
+const (
     ColumnTagName = "column"
+    PKName = "id"
 )
 
 
@@ -113,7 +114,7 @@ func save(dao interface{}, insert bool, tbl string, db *sql.DB) error {
             ifc := f.Interface()
             cols = append(cols, col)
             vals = append(vals, ifc)
-            if col == "id" {
+            if col == PKName {
                 pk = f
                 pkv = f.Int()
             }
@@ -142,14 +143,14 @@ func save(dao interface{}, insert bool, tbl string, db *sql.DB) error {
     }
 
     if pkv <= 0 {
-        panic("db.save primary key(id) not specified")
+        panic("db.save primary key not specified " + PKName)
     }
 
     sets := make([]string, 0, num)
     for _, col := range cols {
         sets = append(sets, fmt.Sprintf("`%s` = ?", col))
     }
-    stmt := fmt.Sprintf("UPDATE `%s` SET %s WHERE `id` = %d", tbl, strings.Join(sets, ","), pkv)
+    stmt := fmt.Sprintf("UPDATE `%s` SET %s WHERE `%s` = %d", tbl, strings.Join(sets, ","), PKName, pkv)
     _, err := db.Exec(stmt, vals...)
     return err
 }

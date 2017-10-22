@@ -12,6 +12,7 @@ import (
     "dw/poker/market"
     "net"
     "golang.org/x/net/netutil"
+    "dw/poker/market/bitmex"
 )
 
 
@@ -30,6 +31,11 @@ func Run(filename string) {
     if err != nil {
         log.Fatalf("init config fail . err[%s]", err.Error())
     }
+    log.Println("---")
+    c := conf.Market.Bitmex
+    _, err = bitmex.NewXbtusd(c.ApiKey, c.ApiSecret, c.Wss, c.Host)
+    log.Println(err.Error())
+
 
     err = utils.Init(conf)
     if err != nil {

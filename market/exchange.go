@@ -47,13 +47,12 @@ type Exchange struct {
     inLoop bool
     maxTradeLen int
     trades []context.Trade
-    kline *context.Kline
 }
 
 func NewExchange(api IExchange) *Exchange {
     ex := &Exchange{}
     ex.IExchange = api
-    ex.maxTradeLen = 1000
+    ex.maxTradeLen = 10000
     ex.trades = make([]context.Trade, 1, ex.maxTradeLen)
     ex.inLoop = true
     go ex.syncTrades()
@@ -61,6 +60,7 @@ func NewExchange(api IExchange) *Exchange {
 }
 
 func (ex *Exchange) syncTrades() {
+    var kline *context.Kline
     for ex.inLoop {
         time.Sleep(200 * time.Millisecond)
         trades, err := ex.GetTrades()
@@ -100,18 +100,18 @@ func (ex *Exchange) syncTrades() {
 
             //create kline and save to sql db
             for _, t := range newTrades {
-                if ex.kline == nil {
-                    ex.kline = context.NewKline(ex.Name(), t, time.Minute)
+                if kline == nil {
+                    kline = context.NewKline(ex.Name(), t, time.Minute)
                 } else {
-                    rt := ex.kline.AddTrade(t)
+                    rt := kline.AddTrade(t)
                     if rt == 1 {
                         //save
-                        err := utils.Save(ex.kline, "kline", utils.MainDB)
+                        err := utils.Save(kline, "kline", utils.MainDB)
                         if err != nil {
                             utils.FatalLog.Write(err.Error())
                         }
-                        utils.DebugLog.Write("%v", ex.kline)
-                        ex.kline = context.NewKline(ex.Name(), t, time.Minute)
+                        utils.DebugLog.Write("%v", kline)
+                        kline = context.NewKline(ex.Name(), t, time.Minute)
                     }
                 }
             }

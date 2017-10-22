@@ -2,11 +2,11 @@ package context
 
 type Config struct {
     Server struct {
-        Hostname string
-        Host     string
-        SockFile string
-        MaxConn  int
-        Debug    bool
+        Hostname  string
+        Host      string
+        SockFile  string
+        MaxConn   int
+        Debug     bool
         PProfHost string
     }
 
@@ -27,20 +27,27 @@ type Config struct {
 
     Sqldb struct {
         Main struct {
-            Host string
-            Port int
+            Host     string
+            Port     int
             Username string
             Password string
-            Dbname string
-            Charset string
+            Dbname   string
+            Charset  string
         }
     }
 
     Market struct {
-        Okex struct{
+        Okex struct {
             HttpHost  string
+            ApiKey    string
+            ApiSecret string
+        }
+        Bitmex struct {
+            Host      string
+            Wss       string
             ApiKey    string
             ApiSecret string
         }
     }
 }
+
