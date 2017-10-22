@@ -12,15 +12,19 @@ type WsClient struct {
     connected func()
 }
 
-func NewWsClient(wss, origin string, nm func(msg []byte), connected func()) (*WsClient, error) {
+func NewWsClient(wss, origin string, nm func(msg []byte), connected func()) *WsClient {
     ws := &WsClient{wss, origin, nil, nm, connected}
+    return ws
+}
+
+func (ws *WsClient) Start() error {
     err := ws.connect()
     if err != nil {
-        return nil, err
+        return err
     }
     go ws.readLoop()
     ws.connected()
-    return ws, nil
+    return nil
 }
 
 func (ws *WsClient) connect() error {

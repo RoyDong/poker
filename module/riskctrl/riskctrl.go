@@ -19,12 +19,12 @@ type RiskCtrl struct {
 
 
 func (this *RiskCtrl) Init(conf *context.Config) error {
-    go this.baseCtrl()
     return nil
 }
 
 
 func (this *RiskCtrl) Run(ctx *context.Context) error {
+    go this.baseCtrl()
     ctx.RespBody = []byte("base control n")
     return nil
 }

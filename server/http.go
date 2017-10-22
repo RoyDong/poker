@@ -18,7 +18,6 @@ import (
 
 func Run(filename string) {
     runtime.GOMAXPROCS(runtime.NumCPU())
-
     var conf = &context.Config{}
     yml, err := ioutil.ReadFile(filename)
     if err != nil {
@@ -31,16 +30,15 @@ func Run(filename string) {
     if err != nil {
         log.Fatalf("init config fail . err[%s]", err.Error())
     }
-    log.Println("---")
-    c := conf.Market.Bitmex
-    _, err = bitmex.NewXbtusd(c.ApiKey, c.ApiSecret, c.Wss, c.Host)
-    log.Println(err.Error())
-
-
     err = utils.Init(conf)
     if err != nil {
         log.Fatalf("init utils fail . err[%s]", err.Error())
     }
+
+    log.Println("---")
+    c := conf.Market.Bitmex
+    _, err = bitmex.NewXbtusd(c.ApiKey, c.ApiSecret, c.Wss, c.Host)
+    log.Println("bitmex", err)
 
     market.Init(conf)
 
@@ -48,7 +46,6 @@ func Run(filename string) {
     if err != nil {
         log.Fatalf("init router fail . err[%s]", err.Error())
     }
-
     go func() {
         http.ListenAndServe(conf.Server.PProfHost, nil)
     }()
