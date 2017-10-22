@@ -145,10 +145,11 @@ type Kline struct {
 }
 
 func NewKline(exname string, trade Trade, t time.Duration) *Kline {
+    sec := trade.CreateTime.Unix() - int64(trade.CreateTime.Second())
     k := &Kline{
         Exname: exname,
-        OpenTime: trade.CreateTime,
-        CloseTime: trade.CreateTime.Add(t),
+        OpenTime: time.Unix(sec, 0),
+        CloseTime: time.Unix(sec + int64(t.Seconds()), 0),
         OpenPrice: trade.Price,
         HighPrice: trade.Price,
         LowPrice: trade.Price,
@@ -158,10 +159,10 @@ func NewKline(exname string, trade Trade, t time.Duration) *Kline {
 }
 
 func (k *Kline) AddTrade(t Trade) int {
-    if k.OpenTime.Minute() > t.CreateTime.Minute() {
+    if k.OpenTime.Sub(t.CreateTime) > 0 {
         return -1
     }
-    if k.CloseTime.Minute() > t.CreateTime.Minute() {
+    if k.CloseTime.Sub(t.CreateTime) > 0 {
         k.Amount += t.Amount
         k.Money += t.Amount * t.Price
         k.AvgPrice = k.Money / k.Amount
