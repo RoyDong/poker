@@ -104,14 +104,12 @@ func (ex *Exchange) syncTrades() {
                     kline = context.NewKline(ex.Name(), t, time.Minute)
                 } else {
                     rt := kline.AddTrade(t)
-                    utils.DebugLog.Write("%d %d %.0f %d", t.CreateTime.Minute(), rt, kline.Amount, kline.TradeNum)
                     if rt == 1 {
                         //save
                         err := utils.Save(kline, "kline", utils.MainDB)
                         if err != nil {
                             utils.FatalLog.Write(err.Error())
                         }
-                        utils.DebugLog.Write("%v", kline)
                         kline = context.NewKline(ex.Name(), t, time.Minute)
                     }
                 }
