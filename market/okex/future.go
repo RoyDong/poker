@@ -412,7 +412,7 @@ func (this *Future) callHttpJson(data interface{}, api string, query, params map
         params["api_key"] = this.apiKey
         params["sign"] = strings.ToUpper(utils.CreateSignature(params, this.apiSecret))
     }
-    resp, err := utils.CallRest(this.httpHost + api, query, params)
+    resp, err := utils.ReqHttp(this.httpHost + api, query, params, nil)
     if err != nil {
         return err
     }

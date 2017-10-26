@@ -18,30 +18,36 @@ import (
 
 var HTTPTimeout = time.Second
 
-func CallRest(api string, query, data map[string]interface{}) ([]byte, error) {
-    if query != nil {
-        api = api + "?" + BuildHttpQuery(query)
+func ReqHttp(host string, query, post, header map[string]interface{}) ([]byte, error) {
+    if len(query) > 0 {
+        host = host + "?" + BuildHttpQuery(query)
+    }
+    req, err := http.NewRequest("GET", host, nil)
+    if err != nil {
+        return nil, err
+    }
+    if len(post) > 0 {
+        req.Method = "POST"
+        for k, v := range post {
+            req.Form.Set(k, fmt.Sprintf("%v", v))
+        }
+    }
+    if len(header) > 0 {
+        for k, v := range header {
+            req.Header.Add(k, fmt.Sprintf("%v", v))
+        }
     }
 
     var resp *http.Response
-    var err error
-    if data == nil {
-        resp, err = http.Get(api)
-    } else {
-        form := url.Values{}
-        for k, v := range data {
-            form.Set(k, fmt.Sprintf("%v", v))
-        }
-        respond := make(chan bool)
-        go func(){
-            resp, err = http.PostForm(api, form)
-            respond <- true
-        }()
-        select {
-        case <- respond:
-        case <- time.After(HTTPTimeout):
-            err = errors.New(fmt.Sprintf("call api %s timeout %v", api, HTTPTimeout))
-        }
+    done := make(chan struct{})
+    go func(){
+        resp, err = http.DefaultClient.Do(req)
+        close(done)
+    }()
+    select {
+    case <- done:
+    case <- time.After(HTTPTimeout):
+        err = errors.New(fmt.Sprintf("call api %s timeout %v", host, HTTPTimeout))
     }
     if err != nil {
         return nil, err

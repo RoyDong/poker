@@ -47,11 +47,10 @@ func Init(conf *context.Config) error {
     c := conf.Sqldb.Main
     dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s", c.Username, c.Password,
         c.Host, c.Port, c.Dbname, c.Charset)
-    db, err := sql.Open("mysql", dsn)
-    if err != nil {
-        return err
+    if len(c.Local) > 0 {
+        dsn = fmt.Sprintf("%s&parseTime=true&loc=%s", dsn, c.Local)
     }
-    err = db.Ping()
+    db, err := sql.Open("mysql", dsn)
     if err != nil {
         return err
     }

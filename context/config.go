@@ -33,6 +33,7 @@ type Config struct {
             Password string
             Dbname   string
             Charset  string
+            Local    string
         }
     }
 
@@ -43,11 +44,11 @@ type Config struct {
             ApiSecret string
         }
         Bitmex struct {
-            Host      string
+            HttpHost  string
+            WsHost    string
             Wss       string
             ApiKey    string
             ApiSecret string
         }
     }
 }
-
