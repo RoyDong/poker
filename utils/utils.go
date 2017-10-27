@@ -5,6 +5,7 @@ import (
     "dw/poker/context"
     "database/sql"
     "fmt"
+    "net/url"
 )
 
 
@@ -44,11 +45,18 @@ func Init(conf *context.Config) error {
     sysMail.Receivers = conf.AlertMail.Receiver
     sysMail.Subject = conf.AlertMail.Subject
 
+    go func() {
+        for {
+            err := Mailer.Error()
+            FatalLog.Write(err.Error())
+        }
+    }()
+
     c := conf.Sqldb.Main
     dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s", c.Username, c.Password,
         c.Host, c.Port, c.Dbname, c.Charset)
     if len(c.Local) > 0 {
-        dsn = fmt.Sprintf("%s&parseTime=true&loc=%s", dsn, c.Local)
+        dsn = fmt.Sprintf("%s&parseTime=true&loc=%s", dsn, url.QueryEscape(c.Local))
     }
     db, err := sql.Open("mysql", dsn)
     if err != nil {

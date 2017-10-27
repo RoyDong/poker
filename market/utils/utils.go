@@ -2,7 +2,6 @@ package utils
 
 import (
     "net/http"
-    "net/url"
     "fmt"
     "strings"
     "sort"
@@ -22,15 +21,18 @@ func ReqHttp(host string, query, post, header map[string]interface{}) ([]byte, e
     if len(query) > 0 {
         host = host + "?" + BuildHttpQuery(query)
     }
-    req, err := http.NewRequest("GET", host, nil)
+    var req *http.Request
+    var err error
+    if len(post) > 0 {
+        req, err = http.NewRequest("POST", host, strings.NewReader(BuildHttpQuery(post)))
+    } else {
+        req, err = http.NewRequest("GET", host, nil)
+    }
     if err != nil {
         return nil, err
     }
-    if len(post) > 0 {
-        req.Method = "POST"
-        for k, v := range post {
-            req.Form.Set(k, fmt.Sprintf("%v", v))
-        }
+    if req.Method == "POST"  {
+        req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
     }
     if len(header) > 0 {
         for k, v := range header {

@@ -13,6 +13,7 @@ type Config struct {
     AlertMail struct {
         Username string
         Password string
+        UseSsl   bool
         Subject  string
         Host     string
         Server   string
