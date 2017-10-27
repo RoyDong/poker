@@ -8,6 +8,7 @@ import (
     "dw/poker/market/context"
     "dw/poker/market/utils"
     putils "dw/poker/utils"
+    "net/url"
 )
 
 type Exchange struct {
@@ -36,30 +37,34 @@ func NewExchange(httpHost, apiKey, apiSecret, wss, wshost string) (*Exchange, er
     return this, err
 }
 
-func (this *Exchange) callHttpJson(data interface{}, api string, query, params map[string]interface{}) error {
-    host := this.httpHost + api
-    resp, err := utils.ReqHttp(host, query, params, this.getAuthHeader(host, query, params))
+func (this *Exchange) callHttpJson(data interface{}, api string, query, params map[string]interface{}, auth bool) error {
+    var header map[string]interface{}
+    if auth {
+        header = this.getAuthHeader(api, query, params)
+    }
+    resp, err := utils.ReqHttp(this.httpHost + api, query, params, header)
     if err != nil {
         return err
     }
     return json.Unmarshal(resp, data)
 }
 
-func (this *Exchange) getAuthHeader(host string, query, post map[string]interface{}) map[string]interface{} {
-    nonce := time.Now().UnixNano() / 1000
-    raw := host
+func (this *Exchange) getAuthHeader(api string, query, post map[string]interface{}) map[string]interface{} {
+    nonce := time.Now().Unix()
+    raw := "/api/v1" + api
     if len(query) > 0 {
-        raw = raw + "?" + utils.BuildHttpQuery(query)
+        raw = raw + "?" + url.QueryEscape(utils.BuildHttpQuery(query))
     }
-    raw = raw + strconv.FormatInt(nonce, 10)
     if len(post) > 0 {
-        raw = raw + utils.BuildHttpQuery(post)
+        raw = "POST" + raw + utils.BuildHttpQuery(post)
+    } else {
+        raw = "GET" + raw
     }
     sig := utils.HMAC_SHA256(this.apiSecret, raw)
     return map[string]interface{} {
-        "API-NONCE": nonce,
-        "API-KEY": this.apiKey,
-        "API-SIGNATURE": sig,
+        "api-nonce": nonce,
+        "api-key": this.apiKey,
+        "api-signature": sig,
     }
 }
 
@@ -206,24 +211,72 @@ func (this *Exchange) MakeOrder(ta context.TradeAction, amount, price float64) (
 }
 
 
-/*
-func (this *Exchange) CancelOrder(id ...string) error
+func (this *Exchange) CancelOrder(id ...string) error {
+    return nil
+}
 
-func (this *Exchange) GetOrder(id string) (context.Order, error)
+func (this *Exchange) GetOrder(id string) (context.Order, error) {
 
-func (this *Exchange) GetOrders(ids []string) ([]context.Order, error)
+    return context.Order{}, nil
+}
 
-func (this *Exchange) GetTicker() (context.Ticker, error)
+func (this *Exchange) GetOrders(ids []string) ([]context.Order, error) {
+    return nil, nil
+}
 
-func (this *Exchange) GetTrades() ([]context.Trade, error)
+func (this *Exchange) GetTicker() (context.Ticker, error) {
+    return context.Ticker{}, nil
+}
 
-func (this *Exchange) GetDepth() ([]context.Order, []context.Order, error)
+type getTradesResp struct {
+    Timestamp time.Time
+    Side string
+    Size float64
+    Price float64
+    TrdMatchID string
+}
+func (this *Exchange) GetTrades() ([]context.Trade, error) {
+    params := map[string]interface{} {
+        "symbol": this.symbol,
+        "count": 100,
+        "reverse": true,
+    }
+    var trades []context.Trade
+    var resp []getTradesResp
+    err := this.callHttpJson(&resp, "/trade", params, nil, false)
+    if err != nil {
+        return trades, err
+    }
+    trades = make([]context.Trade, 0, len(resp))
+    for i := len(resp) - 1; i >= 0; i-- {
+        t := resp[i]
+        trade := context.Trade{}
+        trade.Id = "bitmex/" + t.TrdMatchID
+        trade.CreateTime = t.Timestamp.Local()
+        trade.Price = t.Price
+        trade.Amount = t.Size
+        trade.TAction = context.TradeAction(t.Side)
+        trades = append(trades, trade)
+    }
+    return trades, err
+}
 
-func (this *Exchange) GetIndex() (float64, error)
+func (this *Exchange) GetDepth() ([]context.Order, []context.Order, error) {
+    return nil,nil,nil
+}
 
-func (this *Exchange) GetBalance() (context.Balance, error)
+func (this *Exchange) GetIndex() (float64, error) {
+    return 0, nil
+}
 
-func (this *Exchange) GetPosition() (context.Position, context.Position, error)
+func (this *Exchange) GetBalance() (context.Balance, error) {
+    var d []byte
+    this.callHttpJson(&d, "/user", nil, nil, true)
+    return context.Balance{}, nil
+}
+
+func (this *Exchange) GetPosition() (context.Position, context.Position, error) {
+    return context.Position{}, context.Position{}, nil
+}
 
 
-*/

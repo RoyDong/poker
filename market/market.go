@@ -3,6 +3,7 @@ package market
 import (
     pctx "dw/poker/context"
     "dw/poker/market/okex"
+    "dw/poker/market/bitmex"
 )
 
 
@@ -20,6 +21,10 @@ func Init(conf *pctx.Config) {
     okconf := conf.Market.Okex
     ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret)
     AddExchange(NewExchange(ok))
+
+    bmconf := conf.Market.Bitmex
+    bm, _ := bitmex.NewExchange(bmconf.HttpHost, bmconf.ApiKey, bmconf.ApiSecret, bmconf.Wss, bmconf.WsHost)
+    AddExchange(NewExchange(bm))
 }
 
 

@@ -15,7 +15,7 @@ import (
     "crypto/hmac"
 )
 
-var HTTPTimeout = time.Second
+var HTTPTimeout = 10 * time.Second
 
 func ReqHttp(host string, query, post, header map[string]interface{}) ([]byte, error) {
     if len(query) > 0 {
