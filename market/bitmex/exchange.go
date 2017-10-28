@@ -9,6 +9,7 @@ import (
     "dw/poker/market/utils"
     putils "dw/poker/utils"
     "net/url"
+    "sync"
 )
 
 type Exchange struct {
@@ -20,7 +21,9 @@ type Exchange struct {
 
     symbol string
 
+    tradesMu sync.RWMutex
     trades []context.Trade
+    maxTradesLen int
 }
 
 func NewExchange(httpHost, apiKey, apiSecret, wss, wshost string) (*Exchange, error) {
@@ -30,9 +33,12 @@ func NewExchange(httpHost, apiKey, apiSecret, wss, wshost string) (*Exchange, er
     this.apiKey = apiKey
     this.apiSecret = apiSecret
     this.symbol = "XBTUSD"
+    this.maxTradesLen = 100
 
-    //this.ws = utils.NewWsClient(wss, wshost, this.newMsg, this.connected)
-    //err = this.ws.Start()
+    this.trades = make([]context.Trade, 0, this.maxTradesLen)
+
+    this.ws = utils.NewWsClient(wss, wshost, this.newMsg, this.connected)
+    err = this.ws.Start()
 
     return this, err
 }
@@ -46,7 +52,11 @@ func (this *Exchange) callHttpJson(data interface{}, api string, query, params m
     if err != nil {
         return err
     }
-    return json.Unmarshal(resp, data)
+    err = json.Unmarshal(resp, data)
+    if err != nil {
+        log.Println(string(resp))
+    }
+    return err
 }
 
 func (this *Exchange) getAuthHeader(api string, query, post map[string]interface{}) map[string]interface{} {
@@ -82,7 +92,7 @@ type wsresp struct {
 type wsdata struct {
     Table string `json:"table"`
     Action string `json:"action"`
-    Data interface{} `json:"data"`
+    Data json.RawMessage `json:"data"`
 
     Keys []string `json:"keys"`
     ForeignKeys map[string]string `json:"foreignKeys"`
@@ -125,9 +135,46 @@ func (this *Exchange) newMsg(msg []byte) {
     }
 }
 
-func (this *Exchange) newTrade(wsd *wsdata) {
-    log.Println(wsd.Data)
+type tradesResp struct {
+    Timestamp time.Time
+    Side string
+    Size float64
+    Price float64
+    TrdMatchID string
 }
+func (this *Exchange) newTrade(wsd *wsdata) {
+    var resp []tradesResp
+    err := json.Unmarshal(wsd.Data, &resp)
+    if err != nil {
+        putils.WarningLog.Write("bitmex.newTrade %s", err.Error())
+    }
+    trades := make([]context.Trade, 0, len(resp))
+    for i := len(resp) - 1; i >= 0; i-- {
+        t := resp[i]
+        trade := context.Trade{}
+        trade.Id = "bitmex/" + t.TrdMatchID
+        trade.CreateTime = t.Timestamp.Local()
+        trade.Price = 1 / t.Price
+        trade.Amount = t.Size
+        trade.TAction = context.TradeAction(t.Side)
+        trades = append(trades, trade)
+    }
+    overflow := len(this.trades) + len(trades) - this.maxTradesLen
+    if overflow < 0 {
+        overflow = 0
+    } else if overflow >= this.maxTradesLen {
+        overflow = len(this.trades)
+    }
+    this.tradesMu.Lock()
+    this.trades = append(this.trades[overflow:], trades...)
+    this.tradesMu.Unlock()
+}
+func (this *Exchange) GetTrades() ([]context.Trade, error) {
+    this.tradesMu.RLock()
+    defer this.tradesMu.RUnlock()
+    return this.trades, nil
+}
+
 
 func (this *Exchange) newOrder(wsd *wsdata) {
 
@@ -145,7 +192,7 @@ func (this *Exchange) connected() {
         //"instrument",  // 产品更新，包括交易量以及报价
         //"insurance",   // 每日保险基金的更新
         //"liquidation", // 强平委托
-        "orderBookL2:XBTUSD", // 完整的 level 2 委托列表
+        //"orderBookL2:XBTUSD", // 完整的 level 2 委托列表
         //"orderBook10:XBTUSD", // 完整的 10 层深度委托列表
         //"publicNotifications", // 通知和告示
         //"quote",       // 报价
@@ -155,10 +202,10 @@ func (this *Exchange) connected() {
         //"tradeBin1m",  // 每分钟交易数据
 
         //"affiliate",   // 邀请人状态，已邀请用户及分红比率
-        "execution",   // 个别成交，可能是多个成交
-        "order",       // 你委托的更新
-        "margin",      // 你账户的余额和保证金要求的更新
-        "position",    // 你仓位的更新
+        //"execution",   // 个别成交，可能是多个成交
+        //"order",       // 你委托的更新
+        //"margin",      // 你账户的余额和保证金要求的更新
+        //"position",    // 你仓位的更新
         //"privateNotifications", // 个人的通知，现时并未使用
         //"transact",     // 资金提存更新
         //"wallet",       // 比特币余额更新及总提款存款
@@ -226,39 +273,6 @@ func (this *Exchange) GetOrders(ids []string) ([]context.Order, error) {
 
 func (this *Exchange) GetTicker() (context.Ticker, error) {
     return context.Ticker{}, nil
-}
-
-type getTradesResp struct {
-    Timestamp time.Time
-    Side string
-    Size float64
-    Price float64
-    TrdMatchID string
-}
-func (this *Exchange) GetTrades() ([]context.Trade, error) {
-    params := map[string]interface{} {
-        "symbol": this.symbol,
-        "count": 100,
-        "reverse": true,
-    }
-    var trades []context.Trade
-    var resp []getTradesResp
-    err := this.callHttpJson(&resp, "/trade", params, nil, false)
-    if err != nil {
-        return trades, err
-    }
-    trades = make([]context.Trade, 0, len(resp))
-    for i := len(resp) - 1; i >= 0; i-- {
-        t := resp[i]
-        trade := context.Trade{}
-        trade.Id = "bitmex/" + t.TrdMatchID
-        trade.CreateTime = t.Timestamp.Local()
-        trade.Price = t.Price
-        trade.Amount = t.Size
-        trade.TAction = context.TradeAction(t.Side)
-        trades = append(trades, trade)
-    }
-    return trades, err
 }
 
 func (this *Exchange) GetDepth() ([]context.Order, []context.Order, error) {

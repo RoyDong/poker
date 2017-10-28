@@ -127,32 +127,34 @@ func (this Balance) String() string {
 }
 
 type Kline struct {
-    Id         int `column:"id"`
-    Exname     string `column:"exname"`
+    Id         int       `column:"id"`
+    Exname     string    `column:"exname"`
     OpenTime   time.Time `column:"open_time"`
     CloseTime  time.Time `column:"close_time"`
-    OpenPrice  float64 `column:"open_price"`
-    ClosePrice float64 `column:"close_price"`
-    HighPrice  float64 `column:"high_price"`
-    LowPrice   float64 `column:"low_price"`
-    Amount     float64 `column:"amount"`
-    AvgPrice   float64 `column:"avg_price"`
-    Money      float64 `column:"money"`
-    BuyNum     int `column:"buy_num"`
-    SellNum    int `column:"sell_num"`
-    TradeNum   int `column:"trade_num"`
-    Fee        float64 `column:"fee"`
+    OpenPrice  float64   `column:"open_price"`
+    ClosePrice float64   `column:"close_price"`
+    HighPrice  float64   `column:"high_price"`
+    LowPrice   float64   `column:"low_price"`
+    Amount     float64   `column:"amount"`
+    AvgPrice   float64   `column:"avg_price"`
+    Money      float64   `column:"money"`
+    BuyNum     int       `column:"buy_num"`
+    BuyAmount  float64   `column:"buy_amount"`
+    SellNum    int       `column:"sell_num"`
+    SellAmount float64   `column:"sell_amount"`
+    TradeNum   int       `column:"trade_num"`
+    Fee        float64   `column:"fee"`
 }
 
 func NewKline(exname string, trade Trade, t time.Duration) *Kline {
     sec := trade.CreateTime.Unix() - int64(trade.CreateTime.Second())
     k := &Kline{
-        Exname: exname,
-        OpenTime: time.Unix(sec, 0),
-        CloseTime: time.Unix(sec + int64(t.Seconds()), 0),
+        Exname:    exname,
+        OpenTime:  time.Unix(sec, 0),
+        CloseTime: time.Unix(sec+int64(t.Seconds()), 0),
         OpenPrice: trade.Price,
         HighPrice: trade.Price,
-        LowPrice: trade.Price,
+        LowPrice:  trade.Price,
     }
     k.AddTrade(trade)
     return k
@@ -176,13 +178,13 @@ func (k *Kline) AddTrade(t Trade) int {
         k.TradeNum += 1
         if t.TAction == Buy {
             k.BuyNum += 1
+            k.BuyAmount += t.Amount
         } else {
             k.SellNum += 1
+            k.SellAmount += t.Amount
         }
         k.Fee += t.Fee
         return 0
     }
     return 1
 }
-
-

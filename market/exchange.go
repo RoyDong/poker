@@ -45,15 +45,15 @@ type Exchange struct {
 
     tradeMu sync.RWMutex
     inLoop bool
-    maxTradeLen int
+    maxTradesLen int
     trades []context.Trade
 }
 
 func NewExchange(api IExchange) *Exchange {
     ex := &Exchange{}
     ex.IExchange = api
-    ex.maxTradeLen = 10000
-    ex.trades = make([]context.Trade, 1, ex.maxTradeLen)
+    ex.maxTradesLen = 10000
+    ex.trades = make([]context.Trade, 1, ex.maxTradesLen)
     ex.inLoop = true
     go ex.syncTrades()
     return ex
@@ -65,6 +65,7 @@ func (ex *Exchange) syncTrades() {
         time.Sleep(200 * time.Millisecond)
         trades, err := ex.GetTrades()
         if err != nil {
+            utils.WarningLog.Write("sync trade err: %v", err.Error())
             continue
         }
         newTrades := make([]context.Trade, 0, len(trades))
@@ -90,9 +91,11 @@ func (ex *Exchange) syncTrades() {
             }
         }
         if len(newTrades) > 0 {
-            overflow := len(ex.trades) + len(newTrades) - ex.maxTradeLen
+            overflow := len(ex.trades) + len(newTrades) - ex.maxTradesLen
             if overflow < 0 {
                 overflow = 0
+            } else if overflow >= ex.maxTradesLen {
+                overflow = len(ex.trades)
             }
             ex.tradeMu.Lock()
             ex.trades = append(ex.trades[overflow:], newTrades...)
