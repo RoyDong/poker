@@ -109,8 +109,8 @@ func (ws *WsClient) readLoop() {
     for ws.inLoop {
         mtype, msg, err := ws.conn.ReadMessage()
         if err != nil {
-            for ws.reconnectNum != 0  {
-                if ws.reconnectNum > 0 {
+            for {
+                if ws.reconnectNum >= 0 {
                     reconnectNum++
                     if reconnectNum > ws.reconnectNum {
                         ws.Close()
