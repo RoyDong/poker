@@ -6,8 +6,7 @@ import (
     "encoding/json"
     "log"
     "dw/poker/market/context"
-    "dw/poker/market/utils"
-    putils "dw/poker/utils"
+    "dw/poker/utils"
     "net/url"
     "sync"
 )
@@ -17,7 +16,7 @@ type Exchange struct {
     apiKey string
     apiSecret string
 
-    ws *putils.WsClient
+    ws *utils.WsClient
 
     symbol string
 
@@ -36,7 +35,7 @@ func NewExchange(httpHost, apiKey, apiSecret, wss string) (*Exchange, error) {
     this.maxTradesLen = 100
 
     this.trades = make([]context.Trade, 0, this.maxTradesLen)
-    this.ws = putils.NewWsClient(wss, this.newMsg, this.connected)
+    this.ws = utils.NewWsClient(wss, this.newMsg, this.connected)
     err = this.ws.Start()
 
     return this, err
@@ -105,22 +104,22 @@ func (this *Exchange) newMsg(msg []byte) {
     var resp wsresp
     err := json.Unmarshal(msg, &resp)
     if err != nil {
-        putils.FatalLog.Write("Exchange.newMsg %s", err.Error())
+        utils.FatalLog.Write("Exchange.newMsg %s", err.Error())
         return
     }
     if len(resp.Error) > 0 {
-        putils.FatalLog.Write("Exchange.newMsg %s", resp.Error)
+        utils.FatalLog.Write("Exchange.newMsg %s", resp.Error)
         return
     }
     if resp.Success {
-        putils.DebugLog.Write("Exchange.newMsg %s", resp.Subscribe)
+        utils.DebugLog.Write("Exchange.newMsg %s", resp.Subscribe)
         return
     }
 
     var wsd wsdata
     err = json.Unmarshal(msg, &wsd)
     if err != nil {
-        putils.FatalLog.Write("Exchange.newMsg data %s", err.Error())
+        utils.FatalLog.Write("Exchange.newMsg data %s", err.Error())
         return
     }
 
@@ -130,7 +129,7 @@ func (this *Exchange) newMsg(msg []byte) {
     case "trade":
         this.newTrade(&wsd)
     default:
-        putils.WarningLog.Write("topic not handled %s %s", wsd.Table, wsd.Action)
+        utils.WarningLog.Write("topic not handled %s %s", wsd.Table, wsd.Action)
     }
 }
 
@@ -145,7 +144,7 @@ func (this *Exchange) newTrade(wsd *wsdata) {
     var resp []tradesResp
     err := json.Unmarshal(wsd.Data, &resp)
     if err != nil {
-        putils.WarningLog.Write("bitmex.newTrade %s", err.Error())
+        utils.WarningLog.Write("bitmex.newTrade %s", err.Error())
     }
     trades := make([]context.Trade, 0, len(resp))
     for i := len(resp) - 1; i >= 0; i-- {

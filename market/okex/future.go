@@ -8,7 +8,7 @@ import (
     "encoding/json"
     "strconv"
     "dw/poker/market/context"
-    "dw/poker/market/utils"
+    "dw/poker/utils"
 )
 
 type Future struct {
