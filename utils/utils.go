@@ -1,7 +1,6 @@
 package utils
 
 import (
-    "dw/poker/lib"
     "dw/poker/context"
     "database/sql"
     "fmt"
@@ -9,13 +8,13 @@ import (
 )
 
 
-var NoticeLog *lib.Logger
-var AccessLog *lib.Logger
-var DebugLog *lib.Logger
-var WarningLog *lib.Logger
-var FatalLog *lib.Logger
-var Mailer *lib.Mailer
-var sysMail lib.Mail
+var NoticeLog *Logger
+var AccessLog *Logger
+var DebugLog *Logger
+var WarningLog *Logger
+var FatalLog *Logger
+var SysMailer *Mailer
+var sysMail Mail
 
 
 var MainDB *sql.DB
@@ -23,31 +22,31 @@ var MainDB *sql.DB
 func Init(conf *context.Config) error {
     dir := conf.Log.LogDir
     rotate := conf.Log.LogRotate
-    DebugLog   = lib.NewLogger(dir, "debug", rotate, true)
-    WarningLog = lib.NewLogger(dir, "warning", rotate, true)
-    FatalLog   = lib.NewLogger(dir, "fatal", rotate, true)
-    AccessLog  = lib.NewLogger(dir, "access", rotate, false)
-    NoticeLog  = lib.NewLogger(dir, "notice", rotate, false)
+    DebugLog   = NewLogger(dir, "debug", rotate, true)
+    WarningLog = NewLogger(dir, "warning", rotate, true)
+    FatalLog   = NewLogger(dir, "fatal", rotate, true)
+    AccessLog  = NewLogger(dir, "access", rotate, false)
+    NoticeLog  = NewLogger(dir, "notice", rotate, false)
     if !conf.Server.Debug {
         DebugLog.Mute()
     }
 
-    mailConf := lib.MailConfig{}
+    mailConf := MailConfig{}
     mailConf.Username = conf.AlertMail.Username
     mailConf.Password = conf.AlertMail.Password
     mailConf.Host = conf.AlertMail.Host
     mailConf.Server = conf.AlertMail.Server
     mailConf.HostName = conf.Server.Hostname
 
-    Mailer = lib.NewMailer(mailConf)
-    sysMail = lib.Mail{}
+    SysMailer = NewMailer(mailConf)
+    sysMail = Mail{}
     sysMail.Sender = conf.AlertMail.Sender
     sysMail.Receivers = conf.AlertMail.Receiver
     sysMail.Subject = conf.AlertMail.Subject
 
     go func() {
         for {
-            err := Mailer.Error()
+            err := SysMailer.Error()
             FatalLog.Write(err.Error())
         }
     }()
@@ -78,7 +77,7 @@ func SendSysMail(args ...string) {
     if len(args) > 2 {
         m.Receivers = append(m.Receivers, args[2:]...)
     }
-    Mailer.Send(m)
+    SysMailer.Send(m)
 }
 
 

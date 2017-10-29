@@ -19,7 +19,7 @@ func GetExchange(name string) *Exchange {
 
 func Init(conf *pctx.Config) {
     okconf := conf.Market.Okex
-    ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret)
+    ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret, "quarter")
     AddExchange(NewExchange(ok))
 
     bmconf := conf.Market.Bitmex

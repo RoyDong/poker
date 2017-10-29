@@ -21,13 +21,13 @@ type Future struct {
     leverage float64
 }
 
-func NewFuture(httpHost, apiKey, apiSecret string) *Future {
+func NewFuture(httpHost, apiKey, apiSecret, contractType string) *Future {
     this := &Future{}
     this.httpHost = httpHost
     this.apiKey = apiKey
     this.apiSecret = apiSecret
 
-    this.contractType = "quarter"
+    this.contractType = contractType
     this.symbol = "btc_usd"
     this.leverage = 20
     return this
