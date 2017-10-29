@@ -17,7 +17,7 @@ type Exchange struct {
     apiKey string
     apiSecret string
 
-    ws *utils.WsClient
+    ws *putils.WsClient
 
     symbol string
 
@@ -36,7 +36,7 @@ func NewExchange(httpHost, apiKey, apiSecret, wss string) (*Exchange, error) {
     this.maxTradesLen = 100
 
     this.trades = make([]context.Trade, 0, this.maxTradesLen)
-    this.ws = utils.NewWsClient(wss, this.newMsg, this.connected)
+    this.ws = putils.NewWsClient(wss, this.newMsg, this.connected)
     err = this.ws.Start()
 
     return this, err

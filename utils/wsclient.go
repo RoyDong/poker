@@ -3,7 +3,6 @@ package utils
 import (
     "github.com/gorilla/websocket"
     "time"
-    "log"
 )
 
 type WsClient struct {
@@ -99,7 +98,7 @@ func (ws *WsClient) writeLoop() {
             err = ws.conn.WriteMessage(websocket.PongMessage, msg)
         }
         if err != nil {
-            log.Println(err)
+            WarningLog.Write(err.Error())
         }
     }
 }
