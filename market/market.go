@@ -23,7 +23,7 @@ func Init(conf *pctx.Config) {
     AddExchange(NewExchange(ok))
 
     bmconf := conf.Market.Bitmex
-    bm, _ := bitmex.NewExchange(bmconf.HttpHost, bmconf.ApiKey, bmconf.ApiSecret, bmconf.Wss, bmconf.WsHost)
+    bm, _ := bitmex.NewExchange(bmconf.HttpHost, bmconf.ApiKey, bmconf.ApiSecret, bmconf.Wss)
     AddExchange(NewExchange(bm))
 }
 

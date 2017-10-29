@@ -26,7 +26,7 @@ type Exchange struct {
     maxTradesLen int
 }
 
-func NewExchange(httpHost, apiKey, apiSecret, wss, wshost string) (*Exchange, error) {
+func NewExchange(httpHost, apiKey, apiSecret, wss string) (*Exchange, error) {
     var err error
     this := &Exchange{}
     this.httpHost = httpHost
@@ -36,8 +36,7 @@ func NewExchange(httpHost, apiKey, apiSecret, wss, wshost string) (*Exchange, er
     this.maxTradesLen = 100
 
     this.trades = make([]context.Trade, 0, this.maxTradesLen)
-
-    this.ws = utils.NewWsClient(wss, wshost, this.newMsg, this.connected)
+    this.ws = utils.NewWsClient(wss, this.newMsg, this.connected)
     err = this.ws.Start()
 
     return this, err
@@ -175,17 +174,19 @@ func (this *Exchange) GetTrades() ([]context.Trade, error) {
     return this.trades, nil
 }
 
-
 func (this *Exchange) newOrder(wsd *wsdata) {
 
 }
 
-func (this *Exchange) connected() {
+func (this *Exchange) wsauth() {
     nonce := time.Now().Unix()
     sig := utils.HMAC_SHA256(this.apiSecret, "GET/realtime" + strconv.FormatInt(nonce, 10))
     cmd := wscmd{"authKey", []interface{}{this.apiKey, nonce, sig}}
     this.ws.SendJson(cmd)
+}
 
+func (this *Exchange) connected() {
+    this.wsauth()
     topics := []interface{}{
         //"chat",        // 聊天室
         //"connected",   // 在线用户/机器人的统计信息
