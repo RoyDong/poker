@@ -94,7 +94,7 @@ func (ex *Exchange) syncTrades() {
             overflow := len(ex.trades) + len(newTrades) - ex.maxTradesLen
             if overflow < 0 {
                 overflow = 0
-            } else if overflow >= ex.maxTradesLen {
+            } else if overflow >= len(ex.trades) {
                 overflow = len(ex.trades)
             }
             ex.tradeMu.Lock()

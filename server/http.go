@@ -43,7 +43,7 @@ func Run(filename string) {
     go func() {
         http.ListenAndServe(conf.Server.PProfHost, nil)
     }()
-    listener, err := net.Listen("tcp4", conf.Server.Host)
+    listener, err := net.Listen("tcp", conf.Server.Host)
     if err != nil {
         log.Fatalf("failed to listen %v", conf.Server.Host)
     }

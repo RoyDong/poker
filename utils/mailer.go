@@ -20,7 +20,8 @@ type MailConfig struct {
 
 type Mail struct {
     Subject string
-    Content string
+    ContentType string
+    Content []byte
     Receivers []string
     Sender    string
 }
@@ -34,7 +35,6 @@ type Mailer struct {
 
 func NewMailer(conf MailConfig) *Mailer {
     mailer := &Mailer{conf: conf, mailPipe: make(chan Mail, 50)}
-    mailer.errorPipe = make(chan error, 50)
     mailer.StartLoop()
     return mailer
 }
@@ -64,8 +64,8 @@ func (this *Mailer) mailLoop() {
         } else {
             err = this.send(mail)
         }
-        if err != nil && len(this.errorPipe) < cap(this.errorPipe) {
-            this.errorPipe <-err
+        if err != nil {
+            FatalLog.Write(err.Error())
         }
     }
 }
@@ -80,7 +80,11 @@ func (this *Mailer) packMail(m Mail) []byte {
     fmt.Fprintf(&data, "To: %s\r\n", strings.Join(m.Receivers, ","))
     fmt.Fprintf(&data, "From: %s\r\n", m.Sender)
     fmt.Fprintf(&data, "Subject: %s\r\n", m.Subject)
-    fmt.Fprintf(&data, "Content-Type: text/plain; charset=UTF-8\r\n")
+    if len(m.ContentType) > 0 {
+        fmt.Fprintf(&data, "Content-Type: " + m.ContentType + "; charset=UTF-8\r\n")
+    } else {
+        fmt.Fprintf(&data, "Content-Type: text/plain; charset=UTF-8\r\n")
+    }
     //fmt.Fprintf(&data, "\r\n%s", this.conf.HostName)
     fmt.Fprintf(&data, "\r\n%s", m.Content)
     return data.Bytes()

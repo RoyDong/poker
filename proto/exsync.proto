@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package exsync;
+
+service ISync {
+
+    rpc GetOrders(ids []string) ([]context.Order, error) {}
+
+    GetTicker() (context.Ticker, error)
+
+    GetTrades() ([]context.Trade, error)
+
+    GetDepth() ([]context.Order, []context.Order, error)
+
+    GetIndex() (float64, error)
+
+    GetBalance() (context.Balance, error)
+
+    GetPosition() (context.Position, context.Position, error)
+}
+
+

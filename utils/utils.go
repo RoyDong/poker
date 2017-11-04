@@ -34,6 +34,7 @@ func Init(conf *context.Config) error {
     mailConf := MailConfig{}
     mailConf.Username = conf.AlertMail.Username
     mailConf.Password = conf.AlertMail.Password
+    mailConf.UseSsl = conf.AlertMail.UseSsl
     mailConf.Host = conf.AlertMail.Host
     mailConf.Server = conf.AlertMail.Server
     mailConf.HostName = conf.Server.Hostname
@@ -43,13 +44,6 @@ func Init(conf *context.Config) error {
     sysMail.Sender = conf.AlertMail.Sender
     sysMail.Receivers = conf.AlertMail.Receiver
     sysMail.Subject = conf.AlertMail.Subject
-
-    go func() {
-        for {
-            err := SysMailer.Error()
-            FatalLog.Write(err.Error())
-        }
-    }()
 
     c := conf.Sqldb.Main
     dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s", c.Username, c.Password,
@@ -69,7 +63,7 @@ func Init(conf *context.Config) error {
 func SendSysMail(args ...string) {
     m := sysMail
     if len(args) > 0 {
-        m.Content = args[0]
+        m.Content = []byte(args[0])
     }
     if len(args) > 1 {
         m.Subject = args[1]
