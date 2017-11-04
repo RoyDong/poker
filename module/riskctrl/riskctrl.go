@@ -10,7 +10,6 @@ import (
     "dw/poker/market/okex"
     mctx "dw/poker/market/context"
     "math"
-    "dw/poker/worm"
 )
 
 type RiskCtrl struct {
@@ -29,7 +28,6 @@ func (this *RiskCtrl) Run(ctx *context.Context) error {
 }
 
 func (this *RiskCtrl) baseCtrl() {
-    worm.Start()
     if this.inLoop {
         return
     }

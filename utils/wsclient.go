@@ -134,7 +134,7 @@ func (ws *WsClient) readLoop() {
             //TODO
         }
 
-        if ws.pingGap > 0 && time.Now().Sub(pingTime) >= 0 {
+        if ws.pingGap > 0 && time.Now().Sub(pingTime) >= ws.pingGap {
             ws.pingPipe <-[]byte("p")
             pingTime = time.Now()
         }
