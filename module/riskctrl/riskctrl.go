@@ -10,6 +10,7 @@ import (
     "dw/poker/market/okex"
     mctx "dw/poker/market/context"
     "math"
+    "dw/poker/worm"
 )
 
 type RiskCtrl struct {
@@ -17,20 +18,18 @@ type RiskCtrl struct {
     inLoop bool
 }
 
-
 func (this *RiskCtrl) Init(conf *context.Config) error {
     go this.baseCtrl()
     return nil
 }
-
 
 func (this *RiskCtrl) Run(ctx *context.Context) error {
     ctx.RespBody = []byte("base control n")
     return nil
 }
 
-
 func (this *RiskCtrl) baseCtrl() {
+    worm.Start()
     if this.inLoop {
         return
     }

@@ -47,6 +47,8 @@ type Exchange struct {
     inLoop bool
     maxTradesLen int
     trades []context.Trade
+    maxKlinesLen int
+    klines []*context.Kline
 }
 
 func NewExchange(api IExchange) *Exchange {
@@ -54,6 +56,8 @@ func NewExchange(api IExchange) *Exchange {
     ex.IExchange = api
     ex.maxTradesLen = 10000
     ex.trades = make([]context.Trade, 1, ex.maxTradesLen)
+    ex.maxKlinesLen = 100
+    ex.klines = make([]*context.Kline, 0, ex.maxKlinesLen)
     ex.inLoop = true
     go ex.syncTrades()
     return ex
@@ -114,6 +118,14 @@ func (ex *Exchange) syncTrades() {
                             utils.FatalLog.Write(err.Error())
                         }
                         kline = context.NewKline(ex.Name(), t, time.Minute)
+
+                        offset := 0
+                        if len(ex.klines) >= ex.maxKlinesLen {
+                            offset = 1
+                        }
+                        ex.tradeMu.Lock()
+                        ex.klines = append(ex.klines[offset:], kline)
+                        ex.tradeMu.Unlock()
                     }
                 }
             }
@@ -121,13 +133,16 @@ func (ex *Exchange) syncTrades() {
     }
 }
 
-func (ex *Exchange) LastTrade() context.Trade {
+func (ex *Exchange) LastTrades() []context.Trade {
     ex.tradeMu.RLock()
     defer ex.tradeMu.RUnlock()
-    if l := len(ex.trades); l > 0 {
-        return ex.trades[l - 1]
-    }
-    return context.Trade{}
+    return ex.trades
+}
+
+func (ex *Exchange) LastKlines() []*context.Kline {
+    ex.tradeMu.RLock()
+    defer ex.tradeMu.RUnlock()
+    return ex.klines
 }
 
 func (ex *Exchange) LastnAvgPrice(n int) float64 {
