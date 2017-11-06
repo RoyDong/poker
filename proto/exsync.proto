@@ -4,16 +4,52 @@ package exsync;
 
 service SyncService {
 
-    rpc GetOrders(ReqOrder) returns (Orders) {}
+    rpc Ping(ReqPing) returns (Pong) {}
 
-    rpc GetTrades(Req) returns (Trades) {}
+    rpc GetOrder(ReqOrder) returns (RespOrder) {}
 
-    rpc GetDepth(Req) returns (Depth) {}
+    rpc GetTrades(Req) returns (RespTrades) {}
 
-    rpc GetIndex(Req) returns (Index) {}
+    rpc GetDepth(Req) returns (RespDepth) {}
 
-    rpc GetAccount(Req) returns (Account) {}
+    rpc GetIndex(Req) returns (RespIndex) {}
+
+    rpc GetPosition(Req) returns (RespPosition) {}
+
+    rpc GetBalance(Req) returns (RespBalance) {}
 }
+
+enum TradeAction {
+    OpenLong   = 0;
+    OpenShort  = 1;
+    CloseLong  = 2;
+    CloseShort = 3;
+    Buy  = 4;
+    Sell = 5;
+}
+
+enum PositionType {
+    Long  = 0;
+    Short = 1;
+}
+
+enum CurrencyUnit {
+    CNY = 0;
+    USD = 1;
+    BTC = 2;
+    LTC = 3;
+}
+
+enum OrderStatus {
+    OrderStatusCreated   = 0;
+    OrderStatusPartial   = 1; //部分成交
+    OrderStatusComplete  = 2;
+    OrderStatusCanceled  = 3;
+    OrderStatusCanceling = 4;
+}
+
+message ReqPing {}
+message Pong {}
 
 message Req {
     string exname = 1;
@@ -21,24 +57,29 @@ message Req {
 
 message ReqOrder {
     string exname = 1;
-    repeated int64 ids = 2;
+    string id = 2;
 }
 
-message Index {
+message RespIndex {
     double index = 1;
 }
 
-message Orders {
-    repeated Order orders = 1;
+message RespOrder {
+    Order order = 1;
 }
 
-message Trades {
+message RespTrades {
     repeated Trade trades = 1;
+}
+
+message Timestamp {
+    int64 seconds = 1;
+    int64 nanos = 2;
 }
 
 message Order {
     string id = 1;
-    string taction = 2;
+    TradeAction taction = 2;
     double amount = 3;
     double price = 4;
     double dealAmount = 5;
@@ -46,20 +87,19 @@ message Order {
     double avgPrice = 7;
     double fee = 8;
     int32 status = 9;
-    int64 timenano = 10;
+    Timestamp createTime = 10;
 }
 
 message Trade {
     string id = 1;
-    string taction = 2;
+    TradeAction taction = 2;
     double amount = 3;
     double price = 4;
     double fee = 5;
-    int64 timenano = 6;
-
+    Timestamp createTime = 6;
 }
 
-message Depth {
+message RespDepth {
     repeated Order asks = 1;
     repeated Order bids = 2;
 }
@@ -70,12 +110,12 @@ message Balance {
     double realProfil = 3;
     double UnrealProfit = 4;
     double RiskRate = 5;
-    string currentcy = 6;
+    CurrencyUnit currentcy = 6;
 }
 
 message Position {
     string id = 1;
-    string ptype = 2;
+    PositionType ptype = 2;
     double amount = 3;
     double availableAmount = 4;
     double avgPrice = 5;
@@ -85,9 +125,12 @@ message Position {
     double forceClosePrice = 9;
 }
 
-message Account {
-    Balance balance = 1;
-    repeated Position positions = 2;
+message RespPosition {
+    Position long = 1;
+    Position short = 2;
 }
 
+message RespBalance {
+    Balance balance = 1;
+}
 

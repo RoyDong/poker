@@ -3,6 +3,7 @@ package context
 import (
     "time"
     "fmt"
+    "dw/poker/proto"
 )
 
 /*
@@ -146,8 +147,9 @@ type Kline struct {
     Fee        float64   `column:"fee"`
 }
 
-func NewKline(exname string, trade Trade, t time.Duration) *Kline {
-    sec := trade.CreateTime.Unix() - int64(trade.CreateTime.Second())
+func NewKline(exname string, trade *exsync.Trade, t time.Duration) *Kline {
+    tt := time.Unix(trade.GetCreateTime().Seconds, 0)
+    sec := tt.Unix() - int64(tt.Second())
     k := &Kline{
         Exname:    exname,
         OpenTime:  time.Unix(sec, 0),
@@ -160,11 +162,11 @@ func NewKline(exname string, trade Trade, t time.Duration) *Kline {
     return k
 }
 
-func (k *Kline) AddTrade(t Trade) int {
-    if k.OpenTime.Sub(t.CreateTime) > 0 {
+func (k *Kline) AddTrade(t *exsync.Trade) int {
+    if k.OpenTime.Unix() - t.GetCreateTime().Seconds > 0 {
         return -1
     }
-    if k.CloseTime.Sub(t.CreateTime) > 0 {
+    if k.CloseTime.Unix() - t.GetCreateTime().Seconds > 0 {
         k.Amount += t.Amount
         k.Money += t.Amount * t.Price
         k.AvgPrice = k.Money / k.Amount
@@ -176,7 +178,7 @@ func (k *Kline) AddTrade(t Trade) int {
         }
         k.ClosePrice = t.Price
         k.TradeNum += 1
-        if t.TAction == Buy {
+        if t.Taction == exsync.TradeAction_Buy {
             k.BuyNum += 1
             k.BuyAmount += t.Amount
         } else {
