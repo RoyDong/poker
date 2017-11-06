@@ -7,6 +7,7 @@ import (
     "dw/poker/market/context"
     "math"
     "errors"
+    "dw/poker/proto"
 )
 
 type IExchange interface {
@@ -40,8 +41,16 @@ type IExchange interface {
     GetPosition() (context.Position, context.Position, error)
 }
 
+type ITrade interface {
+    MakeOrder(ta context.TradeAction, amount, price float64) (context.Order, error)
+    CancelOrder(id ...string) error
+}
+
+
 type Exchange struct {
-    IExchange
+    ITrade
+    exsync.SyncServiceClient
+    *utils.Event
 
     tradeMu sync.RWMutex
     inLoop bool
@@ -51,9 +60,10 @@ type Exchange struct {
     klines []*context.Kline
 }
 
-func NewExchange(api IExchange) *Exchange {
+func NewExchange(name string) *Exchange {
     ex := &Exchange{}
-    ex.IExchange = api
+    //ex.IExchange = api
+    ex.Event = utils.NewEvent()
     ex.maxTradesLen = 10000
     ex.trades = make([]context.Trade, 1, ex.maxTradesLen)
     ex.maxKlinesLen = 100
@@ -98,7 +108,7 @@ func (ex *Exchange) syncTrades() {
             overflow := len(ex.trades) + len(newTrades) - ex.maxTradesLen
             if overflow < 0 {
                 overflow = 0
-            } else if overflow >= len(ex.trades) {
+            } else if overflow > len(ex.trades) {
                 overflow = len(ex.trades)
             }
             ex.tradeMu.Lock()
@@ -113,6 +123,7 @@ func (ex *Exchange) syncTrades() {
                     rt := kline.AddTrade(t)
                     if rt == 1 {
                         //save
+                        ex.Trigger("kline_close", kline)
                         err := utils.Save(kline, "kline", utils.MainDB)
                         if err != nil {
                             utils.FatalLog.Write(err.Error())

@@ -160,7 +160,7 @@ func (this *Exchange) newTrade(wsd *wsdata) {
     overflow := len(this.trades) + len(trades) - this.maxTradesLen
     if overflow < 0 {
         overflow = 0
-    } else if overflow >= len(this.trades) {
+    } else if overflow > len(this.trades) {
         overflow = len(this.trades)
     }
     this.tradesMu.Lock()

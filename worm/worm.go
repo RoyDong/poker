@@ -7,9 +7,10 @@ import (
     "sort"
     "log"
     "time"
+    "dw/poker/utils"
+    "dw/poker/market/context"
 )
 
-var ex *market.Exchange
 
 type worm struct {
     state []int
@@ -49,16 +50,17 @@ func (w *worm) key() string {
     return strings.Join(vals, ">")
 }
 
-func (w *worm) transform(prices []float64) {
+func (w *worm) transform(prices []float64) *worm {
     nw := newWorm(prices)
     for _, trans := range w.transforms {
         if trans.result.key() == nw.key() {
             trans.freq += 1
             sort.Sort(transSort(w.transforms))
-            return
+            return nw
         }
     }
     w.transforms = append(w.transforms, &transform{freq: 1, result: nw})
+    return nw
 }
 
 type transform struct {
@@ -82,29 +84,59 @@ func (s transSort) Swap(i, j int) {
 
 var forest = make(map[string]*worm, 0)
 
+var WormSize = 30
 
 func Start() {
-    time.Sleep(10 * time.Second)
-    ok := market.GetExchange("okex/quarter")
-    trades := ok.LastTrades()
-    prices := make([]float64, 0, len(trades))
-    for _, t := range trades {
-        if t.Price > 0 {
-            prices = append(prices, t.Price)
+    okex := market.GetExchange(market.OkexQuarter)
+
+    loadFromDb()
+
+    prices := make([]float64, 0, WormSize)
+    var worm *worm
+    okex.AddHandler("kline_close", func(args ...interface{}) {
+        kline, _ := args[0].(*context.Kline)
+
+        prices = append(prices, kline.AvgPrice)
+        if len(prices) == 30 {
+            if worm == nil {
+                worm = newWorm(prices)
+            } else {
+                worm = worm.transform(prices)
+            }
         }
+    })
+}
+
+
+func loadFromDb() {
+    sql := "select avg_price from kline where exname = ?"
+    r, err := utils.MainDB.Query(sql, market.OkexQuarter)
+    if err != nil {
+        utils.FatalLog.Write("load prices from kline %s", err.Error())
     }
-    worm := newWorm(prices[0:10])
-    for i := 1; i < len(prices) - 10; i++ {
-        worm.transform(prices[i:i+10])
-    }
-    for k, v := range forest {
-        log.Println("============")
-        log.Println(k)
-        for _, t := range v.transforms {
-            log.Println("----", t.freq, t.result.key())
+
+    var allPrices []float64
+    utils.Scan(r, &allPrices)
+
+    prices := make([]float64, 0, WormSize)
+    var worm *worm
+    for i := 0; i < len(allPrices); i++ {
+        if allPrices[i] > 0 {
+            prices = append(prices, allPrices[i])
+        }
+        if len(prices) == 30 {
+            if worm == nil {
+                worm = newWorm(prices)
+            } else {
+                worm = worm.transform(prices)
+            }
         }
     }
 }
+
+
+
+
 
 
 

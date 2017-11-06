@@ -2,21 +2,92 @@ syntax = "proto3";
 
 package exsync;
 
-service ISync {
+service SyncService {
 
-    rpc GetOrders(ids []string) ([]context.Order, error) {}
+    rpc GetOrders(ReqOrder) returns (Orders) {}
 
-    GetTicker() (context.Ticker, error)
+    rpc GetTrades(Req) returns (Trades) {}
 
-    GetTrades() ([]context.Trade, error)
+    rpc GetDepth(Req) returns (Depth) {}
 
-    GetDepth() ([]context.Order, []context.Order, error)
+    rpc GetIndex(Req) returns (Index) {}
 
-    GetIndex() (float64, error)
+    rpc GetAccount(Req) returns (Account) {}
+}
 
-    GetBalance() (context.Balance, error)
+message Req {
+    string exname = 1;
+}
 
-    GetPosition() (context.Position, context.Position, error)
+message ReqOrder {
+    string exname = 1;
+    repeated int64 ids = 2;
+}
+
+message Index {
+    double index = 1;
+}
+
+message Orders {
+    repeated Order orders = 1;
+}
+
+message Trades {
+    repeated Trade trades = 1;
+}
+
+message Order {
+    string id = 1;
+    string taction = 2;
+    double amount = 3;
+    double price = 4;
+    double dealAmount = 5;
+    double dealMoney = 6;
+    double avgPrice = 7;
+    double fee = 8;
+    int32 status = 9;
+    int64 timenano = 10;
+}
+
+message Trade {
+    string id = 1;
+    string taction = 2;
+    double amount = 3;
+    double price = 4;
+    double fee = 5;
+    int64 timenano = 6;
+
+}
+
+message Depth {
+    repeated Order asks = 1;
+    repeated Order bids = 2;
+}
+
+message Balance {
+    double amount = 1;
+    double deposit = 2;
+    double realProfil = 3;
+    double UnrealProfit = 4;
+    double RiskRate = 5;
+    string currentcy = 6;
+}
+
+message Position {
+    string id = 1;
+    string ptype = 2;
+    double amount = 3;
+    double availableAmount = 4;
+    double avgPrice = 5;
+    double money = 6;
+    double deposti = 7;
+    double leverge = 8;
+    double forceClosePrice = 9;
+}
+
+message Account {
+    Balance balance = 1;
+    repeated Position positions = 2;
 }
 
 

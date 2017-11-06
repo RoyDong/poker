@@ -6,6 +6,10 @@ import (
     "dw/poker/market/bitmex"
 )
 
+const (
+    OkexQuarter = "okex/quarter"
+    BitmexXBTUSD = "bitmex/XBTUSD"
+)
 
 var exchanges = make(map[string]*Exchange, 0)
 
