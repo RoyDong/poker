@@ -7,22 +7,21 @@ import (
     "dw/poker/market/context"
     "math"
     "errors"
-    "dw/poker/proto"
-    "log"
     "google.golang.org/grpc"
     gctx "golang.org/x/net/context"
+    "dw/poker/proto/exsync"
 )
 
 var RPCTimeout = 200 * time.Millisecond
 
 type ITrade interface {
-    MakeOrder(ta context.TradeAction, amount, price float64) (context.Order, error)
-    CancelOrder(id ...string) error
+    MakeOrder(ta exsync.TradeAction, amount, price float64) (*exsync.Order, error)
+    CancelOrder(id string) error
 }
 
 type Exchange struct {
     ITrade
-    *utils.Event
+    utils.Event
 
     exsyncHost string
     exsyncMu sync.RWMutex
@@ -37,18 +36,22 @@ type Exchange struct {
     klines []*context.Kline
 }
 
-func NewExchange(name, exsyncHost string) *Exchange {
+func NewExchange(name, exsyncHost string, itrade ITrade) *Exchange {
     ex := &Exchange{}
-    ex.Event = utils.NewEvent()
     ex.name = name
+    ex.ITrade = itrade
     ex.maxTradesLen = 10000
     ex.trades = make([]*exsync.Trade, 1, ex.maxTradesLen)
     ex.maxKlinesLen = 100
     ex.klines = make([]*context.Kline, 0, ex.maxKlinesLen)
     ex.inLoop = true
 
-    ex.exsync = ex.createExsyncClient()
-    go ex.keepExsyncClinet()
+    var err error
+    ex.exsyncHost = exsyncHost
+    ex.exsync, err = ex.createExsyncClient()
+    if err != nil {
+        return nil
+    }
     go ex.syncTrades()
     return ex
 }
@@ -57,29 +60,23 @@ func (ex *Exchange) Name() string {
     return ex.name
 }
 
-func (ex *Exchange) keepExsyncClinet() {
-    for {
-        time.Sleep(2 * time.Minute)
-        _, err := ex.getExsyncClient().Ping(ex.timeoutCtx(), &exsync.ReqPing{})
-        if err != nil {
-            ex.exsyncMu.Lock()
-            ex.exsync = ex.createExsyncClient()
-            ex.exsyncMu.Unlock()
-        }
-    }
-}
-
-func (ex *Exchange) createExsyncClient() exsync.SyncServiceClient {
+func (ex *Exchange) createExsyncClient() (exsync.SyncServiceClient, error) {
     conn, err := grpc.Dial(ex.exsyncHost, grpc.WithInsecure())
     if err != nil {
-        log.Fatal("did not connect: %v", err)
+        return nil, err
     }
-    return exsync.NewSyncServiceClient(conn)
+    return exsync.NewSyncServiceClient(conn), nil
 }
 
 func (ex *Exchange) getExsyncClient() exsync.SyncServiceClient {
     ex.exsyncMu.RLock()
     defer ex.exsyncMu.RUnlock()
+    _, err := ex.exsync.Ping(ex.timeoutCtx(), &exsync.ReqPing{})
+    if err != nil {
+        ex.exsyncMu.Lock()
+        ex.exsync, _ = ex.createExsyncClient()
+        ex.exsyncMu.Unlock()
+    }
     return ex.exsync
 }
 
@@ -89,32 +86,32 @@ func (ex *Exchange) timeoutCtx() gctx.Context {
 }
 
 func (ex *Exchange) GetTrades() ([]*exsync.Trade, error) {
-    resp, err := ex.exsync.GetTrades(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    resp, err := ex.getExsyncClient().GetTrades(ex.timeoutCtx(), &exsync.ReqTrades{Exname:ex.name})
     return resp.Trades, err
 }
 
 func (ex *Exchange) GetOrder(id string) (*exsync.Order, error) {
-    resp, err := ex.exsync.GetOrder(ex.timeoutCtx(), &exsync.ReqOrder{Exname:ex.name, Id:id})
+    resp, err := ex.getExsyncClient().GetOrder(ex.timeoutCtx(), &exsync.ReqOrder{Exname:ex.name, Id:id})
     return resp.Order, err
 }
 
 func (ex *Exchange) GetDepth() ([]*exsync.Order, []*exsync.Order, error) {
-    resp, err := ex.exsync.GetDepth(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    resp, err := ex.getExsyncClient().GetDepth(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
     return resp.Asks, resp.Bids, err
 }
 
 func (ex *Exchange) GetIndex() (float64, error) {
-    resp, err := ex.exsync.GetIndex(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    resp, err := ex.getExsyncClient().GetIndex(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
     return resp.Index, err
 }
 
 func (ex *Exchange) GetPosition() (*exsync.Position, *exsync.Position, error) {
-    resp, err := ex.exsync.GetPosition(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    resp, err := ex.getExsyncClient().GetPosition(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
     return resp.Long, resp.Short, err
 }
 
 func (ex *Exchange) GetBalance() (*exsync.Balance, error) {
-    resp, err := ex.exsync.GetBalance(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    resp, err := ex.getExsyncClient().GetBalance(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
     return resp.Balance, err
 }
 
@@ -291,10 +288,10 @@ func (ex *Exchange) GetBidPrice(depth float64) (float64, error) {
 直接吃掉对手挂单指定数量(amount)的深度
 快速交易，止损
  */
-func (ex *Exchange) TakeDepth(ta context.TradeAction, amount float64) (context.Order, error) {
+func (ex *Exchange) TakeDepth(ta exsync.TradeAction, amount float64) (*exsync.Order, error) {
     var price float64
     var err error
-    var order context.Order
+    var order *exsync.Order
     switch ta {
     case context.OpenLong, context.CloseShort, context.Buy:
         price, err = ex.GetAskPrice(amount)
@@ -328,7 +325,7 @@ func (ex *Exchange) OrderCompleteOrPriceChange(order *exsync.Order, spread float
     return order, false
 }
 
-func (ex *Exchange) Trade(ta context.TradeAction, amount, price, spread float64) (context.Order, error) {
+func (ex *Exchange) Trade(ta exsync.TradeAction, amount, price, spread float64) (*exsync.Order, error) {
     var order *exsync.Order
     var err error
     if price > 0 {
@@ -348,9 +345,9 @@ func (ex *Exchange) Trade(ta context.TradeAction, amount, price, spread float64)
 }
 
 type Ticker struct {
-    Balance context.Balance
-    Long context.Position
-    Short context.Position
+    Balance *exsync.Balance
+    Long *exsync.Position
+    Short *exsync.Position
     Price float64
     Index float64
 }

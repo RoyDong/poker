@@ -75,7 +75,6 @@ func CreateSignature(params map[string]interface{}, skey string) string {
     }
 
     sort.Strings(keys)
-
     sigs := make([]string, 0, len(keys))
     for _, k := range keys {
         sigs = append(sigs, fmt.Sprintf("%s=%v", k, params[k]))

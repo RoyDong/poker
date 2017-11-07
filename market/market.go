@@ -7,8 +7,9 @@ import (
 )
 
 const (
-    OkexQuarter = "okex/quarter"
-    BitmexXBTUSD = "bitmex/XBTUSD"
+    OkexWeek = "OkexWeek"
+    OkexQuarter = "OkexQuarter"
+    BitmexXBTUSD = "BitmexXbtusd"
 )
 
 var exchanges = make(map[string]*Exchange, 0)

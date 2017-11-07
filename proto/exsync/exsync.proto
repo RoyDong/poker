@@ -8,7 +8,7 @@ service SyncService {
 
     rpc GetOrder(ReqOrder) returns (RespOrder) {}
 
-    rpc GetTrades(Req) returns (RespTrades) {}
+    rpc GetTrades(ReqTrades) returns (RespTrades) {}
 
     rpc GetDepth(Req) returns (RespDepth) {}
 
@@ -53,6 +53,12 @@ message Pong {}
 
 message Req {
     string exname = 1;
+}
+
+message ReqTrades {
+    string exname = 1;
+    string since = 2;
+    int32 num = 3;
 }
 
 message ReqOrder {

@@ -3,7 +3,7 @@ package context
 import (
     "time"
     "fmt"
-    "dw/poker/proto"
+    "dw/poker/proto/exsync"
 )
 
 /*

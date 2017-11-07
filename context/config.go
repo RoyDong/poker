@@ -24,6 +24,7 @@ type Config struct {
     Log struct {
         LogRotate string
         LogDir    string
+        FilePrefix string
     }
 
     Sqldb struct {
@@ -43,13 +44,33 @@ type Config struct {
             HttpHost  string
             ApiKey    string
             ApiSecret string
+            Wss       string
         }
         Bitmex struct {
             HttpHost  string
-            WsHost    string
             Wss       string
             ApiKey    string
             ApiSecret string
         }
     }
+
+    Exsync struct {
+        Server struct {
+            Hostname  string
+            Host      string
+            SockFile  string
+            MaxConn   int
+            Debug     bool
+            PProfHost string
+        }
+
+        Log struct {
+            LogRotate string
+            LogDir    string
+            FilePrefix string
+        }
+    }
 }
+
+
+

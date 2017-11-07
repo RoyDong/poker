@@ -6,10 +6,9 @@ import (
 )
 
 type WsClient struct {
+    Event
     wss string
     conn *websocket.Conn
-    newMsg func(msg []byte)
-    connected func()
 
     reconnectNum int
     reconnectGap time.Duration
@@ -23,12 +22,9 @@ type WsClient struct {
     inLoop bool
 }
 
-func NewWsClient(wss string, nm func(msg []byte), connected func()) *WsClient {
+func NewWsClient(wss string) *WsClient {
     ws := &WsClient{}
     ws.wss = wss
-    ws.newMsg = nm
-    ws.connected = connected
-
     ws.reconnectNum = -1
     ws.reconnectGap = 200 * time.Millisecond
     ws.pingGap = 2 * time.Minute
@@ -65,14 +61,13 @@ func (ws *WsClient) connect() error {
         return nil
     })
     ws.conn = conn
-    ws.connected()
+    ws.Trigger("connect")
     return nil
 }
 
 func (ws *WsClient) Close() error {
     ws.inLoop = false
-    ws.newMsg = nil
-    ws.connected = nil
+    ws.ClearAllHandlers()
     return ws.conn.Close()
 }
 
@@ -130,7 +125,7 @@ func (ws *WsClient) readLoop() {
 
         switch mtype {
         case websocket.TextMessage:
-            go ws.newMsg(msg)
+            ws.Trigger("message", msg)
         case websocket.BinaryMessage:
             //TODO
         }

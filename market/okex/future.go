@@ -9,6 +9,7 @@ import (
     "strconv"
     "dw/poker/market/context"
     "dw/poker/utils"
+    "log"
 )
 
 type Future struct {
@@ -469,3 +470,84 @@ func FutureLTC_USD(ltc float64) float64 {
     }
     return 1 / ltc * 10
 }
+
+
+type FutureSync struct {
+    utils.Event
+
+    apiKey string
+    apiSecret string
+
+    ws *utils.WsClient
+
+    contractType string
+    symbol string
+    leverage float64
+}
+
+
+func NewFutuerSync(apiKey, apiSecret, wss, contractType string) (*FutureSync, error) {
+    var err error
+    this := &FutureSync{}
+    this.apiKey = apiKey
+    this.apiSecret = apiSecret
+    this.contractType = contractType
+    this.symbol = "btc_usd"
+    this.leverage = 20
+
+    this.ws = utils.NewWsClient(wss)
+    this.ws.AddHandler("connect", this.connected)
+    this.ws.AddHandler("message", this.newMsg)
+    err = this.ws.Start()
+    return this, err
+}
+
+func (this *FutureSync) connected(args ...interface{}) {
+    channels := []string{
+        //ticker订阅
+        //"ok_sub_futureusd_btc_ticker_" + this.contractType,
+        //最新深度订阅
+        fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 10),
+        //最新交易单订阅
+        fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType),
+    }
+
+    authChan := []string{
+        //订单交易结果订阅
+        "ok_sub_futureusd_trades",
+    }
+
+    for _, channel := range channels {
+        msg := map[string]interface{} {
+            "event": "addChannel",
+            "channel": channel,
+        }
+        this.ws.SendJson(msg)
+    }
+
+    for _, channel := range authChan {
+        msg := map[string]interface{} {
+            "event": "addChannel",
+            "channel": channel,
+            "parameters": this.signParams(nil),
+        }
+        this.ws.SendJson(msg)
+    }
+}
+
+func (this *FutureSync) signParams(params map[string]interface{}) map[string]interface{} {
+    if params == nil {
+        params = make(map[string]interface{}, 2)
+    }
+    params["api_key"] = this.apiKey
+    params["sign"] = strings.ToUpper(utils.CreateSignature(params, this.apiSecret))
+    return params
+}
+
+func (this *FutureSync) newMsg(args ...interface{}) {
+    msg, _ := args[0].([]byte)
+
+    log.Println(string(msg))
+
+}
+

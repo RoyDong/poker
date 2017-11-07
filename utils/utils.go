@@ -19,18 +19,18 @@ var sysMail Mail
 
 var MainDB *sql.DB
 
-func Init(conf *context.Config) error {
-    dir := conf.Log.LogDir
-    rotate := conf.Log.LogRotate
-    DebugLog   = NewLogger(dir, "debug", rotate, true)
-    WarningLog = NewLogger(dir, "warning", rotate, true)
-    FatalLog   = NewLogger(dir, "fatal", rotate, true)
-    AccessLog  = NewLogger(dir, "access", rotate, false)
-    NoticeLog  = NewLogger(dir, "notice", rotate, false)
-    if !conf.Server.Debug {
+func InitLog(dir, rotate, filePrefix string, debug bool) {
+    DebugLog   = NewLogger(dir, filePrefix + "debug", rotate, true)
+    WarningLog = NewLogger(dir, filePrefix + "warning", rotate, true)
+    FatalLog   = NewLogger(dir, filePrefix + "fatal", rotate, true)
+    AccessLog  = NewLogger(dir, filePrefix + "access", rotate, false)
+    NoticeLog  = NewLogger(dir, filePrefix + "notice", rotate, false)
+    if !debug {
         DebugLog.Mute()
     }
+}
 
+func Init(conf *context.Config) error {
     mailConf := MailConfig{}
     mailConf.Username = conf.AlertMail.Username
     mailConf.Password = conf.AlertMail.Password

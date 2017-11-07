@@ -29,6 +29,9 @@ func Run(filename string) {
     if err != nil {
         log.Fatalf("init config fail . err[%s]", err.Error())
     }
+
+    utils.InitLog(conf.Log.LogDir, conf.Log.LogRotate, conf.Log.FilePrefix, conf.Server.Debug)
+
     err = utils.Init(conf)
     if err != nil {
         log.Fatalf("init utils fail . err[%s]", err.Error())

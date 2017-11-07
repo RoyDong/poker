@@ -35,7 +35,9 @@ func NewExchange(httpHost, apiKey, apiSecret, wss string) (*Exchange, error) {
     this.maxTradesLen = 100
 
     this.trades = make([]context.Trade, 0, this.maxTradesLen)
-    this.ws = utils.NewWsClient(wss, this.newMsg, this.connected)
+    this.ws = utils.NewWsClient(wss)
+    this.ws.AddHandler("connect", this.connected)
+    this.ws.AddHandler("message", this.newMsg)
     err = this.ws.Start()
 
     return this, err
@@ -100,7 +102,8 @@ type wsdata struct {
     Attributes map[string]string `json:"attributes"`
 }
 
-func (this *Exchange) newMsg(msg []byte) {
+func (this *Exchange) newMsg(args ...interface{}) {
+    msg, _ := args[0].([]byte)
     var resp wsresp
     err := json.Unmarshal(msg, &resp)
     if err != nil {
@@ -184,7 +187,7 @@ func (this *Exchange) wsauth() {
     this.ws.SendJson(cmd)
 }
 
-func (this *Exchange) connected() {
+func (this *Exchange) connected(args ...interface{}) {
     this.wsauth()
     topics := []interface{}{
         //"chat",        // 聊天室
