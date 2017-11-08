@@ -178,7 +178,7 @@ func (k *Kline) AddTrade(t *exsync.Trade) int {
         }
         k.ClosePrice = t.Price
         k.TradeNum += 1
-        if t.Taction == exsync.TradeAction_Buy {
+        if t.TAction == exsync.TradeAction_Buy {
             k.BuyNum += 1
             k.BuyAmount += t.Amount
         } else {

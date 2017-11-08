@@ -9,6 +9,7 @@ import (
     "dw/poker/utils"
     "net/url"
     "sync"
+    "dw/poker/proto/exsync"
 )
 
 type Exchange struct {
@@ -296,4 +297,121 @@ func (this *Exchange) GetPosition() (context.Position, context.Position, error) 
     return context.Position{}, context.Position{}, nil
 }
 
+type FutureSync struct {
+    utils.Event
+    apiKey string
+    apiSecret string
 
+    ws *utils.WsClient
+
+    symbol string
+}
+
+func NewFutureSync(apiKey, apiSecret, wss string) (*FutureSync, error) {
+    var err error
+    this := &FutureSync{}
+    this.apiKey = apiKey
+    this.apiSecret = apiSecret
+    this.symbol = "XBTUSD"
+
+    this.ws = utils.NewWsClient(wss)
+    this.ws.AddHandler("connect", this.connected)
+    this.ws.AddHandler("message", this.newMsg)
+    err = this.ws.Start()
+    return this, err
+}
+
+func (this *FutureSync) connected(args ...interface{}) {
+    this.wsauth()
+    topics := []interface{}{
+        //"chat",        // 聊天室
+        //"connected",   // 在线用户/机器人的统计信息
+        //"instrument",  // 产品更新，包括交易量以及报价
+        //"insurance",   // 每日保险基金的更新
+        //"liquidation", // 强平委托
+        //"orderBookL2:XBTUSD", // 完整的 level 2 委托列表
+        //"orderBook10:XBTUSD", // 完整的 10 层深度委托列表
+        //"publicNotifications", // 通知和告示
+        //"quote",       // 报价
+        //"quoteBin1m",  // 每分钟报价数据
+        //"settlement",  // 结算信息
+        "trade:XBTUSD",       // 实时交易
+        //"tradeBin1m",  // 每分钟交易数据
+
+        //"affiliate",   // 邀请人状态，已邀请用户及分红比率
+        //"execution",   // 个别成交，可能是多个成交
+        //"order",       // 你委托的更新
+        //"margin",      // 你账户的余额和保证金要求的更新
+        //"position",    // 你仓位的更新
+        //"privateNotifications", // 个人的通知，现时并未使用
+        //"transact",     // 资金提存更新
+        //"wallet",       // 比特币余额更新及总提款存款
+    }
+    this.ws.SendJson(wscmd{"subscribe", topics})
+}
+
+func (this *FutureSync) wsauth() {
+    nonce := time.Now().Unix()
+    sig := utils.HMAC_SHA256(this.apiSecret, "GET/realtime" + strconv.FormatInt(nonce, 10))
+    cmd := wscmd{"authKey", []interface{}{this.apiKey, nonce, sig}}
+    this.ws.SendJson(cmd)
+}
+
+
+func (this *FutureSync) newTrade(wsd *wsdata) {
+    var resp []tradesResp
+    err := json.Unmarshal(wsd.Data, &resp)
+    if err != nil {
+        utils.WarningLog.Write("bitmex.newTrade %s", err.Error())
+    }
+    trades := make([]*exsync.Trade, 0, len(resp))
+    for i := len(resp) - 1; i >= 0; i-- {
+        t := resp[i]
+        loct := t.Timestamp.Local()
+        trade := &exsync.Trade{}
+        trade.Id = "bitmex/" + t.TrdMatchID
+        trade.CreateTime = &exsync.Timestamp{loct.Unix(), int64(loct.Nanosecond())}
+        trade.Price = 1 / t.Price
+        trade.Amount = t.Size
+        if t.Side == "Sell" {
+            trade.TAction = exsync.TradeAction_Sell
+        } else {
+            trade.TAction = exsync.TradeAction_Buy
+        }
+        trades = append(trades, trade)
+    }
+    this.Trigger("new_trade", trades)
+}
+
+func (this *FutureSync) newMsg(args ...interface{}) {
+    msg, _ := args[0].([]byte)
+    var resp wsresp
+    err := json.Unmarshal(msg, &resp)
+    if err != nil {
+        utils.FatalLog.Write("Exchange.newMsg %s", err.Error())
+        return
+    }
+    if len(resp.Error) > 0 {
+        utils.FatalLog.Write("Exchange.newMsg %s", resp.Error)
+        return
+    }
+    if resp.Success {
+        utils.DebugLog.Write("Exchange.newMsg %s", resp.Subscribe)
+        return
+    }
+
+    var wsd wsdata
+    err = json.Unmarshal(msg, &wsd)
+    if err != nil {
+        utils.FatalLog.Write("Exchange.newMsg data %s", err.Error())
+        return
+    }
+
+    switch wsd.Table {
+    case "orderBookL2":
+    case "trade":
+        this.newTrade(&wsd)
+    default:
+        utils.WarningLog.Write("topic not handled %s %s", wsd.Table, wsd.Action)
+    }
+}

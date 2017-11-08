@@ -293,9 +293,9 @@ func (ex *Exchange) TakeDepth(ta exsync.TradeAction, amount float64) (*exsync.Or
     var err error
     var order *exsync.Order
     switch ta {
-    case context.OpenLong, context.CloseShort, context.Buy:
+    case exsync.TradeAction_OpenLong, exsync.TradeAction_CloseShort, exsync.TradeAction_Buy:
         price, err = ex.GetAskPrice(amount)
-    case context.OpenShort, context.CloseLong, context.Sell:
+    case exsync.TradeAction_OpenShort, exsync.TradeAction_CloseLong, exsync.TradeAction_Sell:
         price, err = ex.GetBidPrice(amount)
     }
     if err != nil {

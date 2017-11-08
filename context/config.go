@@ -40,6 +40,7 @@ type Config struct {
     }
 
     Market struct {
+        ExsyncHost string
         Okex struct {
             HttpHost  string
             ApiKey    string

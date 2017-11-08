@@ -1,15 +1,12 @@
 package market
 
 import (
-    pctx "dw/poker/context"
-    "dw/poker/market/okex"
-    "dw/poker/market/bitmex"
 )
 
 const (
     OkexWeek = "OkexWeek"
     OkexQuarter = "OkexQuarter"
-    BitmexXBTUSD = "BitmexXbtusd"
+    BitmexXbtusd = "BitmexXbtusd"
 )
 
 var exchanges = make(map[string]*Exchange, 0)
@@ -22,6 +19,7 @@ func GetExchange(name string) *Exchange {
     return exchanges[name]
 }
 
+/*
 func Init(conf *pctx.Config) {
     okconf := conf.Market.Okex
     ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret, "quarter")
@@ -31,5 +29,6 @@ func Init(conf *pctx.Config) {
     bm, _ := bitmex.NewExchange(bmconf.HttpHost, bmconf.ApiKey, bmconf.ApiSecret, bmconf.Wss)
     AddExchange(NewExchange(bm))
 }
+*/
 
 

@@ -39,10 +39,8 @@ func main() {
 
     srv, err := newSyncService(conf)
     if err != nil {
-        log.Fatalf("failed to listen %v", srvConf.Host)
-        return
+        log.Fatalf("create service error %s", err.Error())
     }
-
     go func() {
         http.ListenAndServe(srvConf.PProfHost, nil)
     }()
@@ -53,7 +51,6 @@ func main() {
     if srvConf.MaxConn > 0 {
         listener = netutil.LimitListener(listener, srvConf.MaxConn)
     }
-
     log.Printf("start listen [%s]", srvConf.Host)
     s := grpc.NewServer()
     exsync.RegisterSyncServiceServer(s, srv)

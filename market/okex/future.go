@@ -9,7 +9,7 @@ import (
     "strconv"
     "dw/poker/market/context"
     "dw/poker/utils"
-    "log"
+    "dw/poker/proto/exsync"
 )
 
 type Future struct {
@@ -486,7 +486,7 @@ type FutureSync struct {
 }
 
 
-func NewFutuerSync(apiKey, apiSecret, wss, contractType string) (*FutureSync, error) {
+func NewFutureSync(apiKey, apiSecret, wss, contractType string) (*FutureSync, error) {
     var err error
     this := &FutureSync{}
     this.apiKey = apiKey
@@ -507,7 +507,7 @@ func (this *FutureSync) connected(args ...interface{}) {
         //ticker订阅
         //"ok_sub_futureusd_btc_ticker_" + this.contractType,
         //最新深度订阅
-        fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 10),
+        fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 20),
         //最新交易单订阅
         fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType),
     }
@@ -544,10 +544,69 @@ func (this *FutureSync) signParams(params map[string]interface{}) map[string]int
     return params
 }
 
+type wsresp struct {
+    Channel string  `json:"channel"`
+    Data json.RawMessage `json:"data"`
+    Result bool `json:"result"`
+    ErrorCode string `json:"error_code"`
+}
 func (this *FutureSync) newMsg(args ...interface{}) {
     msg, _ := args[0].([]byte)
+    var resp []wsresp
+    err := json.Unmarshal(msg, &resp)
+    if err != nil {
+        utils.WarningLog.Write("okex ws sync %s", err.Error())
+        return
+    }
+    for _, r := range resp {
+        switch r.Channel {
+        case fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 20):
 
-    log.Println(string(msg))
+            //log.Println(string(r.Data))
+            this.Trigger("depth_update")
+        case fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType):
+            this.newTrade(r.Data)
 
+        case "ok_sub_futureusd_trades":
+
+            this.Trigger("order_update")
+        }
+    }
 }
+
+func (this *FutureSync) newTrade(d []byte) {
+    var raw [][]string
+    err := json.Unmarshal(d, &raw)
+    if err != nil {
+        utils.WarningLog.Write("ws new trade %s", err.Error())
+    }
+    trades := make([]*exsync.Trade, 0, len(raw))
+    for _, v := range raw {
+        if len(v) == 6 {
+            t := &exsync.Trade{}
+            t.Id = "okex/" + v[0]
+            usd, _ := strconv.ParseFloat(v[1], 64)
+            t.Price = FutureUSD_BTC(usd)
+            t.Amount, _ = strconv.ParseFloat(v[2], 64)
+            if v[4] == "ask" {
+                t.TAction = exsync.TradeAction_Sell
+            } else {
+                t.TAction = exsync.TradeAction_Buy
+            }
+
+            loct, _ := time.ParseInLocation("15:04:05", v[3], time.Local)
+            now := time.Now()
+            deltaSec := now.Second() - loct.Second()
+            if deltaSec < -30 {
+                deltaSec += 60
+            }
+            t.CreateTime = &exsync.Timestamp{now.Unix() - int64(deltaSec), 0}
+            trades = append(trades, t)
+        }
+    }
+    this.Trigger("new_trade", trades)
+}
+
+
+
 
