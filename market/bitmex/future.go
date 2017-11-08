@@ -79,30 +79,6 @@ func (this *Exchange) getAuthHeader(api string, query, post map[string]interface
     }
 }
 
-type wscmd struct {
-    Op string `json:"op"`
-    Args []interface{} `json:"args"`
-}
-
-type wsresp struct {
-    Success bool `json:"success"`
-    Subscribe string `json:"subscribe"`
-    Error string `json:"error"`
-}
-
-type wsdata struct {
-    Table string `json:"table"`
-    Action string `json:"action"`
-    Data json.RawMessage `json:"data"`
-
-    Keys []string `json:"keys"`
-    ForeignKeys map[string]string `json:"foreignKeys"`
-
-    Types map[string]string `json:"types"`
-    Filter map[string]string `json:"filter"`
-    Attributes map[string]string `json:"attributes"`
-}
-
 func (this *Exchange) newMsg(args ...interface{}) {
     msg, _ := args[0].([]byte)
     var resp wsresp
@@ -315,18 +291,41 @@ func NewFutureSync(apiKey, apiSecret, wss string) (*FutureSync, error) {
     this.symbol = "XBTUSD"
 
     this.ws = utils.NewWsClient(wss)
-    this.ws.AddHandler("connect", this.connected)
-    this.ws.AddHandler("message", this.newMsg)
+    this.ws.AddHandler("Connect", this.connected)
+    this.ws.AddHandler("Message", this.newMsg)
     err = this.ws.Start()
     return this, err
 }
 
+type wscmd struct {
+    Op string `json:"op"`
+    Args []interface{} `json:"args"`
+}
+
+type wsresp struct {
+    Success bool `json:"success"`
+    Subscribe string `json:"subscribe"`
+    Error string `json:"error"`
+}
+
+type wsdata struct {
+    Table string `json:"table"`
+    Action string `json:"action"`
+    Data json.RawMessage `json:"data"`
+
+    Keys []string `json:"keys"`
+    ForeignKeys map[string]string `json:"foreignKeys"`
+
+    Types map[string]string `json:"types"`
+    Filter map[string]string `json:"filter"`
+    Attributes map[string]string `json:"attributes"`
+}
 func (this *FutureSync) connected(args ...interface{}) {
     this.wsauth()
     topics := []interface{}{
         //"chat",        // 聊天室
         //"connected",   // 在线用户/机器人的统计信息
-        //"instrument",  // 产品更新，包括交易量以及报价
+        "instrument:" + this.symbol,  // 产品更新，包括交易量以及报价
         //"insurance",   // 每日保险基金的更新
         //"liquidation", // 强平委托
         //"orderBookL2:XBTUSD", // 完整的 level 2 委托列表
@@ -335,7 +334,7 @@ func (this *FutureSync) connected(args ...interface{}) {
         //"quote",       // 报价
         //"quoteBin1m",  // 每分钟报价数据
         //"settlement",  // 结算信息
-        "trade:XBTUSD",       // 实时交易
+        "trade:" + this.symbol,       // 实时交易
         //"tradeBin1m",  // 每分钟交易数据
 
         //"affiliate",   // 邀请人状态，已邀请用户及分红比率
@@ -380,7 +379,7 @@ func (this *FutureSync) newTrade(wsd *wsdata) {
         }
         trades = append(trades, trade)
     }
-    this.Trigger("new_trade", trades)
+    this.Trigger("NewTrade", trades)
 }
 
 func (this *FutureSync) newMsg(args ...interface{}) {
@@ -411,7 +410,32 @@ func (this *FutureSync) newMsg(args ...interface{}) {
     case "orderBookL2":
     case "trade":
         this.newTrade(&wsd)
+
+    case "instrument":
+        this.instrument(&wsd)
+
     default:
         utils.WarningLog.Write("topic not handled %s %s", wsd.Table, wsd.Action)
+    }
+}
+
+type instrumentResp struct {
+    MarkPrice float64 `json:"markPrice"`
+    IndicativeSettlePrice float64 `json:"indicativeSettlePrice"`
+}
+func (this *FutureSync) instrument(wsd *wsdata) {
+    var ins []instrumentResp
+    err := json.Unmarshal(wsd.Data, &ins)
+    if err != nil {
+        return
+    }
+
+    for _, in := range ins {
+        if in.MarkPrice > 0 {
+            //this.Trigger("IndexUpdate", in.MarkPrice)
+        }
+        if in.IndicativeSettlePrice > 0 {
+            this.Trigger("IndexUpdate", in.IndicativeSettlePrice)
+        }
     }
 }

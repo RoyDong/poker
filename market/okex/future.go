@@ -10,6 +10,7 @@ import (
     "dw/poker/market/context"
     "dw/poker/utils"
     "dw/poker/proto/exsync"
+    "log"
 )
 
 type Future struct {
@@ -477,7 +478,6 @@ type FutureSync struct {
 
     apiKey string
     apiSecret string
-
     ws *utils.WsClient
 
     contractType string
@@ -496,8 +496,8 @@ func NewFutureSync(apiKey, apiSecret, wss, contractType string) (*FutureSync, er
     this.leverage = 20
 
     this.ws = utils.NewWsClient(wss)
-    this.ws.AddHandler("connect", this.connected)
-    this.ws.AddHandler("message", this.newMsg)
+    this.ws.AddHandler("Connect", this.connected)
+    this.ws.AddHandler("Message", this.newMsg)
     err = this.ws.Start()
     return this, err
 }
@@ -510,6 +510,8 @@ func (this *FutureSync) connected(args ...interface{}) {
         fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 20),
         //最新交易单订阅
         fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType),
+
+        "ok_sub_futureusd_btc_index",
     }
 
     authChan := []string{
@@ -517,22 +519,24 @@ func (this *FutureSync) connected(args ...interface{}) {
         "ok_sub_futureusd_trades",
     }
 
-    for _, channel := range channels {
-        msg := map[string]interface{} {
-            "event": "addChannel",
-            "channel": channel,
-        }
-        this.ws.SendJson(msg)
+    for _, name := range channels {
+        this.subChannel(name, nil)
     }
+    for _, name := range authChan {
+        this.subChannel(name, map[string]interface{}{})
+    }
+}
 
-    for _, channel := range authChan {
-        msg := map[string]interface{} {
-            "event": "addChannel",
-            "channel": channel,
-            "parameters": this.signParams(nil),
-        }
-        this.ws.SendJson(msg)
+
+func (this *FutureSync) subChannel(name string, params map[string]interface{}) {
+    msg := map[string]interface{} {
+        "event": "addChannel",
+        "channel": name,
     }
+    if params != nil {
+        msg["parameters"] = this.signParams(params)
+    }
+    this.ws.SendJson(msg)
 }
 
 func (this *FutureSync) signParams(params map[string]interface{}) map[string]interface{} {
@@ -549,6 +553,10 @@ type wsresp struct {
     Data json.RawMessage `json:"data"`
     Result bool `json:"result"`
     ErrorCode string `json:"error_code"`
+}
+type indexResp struct {
+    FutureIndex string `json:"futureIndex"`
+    Timestamp string `json:"timestamp"`
 }
 func (this *FutureSync) newMsg(args ...interface{}) {
     msg, _ := args[0].([]byte)
@@ -567,8 +575,15 @@ func (this *FutureSync) newMsg(args ...interface{}) {
         case fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType):
             this.newTrade(r.Data)
 
+        case "ok_sub_futureusd_btc_index":
+            var idx indexResp
+            json.Unmarshal(r.Data, &idx)
+            v, _ := strconv.ParseFloat(idx.FutureIndex, 64)
+            this.Trigger("IndexUpdate", FutureUSD_BTC(v))
+
         case "ok_sub_futureusd_trades":
 
+            log.Println(1)
             this.Trigger("order_update")
         }
     }
@@ -604,7 +619,7 @@ func (this *FutureSync) newTrade(d []byte) {
             trades = append(trades, t)
         }
     }
-    this.Trigger("new_trade", trades)
+    this.Trigger("NewTrade", trades)
 }
 
 

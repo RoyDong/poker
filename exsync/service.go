@@ -34,7 +34,7 @@ type dataCache struct {
 func (c *dataCache) init() {
     c.maxTradesLen = 5
     var kline *mctx.Kline
-    c.syncEvent.AddHandler("new_trade", func(args ...interface{}) {
+    c.syncEvent.AddHandler("NewTrade", func(args ...interface{}) {
         if len(args) != 1 {
             return
         }
@@ -77,9 +77,21 @@ func (c *dataCache) init() {
         }
     })
 
-    /*
-    c.syncEvent.AddHandler("index_update")
+    c.syncEvent.AddHandler("IndexUpdate", func(args ...interface{}) {
+        if len(args) != 1 {
+            return
+        }
+        index, ok := args[0].(float64)
+        if !ok {
+            return
+        }
+        c.mu.Lock()
+        c.index = index
+        c.mu.Unlock()
+        utils.DebugLog.Write(c.exname + " index update %f", index)
+    })
 
+    /*
     c.syncEvent.AddHandler("position_update")
 
     c.syncEvent.AddHandler("balance_update")
@@ -138,7 +150,7 @@ func newSyncService(conf *context.Config) (*syncService, error) {
     cache.init()
     srv.bitmexXbtusd = cache
 
-    return sync, err
+    return srv, err
 }
 
 func (s *syncService) getCache(exname string) *dataCache {
@@ -182,8 +194,15 @@ func (s *syncService) GetDepth(ctx gctx.Context, in *exsync.Req) (*exsync.RespDe
 }
 
 func (s *syncService) GetIndex(ctx gctx.Context, in *exsync.Req) (*exsync.RespIndex, error) {
-
-    return nil, nil
+    cache := s.getCache(in.Exname)
+    if cache == nil {
+        return nil, errors.New("ex not found " + in.Exname)
+    }
+    resp := &exsync.RespIndex{}
+    cache.mu.RLock()
+    resp.Index = cache.index
+    cache.mu.RUnlock()
+    return resp, nil
 }
 
 func (s *syncService) GetPosition(ctx gctx.Context, in *exsync.Req) (*exsync.RespPosition, error) {

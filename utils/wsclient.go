@@ -61,7 +61,7 @@ func (ws *WsClient) connect() error {
         return nil
     })
     ws.conn = conn
-    ws.Trigger("connect")
+    ws.Trigger("Connect")
     return nil
 }
 
@@ -125,7 +125,7 @@ func (ws *WsClient) readLoop() {
 
         switch mtype {
         case websocket.TextMessage:
-            ws.Trigger("message", msg)
+            ws.Trigger("Message", msg)
         case websocket.BinaryMessage:
             //TODO
         }
