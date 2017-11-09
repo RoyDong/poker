@@ -91,11 +91,25 @@ func (ex *Exchange) GetTrades() ([]*exsync.Trade, error) {
 }
 
 func (ex *Exchange) GetOrder(id string) (*exsync.Order, error) {
-    resp, err := ex.getExsyncClient().GetOrder(ex.timeoutCtx(), &exsync.ReqOrder{Exname:ex.name, Id:id})
-    return resp.Order, err
+    resp, err := ex.getExsyncClient().GetOrders(ex.timeoutCtx(), &exsync.ReqOrders{Exname:ex.name, Ids:[]string{id}})
+    if err != nil {
+        return nil, err
+    }
+    if len(resp.GetOrders()) == 1 {
+        return resp.GetOrders()[0], nil
+    }
+    return nil, err
 }
 
-func (ex *Exchange) GetDepth() ([]*exsync.Order, []*exsync.Order, error) {
+func (ex *Exchange) GetOrders() ([]*exsync.Order, error) {
+    resp, err := ex.getExsyncClient().GetOrders(ex.timeoutCtx(), &exsync.ReqOrders{Exname:ex.name})
+    if err != nil {
+        return nil, err
+    }
+    return resp.GetOrders(), nil
+}
+
+func (ex *Exchange) GetDepth() ([]*exsync.Trade, []*exsync.Trade, error) {
     resp, err := ex.getExsyncClient().GetDepth(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
     return resp.Asks, resp.Bids, err
 }

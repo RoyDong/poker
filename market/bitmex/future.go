@@ -435,7 +435,7 @@ func (this *FutureSync) instrument(wsd *wsdata) {
             //this.Trigger("IndexUpdate", in.MarkPrice)
         }
         if in.IndicativeSettlePrice > 0 {
-            this.Trigger("IndexUpdate", in.IndicativeSettlePrice)
+            this.Trigger("IndexUpdate", 1 / in.IndicativeSettlePrice)
         }
     }
 }

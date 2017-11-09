@@ -10,7 +10,7 @@ import (
     "dw/poker/market/context"
     "dw/poker/utils"
     "dw/poker/proto/exsync"
-    "log"
+    "bytes"
 )
 
 type Future struct {
@@ -83,6 +83,18 @@ func (this *Future) MakeOrder(ta context.TradeAction, amount, price float64) (co
     return order, nil
 }
 
+func (this *Future) GetOrder(id string) (context.Order, error) {
+    orders, err := this.GetOrders([]string{id})
+    if err != nil {
+        return context.Order{}, err
+    }
+    if len(orders) == 0 {
+        return context.Order{}, errors.New("no order is found id = " + id)
+    }
+    return orders[0], err
+}
+
+
 type getOrderResp struct {
     Orders []struct{
         OrderId int64  `json:"order_id"`
@@ -99,18 +111,6 @@ type getOrderResp struct {
     } `json:"orders"`
     Result bool `json:"result"`
 }
-
-func (this *Future) GetOrder(id string) (context.Order, error) {
-    orders, err := this.GetOrders([]string{id})
-    if err != nil {
-        return context.Order{}, err
-    }
-    if len(orders) == 0 {
-        return context.Order{}, errors.New("no order is found id = " + id)
-    }
-    return orders[0], err
-}
-
 func (this *Future) GetOrders(ids []string) ([]context.Order, error) {
     okids := make([]string, 0, len(ids))
     for _, id := range ids {
@@ -507,7 +507,8 @@ func (this *FutureSync) connected(args ...interface{}) {
         //ticker订阅
         //"ok_sub_futureusd_btc_ticker_" + this.contractType,
         //最新深度订阅
-        fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 20),
+        fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 5),
+        //fmt.Sprintf("ok_sub_future_btc_depth_%s_usd", this.contractType),
         //最新交易单订阅
         fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType),
 
@@ -568,10 +569,9 @@ func (this *FutureSync) newMsg(args ...interface{}) {
     }
     for _, r := range resp {
         switch r.Channel {
-        case fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 20):
+        case fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 5):
+            this.updateDepth(r.Data)
 
-            //log.Println(string(r.Data))
-            this.Trigger("depth_update")
         case fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType):
             this.newTrade(r.Data)
 
@@ -582,9 +582,7 @@ func (this *FutureSync) newMsg(args ...interface{}) {
             this.Trigger("IndexUpdate", FutureUSD_BTC(v))
 
         case "ok_sub_futureusd_trades":
-
-            log.Println(1)
-            this.Trigger("order_update")
+            this.orderUpdate(r.Data)
         }
     }
 }
@@ -623,5 +621,98 @@ func (this *FutureSync) newTrade(d []byte) {
 }
 
 
+type orderResp struct {
+    OrderId int64  `json:"orderid"`
+    ContractName string `json:"contract_name"`
+    ContractType string `json:"contract_type"`
+    Type int `json:"type"`
+    Amount float64 `json:"amount"`
+    Price float64 `json:"price"`
+    DealAmount float64 `json:"deal_amount"`
+    AvgPrice float64 `json:"price_avg"`
+    Fee float64 `json:"fee"`
+    Status int32 `json:"status"`
+    Leverage float64 `json:"lever_rate"`
+    CreateDate int64 `json:"create_date"`
+}
+func (this *FutureSync) orderUpdate(d []byte) {
+    var v orderResp
+    err := json.Unmarshal(d, &v)
+    if err != nil {
+        utils.WarningLog.Write("new order error %s", err.Error())
+        return
+    }
+    if v.ContractType == this.contractType {
+        order := &exsync.Order{}
+        order.Id = okidToOrderid(v.OrderId)
+        order.Amount = v.Amount
+        order.Price = FutureUSD_BTC(v.Price)
+        order.DealAmount = v.DealAmount
+        order.AvgPrice = FutureUSD_BTC(v.AvgPrice)
+        order.Status = exsync.OrderStatus(v.Status)
+        order.CreateTime = &exsync.Timestamp{v.CreateDate, 0}
+        order.Fee = v.Fee
+        switch v.Type {
+        case 1:
+            order.TAction = exsync.TradeAction_OpenShort
+        case 2:
+            order.TAction = exsync.TradeAction_OpenLong
+        case 3:
+            order.TAction = exsync.TradeAction_CloseShort
+        case 4:
+            order.TAction = exsync.TradeAction_CloseLong
+        }
+        this.Trigger("OrderUpdate", order)
+    }
+}
 
+type depthResp struct {
+    Timestamp int64 `json:"timestamp"`
+    Asks json.RawMessage `json:"asks"`
+    Bids json.RawMessage `json:"bids"`
+}
+func (this *FutureSync) updateDepth(d []byte) {
+    var r depthResp
+    err := json.Unmarshal(d, &r)
+    if err != nil {
+        utils.WarningLog.Write("new ws depth error %s", err.Error())
+        return
+    }
+    var asks, bids []*exsync.Trade
+    if len(r.Bids) > 2 {
+        var rbids [][]float64
+        err := json.Unmarshal(bytes.Replace(r.Bids, []byte(`"`), []byte(""), -1), &rbids)
+        if err == nil {
+            asks = make([]*exsync.Trade, 0, len(rbids))
+            for _, v := range rbids {
+                row := &exsync.Trade{}
+                row.Price = FutureUSD_BTC(v[0])
+                row.Amount = v[1]
+                row.TAction = exsync.TradeAction_Sell
+                row.CreateTime = &exsync.Timestamp{r.Timestamp, 0}
+                asks = append(asks, row)
+            }
+        } else {
+            utils.WarningLog.Write("new ws depth error %s", err.Error())
+        }
+    }
+    if len(r.Asks) > 2 {
+        var rasks [][]float64
+        err := json.Unmarshal(bytes.Replace(r.Asks, []byte(`"`), []byte(""), -1), &rasks)
+        if err == nil {
+            bids = make([]*exsync.Trade, 0, len(rasks))
+            for _, v := range rasks {
+                row := &exsync.Trade{}
+                row.Price = FutureUSD_BTC(v[0])
+                row.Amount = v[1]
+                row.TAction = exsync.TradeAction_Buy
+                row.CreateTime = &exsync.Timestamp{r.Timestamp, 0}
+                bids = append(bids, row)
+            }
+        } else {
+            utils.WarningLog.Write("new ws depth error %s", err.Error())
+        }
+    }
+    this.Trigger("DepthUpdate", asks, bids)
+}
 

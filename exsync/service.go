@@ -24,6 +24,11 @@ type dataCache struct {
 
     index float64
 
+    asks []*exsync.Trade
+    bids []*exsync.Trade
+
+    orders map[string]*exsync.Order
+
     long *exsync.Position
     short *exsync.Position
 
@@ -89,6 +94,35 @@ func (c *dataCache) init() {
         c.index = index
         c.mu.Unlock()
         utils.DebugLog.Write(c.exname + " index update %f", index)
+    })
+
+    c.syncEvent.AddHandler("DepthUpdate", func(args ...interface{}) {
+        if len(args) != 2 {
+            return
+        }
+        asks, _ := args[0].([]*exsync.Trade)
+        bids, _ := args[1].([]*exsync.Trade)
+        c.mu.Lock()
+        c.asks = asks
+        c.bids = bids
+        c.mu.Unlock()
+        utils.DebugLog.Write(c.exname + " depth %v", c.asks)
+        utils.DebugLog.Write(c.exname + " depth %v", c.bids)
+    })
+
+    c.orders = make(map[string]*exsync.Order)
+    c.syncEvent.AddHandler("OrderUpdate", func(args ...interface{}) {
+        if len(args) != 1 {
+            return
+        }
+        order, ok := args[0].(*exsync.Order)
+        if !ok {
+            return
+        }
+        c.mu.Lock()
+        c.orders[order.GetId()] = order
+        c.mu.Unlock()
+        utils.DebugLog.Write(c.exname + " order update %v", order)
     })
 
     /*
@@ -172,8 +206,26 @@ func (s *syncService) Ping(ctx gctx.Context, in *exsync.ReqPing) (*exsync.Pong, 
     return &exsync.Pong{}, nil
 }
 
-func (s *syncService) GetOrder(ctx gctx.Context, in *exsync.ReqOrder) (*exsync.RespOrder, error) {
-    return nil, nil
+func (s *syncService) GetOrders(ctx gctx.Context, in *exsync.ReqOrders) (*exsync.RespOrders, error) {
+    cache := s.getCache(in.Exname)
+    if cache == nil {
+        return nil, errors.New("ex not found " + in.Exname)
+    }
+    resp := &exsync.RespOrders{}
+    cache.mu.RLock()
+    if len(in.GetIds()) > 0 {
+        for _, id := range in.GetIds() {
+            if o := cache.orders[id]; o != nil {
+                resp.Orders = append(resp.Orders, o)
+            }
+        }
+    } else {
+        for _, o := range cache.orders {
+            resp.Orders = append(resp.Orders, o)
+        }
+    }
+    cache.mu.RUnlock()
+    return resp, nil
 }
 
 func (s *syncService) GetTrades(ctx gctx.Context, in *exsync.ReqTrades) (*exsync.RespTrades, error) {
