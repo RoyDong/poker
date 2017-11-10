@@ -5,7 +5,6 @@ import (
     "dw/poker/proto/exsync"
     "dw/poker/market/okex"
     "dw/poker/context"
-    mctx "dw/poker/market/context"
     "sync"
     "dw/poker/utils"
     "dw/poker/market"
@@ -37,8 +36,8 @@ type dataCache struct {
 
 
 func (c *dataCache) init() {
-    c.maxTradesLen = 5
-    var kline *mctx.Kline
+    c.maxTradesLen = 1000
+    var kline *context.Kline
     c.syncEvent.AddHandler("NewTrade", func(args ...interface{}) {
         if len(args) != 1 {
             return
@@ -47,13 +46,13 @@ func (c *dataCache) init() {
         if !ok {
             return
         }
+        c.mu.Lock()
         overflow := len(c.trades) + len(trades) - c.maxTradesLen
         if overflow < 0 {
             overflow = 0
         } else if overflow > len(c.trades) {
             overflow = len(c.trades)
         }
-        c.mu.Lock()
         c.trades = append(c.trades[overflow:], trades...)
         c.mu.Unlock()
 
@@ -65,18 +64,18 @@ func (c *dataCache) init() {
         //create kline and save to sql db
         for _, t := range trades {
             if kline == nil {
-                kline = mctx.NewKline(c.exname, t, time.Minute)
+                kline = context.NewKline(c.exname, t, time.Minute)
             } else {
                 rt := kline.AddTrade(t)
                 if rt == 1 {
                     //save
                     var err error
-                    //err = utils.Save(kline, "kline", nil)
+                    err = utils.Save(kline, "kline", utils.MainDB)
                     if err != nil {
                         utils.FatalLog.Write(err.Error())
                     }
                     utils.DebugLog.Write("kline: %v", kline)
-                    kline = mctx.NewKline(c.exname, t, time.Minute)
+                    kline = context.NewKline(c.exname, t, time.Minute)
                 }
             }
         }

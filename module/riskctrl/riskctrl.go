@@ -8,7 +8,6 @@ import (
     "dw/poker/context"
     "dw/poker/market"
     "dw/poker/market/okex"
-    mctx "dw/poker/market/context"
     "math"
 )
 
@@ -55,14 +54,14 @@ func (this *RiskCtrl) baseCtrl() {
         price := ticker.Price
         index := ticker.Index
 
-        lprofit := long.GetProfit(price)
-        lrop := long.GetROP(price)
+        lprofit := market.GetProfit(long, price)
+        lrop := market.GetROP(long, price)
         if lrop > lMaxRop {
             lMaxRop = lrop
         }
 
-        sprofit := short.GetProfit(price)
-        srop := short.GetROP(price)
+        sprofit := market.GetProfit(short, price)
+        srop := market.GetROP(short, price)
         if srop > sMaxRop {
             sMaxRop = srop
         }

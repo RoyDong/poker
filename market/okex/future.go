@@ -7,7 +7,7 @@ import (
     "errors"
     "encoding/json"
     "strconv"
-    "dw/poker/market/context"
+    "dw/poker/context"
     "dw/poker/utils"
     "dw/poker/proto/exsync"
     "bytes"
@@ -583,6 +583,9 @@ func (this *FutureSync) newMsg(args ...interface{}) {
         case "ok_sub_futureusd_userinfo":
             this.balanceUpdate(r.Data)
 
+        case "btc_forecast_price":
+            utils.DebugLog.Write("event %s %s", r.Channel, r.Data)
+
         case "login", "addChannel":
             utils.DebugLog.Write("event %s", r.Channel)
 
@@ -771,10 +774,10 @@ func (this *FutureSync) positionUpdate(d []byte) {
             pos.Leverge = this.leverage
 
             if v.Position == "2" {
-                pos.Ptype = exsync.PositionType_Long
+                pos.PType = exsync.PositionType_Long
                 long = pos
             } else {
-                pos.Ptype = exsync.PositionType_Short
+                pos.PType = exsync.PositionType_Short
                 short = pos
             }
         }

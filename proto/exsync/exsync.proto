@@ -121,7 +121,7 @@ message Balance {
 
 message Position {
     string id = 1;
-    PositionType ptype = 2;
+    PositionType pType = 2;
     double amount = 3;
     double availableAmount = 4;
     double avgPrice = 5;

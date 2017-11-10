@@ -2,6 +2,7 @@ package market
 
 import (
 )
+import "dw/poker/proto/exsync"
 
 const (
     OkexWeek = "OkexWeek"
@@ -32,3 +33,19 @@ func Init(conf *pctx.Config) {
 */
 
 
+
+
+func GetProfit(pos *exsync.Position, price float64) float64 {
+    profit := pos.Amount * (price - pos.AvgPrice)
+    if pos.PType == exsync.PositionType_Long {
+        return profit
+    }
+    return -profit
+}
+
+func GetROP(pos *exsync.Position, price float64) float64 {
+    if pos.Deposit > 0 {
+        return GetProfit(pos, price) / pos.Deposit
+    }
+    return 0
+}
