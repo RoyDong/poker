@@ -12,11 +12,11 @@ import (
     "dw/poker/proto/exsync"
 )
 
-var RPCTimeout = 200 * time.Millisecond
+var RPCTimeout = 10 * time.Millisecond
 
 type ITrade interface {
     MakeOrder(ta exsync.TradeAction, amount, price float64) (*exsync.Order, error)
-    CancelOrder(id string) error
+    CancelOrder(id ...string) error
 }
 
 type Exchange struct {
@@ -30,7 +30,6 @@ type Exchange struct {
     name string
     tradeMu sync.RWMutex
     inLoop bool
-    maxTradesLen int
     trades []*exsync.Trade
     maxKlinesLen int
     klines []*context.Kline
@@ -40,8 +39,6 @@ func NewExchange(name, exsyncHost string, itrade ITrade) *Exchange {
     ex := &Exchange{}
     ex.name = name
     ex.ITrade = itrade
-    ex.maxTradesLen = 10000
-    ex.trades = make([]*exsync.Trade, 1, ex.maxTradesLen)
     ex.maxKlinesLen = 100
     ex.klines = make([]*context.Kline, 0, ex.maxKlinesLen)
     ex.inLoop = true
@@ -52,7 +49,6 @@ func NewExchange(name, exsyncHost string, itrade ITrade) *Exchange {
     if err != nil {
         return nil
     }
-    go ex.syncTrades()
     return ex
 }
 
@@ -85,8 +81,12 @@ func (ex *Exchange) timeoutCtx() gctx.Context {
     return ctx
 }
 
-func (ex *Exchange) GetTrades() ([]*exsync.Trade, error) {
-    resp, err := ex.getExsyncClient().GetTrades(ex.timeoutCtx(), &exsync.ReqTrades{Exname:ex.name})
+func (ex *Exchange) GetTrades(n int32) ([]*exsync.Trade, error) {
+    resp, err := ex.getExsyncClient().GetTrades(ex.timeoutCtx(), &exsync.ReqTrades{Exname:ex.name, Num:n})
+    if err != nil {
+        utils.FatalLog.Write(err.Error())
+        return nil, err
+    }
     return resp.Trades, err
 }
 
@@ -129,77 +129,6 @@ func (ex *Exchange) GetBalance() (*exsync.Balance, error) {
     return resp.Balance, err
 }
 
-func (ex *Exchange) syncTrades() {
-    var kline *context.Kline
-    for ex.inLoop {
-        time.Sleep(200 * time.Millisecond)
-        trades, err := ex.GetTrades()
-        if err != nil {
-            utils.WarningLog.Write("sync trade err: %v", err.Error())
-            continue
-        }
-        newTrades := make([]*exsync.Trade, 0, len(trades))
-        for _, trade := range trades {
-            for i := len(ex.trades) - 1; i >= 0; i-- {
-                t := ex.trades[i]
-                delta := trade.GetCreateTime().Seconds - t.GetCreateTime().Seconds
-                if delta > 0 {
-                    newTrades = append(newTrades, trade)
-                    utils.DebugLog.Write("new trade: %v", trade)
-                    break
-                }
-                if delta == 0 {
-                    if trade.Id == t.Id {
-                        break
-                    } else {
-                        continue
-                    }
-                }
-                if delta < 0 {
-                    break
-                }
-            }
-        }
-        if len(newTrades) > 0 {
-            overflow := len(ex.trades) + len(newTrades) - ex.maxTradesLen
-            if overflow < 0 {
-                overflow = 0
-            } else if overflow > len(ex.trades) {
-                overflow = len(ex.trades)
-            }
-            ex.tradeMu.Lock()
-            ex.trades = append(ex.trades[overflow:], newTrades...)
-            ex.tradeMu.Unlock()
-
-            //create kline and save to sql db
-            for _, t := range newTrades {
-                if kline == nil {
-                    kline = context.NewKline(ex.Name(), t, time.Minute)
-                } else {
-                    rt := kline.AddTrade(t)
-                    if rt == 1 {
-                        //save
-                        ex.Trigger("kline_close", kline)
-                        err := utils.Save(kline, "kline", utils.MainDB)
-                        if err != nil {
-                            utils.FatalLog.Write(err.Error())
-                        }
-                        kline = context.NewKline(ex.Name(), t, time.Minute)
-
-                        offset := 0
-                        if len(ex.klines) >= ex.maxKlinesLen {
-                            offset = 1
-                        }
-                        ex.tradeMu.Lock()
-                        ex.klines = append(ex.klines[offset:], kline)
-                        ex.tradeMu.Unlock()
-                    }
-                }
-            }
-        }
-    }
-}
-
 func (ex *Exchange) LastTrades() []*exsync.Trade {
     ex.tradeMu.RLock()
     defer ex.tradeMu.RUnlock()
@@ -212,23 +141,16 @@ func (ex *Exchange) LastKlines() []*context.Kline {
     return ex.klines
 }
 
-func (ex *Exchange) LastnAvgPrice(n int) float64 {
-    ex.tradeMu.RLock()
-    defer ex.tradeMu.RUnlock()
-    var sum float64
-    if l := len(ex.trades); l > 0 {
-        m := l - n
-        if m < 0 {
-            m = 0
-        }
-        num := 0
-        for i := l - 1; i >= m; i-- {
-            sum += ex.trades[i].Price
-            num += 1
-        }
-        return sum / float64(num)
+func (ex *Exchange) LastnAvgPrice(n int32) float64 {
+    trades, err := ex.GetTrades(n)
+    if err != nil {
+        return 0
     }
-    return 0
+    var sum float64
+    for _, t := range trades {
+        sum += t.Price
+    }
+    return sum / float64(n)
 }
 
 /*

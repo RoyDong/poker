@@ -44,17 +44,17 @@ type makeOrderResp struct {
     OrderId int64 `json:"order_id"`
     Result bool `json:"result"`
 }
-func (this *Future) MakeOrder(ta context.TradeAction, amount, price float64) (context.Order, error) {
+func (this *Future) MakeOrder(ta exsync.TradeAction, amount, price float64) (*exsync.Order, error) {
     price = FutureBTC_USD(price)
     ptype := 0
     switch ta {
-    case context.OpenShort:
+    case exsync.TradeAction_OpenShort:
         ptype = 1
-    case context.OpenLong:
+    case exsync.TradeAction_OpenLong:
         ptype = 2
-    case context.CloseShort:
+    case exsync.TradeAction_CloseShort:
         ptype = 3
-    case context.CloseLong:
+    case exsync.TradeAction_CloseLong:
         ptype = 4
     default:
         panic("trade action not support")
@@ -71,7 +71,7 @@ func (this *Future) MakeOrder(ta context.TradeAction, amount, price float64) (co
     if price <= 0 {
         params["match_price"] = 1
     }
-    order := context.Order{}
+    order := &exsync.Order{}
     mkr := makeOrderResp{}
     err := this.callHttpJson(&mkr, "future_trade.do", nil, params)
     if err != nil {
@@ -148,9 +148,9 @@ type cancelOrderResp struct {
     Success string `json:"success"`
     Error string `json:"error"`
 }
-func (this *Future) CancelOrder(ids ...string) error {
-    okids := make([]string, 0, len(ids))
-    for _, id := range ids {
+func (this *Future) CancelOrder(id ...string) error {
+    okids := make([]string, 0, len(id))
+    for _, id := range id {
         okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))
     }
     params := map[string]interface{} {

@@ -3,10 +3,9 @@ package server
 import (
     "dw/poker/context"
     "dw/poker/utils"
-    "dw/poker/module/riskctrl"
+    "dw/poker/riskcontrol"
     "net/http"
     "strings"
-    "dw/poker/module/account"
 )
 
 type IModule interface {
@@ -15,11 +14,8 @@ type IModule interface {
 }
 
 var routes = map[string][]IModule{
-    "/account": {
-        &account.Account{},
-    },
-    "/riskctrl": {
-        &riskctrl.RiskCtrl{},
+    "/riskcontrol": {
+        &riskcontrol.RiskCtrl{},
     },
 }
 

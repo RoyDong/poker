@@ -36,7 +36,7 @@ type dataCache struct {
 
 
 func (c *dataCache) init() {
-    c.maxTradesLen = 1000
+    c.maxTradesLen = 10000
     var kline *context.Kline
     c.syncEvent.AddHandler("NewTrade", func(args ...interface{}) {
         if len(args) != 1 {
@@ -262,7 +262,7 @@ func (s *syncService) GetTrades(ctx gctx.Context, in *exsync.ReqTrades) (*exsync
     }
     resp := &exsync.RespTrades{}
     cache.mu.RLock()
-    resp.Trades = cache.trades[-in.Num:]
+    resp.Trades = cache.trades[len(cache.trades) - int(in.Num):]
     cache.mu.RUnlock()
     return resp, nil
 }

@@ -1,8 +1,10 @@
 package market
 
 import (
+    "dw/poker/proto/exsync"
+    "dw/poker/market/okex"
+    "dw/poker/context"
 )
-import "dw/poker/proto/exsync"
 
 const (
     OkexWeek = "OkexWeek"
@@ -20,17 +22,17 @@ func GetExchange(name string) *Exchange {
     return exchanges[name]
 }
 
-/*
-func Init(conf *pctx.Config) {
+func Init(conf *context.Config) {
     okconf := conf.Market.Okex
     ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret, "quarter")
-    AddExchange(NewExchange(ok))
+    AddExchange(NewExchange(OkexQuarter, conf.Market.ExsyncHost, ok))
 
-    bmconf := conf.Market.Bitmex
-    bm, _ := bitmex.NewExchange(bmconf.HttpHost, bmconf.ApiKey, bmconf.ApiSecret, bmconf.Wss)
-    AddExchange(NewExchange(bm))
+    /*
+        bmconf := conf.Market.Bitmex
+        bm, _ := bitmex.NewExchange(bmconf.HttpHost, bmconf.ApiKey, bmconf.ApiSecret, bmconf.Wss)
+        AddExchange(NewExchange(bm))
+    */
 }
-*/
 
 
 

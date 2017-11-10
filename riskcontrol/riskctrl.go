@@ -9,6 +9,7 @@ import (
     "dw/poker/market"
     "dw/poker/market/okex"
     "math"
+    "dw/poker/proto/exsync"
 )
 
 type RiskCtrl struct {
@@ -30,7 +31,7 @@ func (this *RiskCtrl) baseCtrl() {
     if this.inLoop {
         return
     }
-    ok := market.GetExchange("okex/quarter")
+    ok := market.GetExchange(market.OkexQuarter)
     if ok == nil {
         utils.FatalLog.Write("okex exchange not found")
         return
@@ -50,7 +51,13 @@ func (this *RiskCtrl) baseCtrl() {
         }
 
         long := ticker.Long
+        if long == nil {
+            long = &exsync.Position{}
+        }
         short := ticker.Short
+        if short == nil {
+            short = &exsync.Position{}
+        }
         price := ticker.Price
         index := ticker.Index
 
@@ -92,13 +99,13 @@ func (this *RiskCtrl) baseCtrl() {
         }
 
         if long.AvailableAmount > 0 && lrop < -0.5 {
-            ok.Trade(mctx.CloseLong, long.AvailableAmount, 0, 10)
-            msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", mctx.CloseLong, long.AvailableAmount))
+            ok.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0, 10)
+            msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", exsync.TradeAction_CloseLong, long.AvailableAmount))
             stop = true
         }
         if short.AvailableAmount > 0 && srop < -0.5 {
-            ok.Trade(mctx.CloseShort, short.AvailableAmount, 0, 10)
-            msg = append(msg, fmt.Sprintf("多单平仓 %v %.0f", mctx.CloseShort, short.AvailableAmount))
+            ok.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0, 10)
+            msg = append(msg, fmt.Sprintf("多单平仓 %v %.0f", exsync.TradeAction_CloseShort, short.AvailableAmount))
             stop = true
         }
 
