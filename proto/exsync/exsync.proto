@@ -126,7 +126,7 @@ message Position {
     double availableAmount = 4;
     double avgPrice = 5;
     double money = 6;
-    double deposti = 7;
+    double deposit = 7;
     double leverge = 8;
     double forceClosePrice = 9;
 }

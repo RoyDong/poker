@@ -11,6 +11,7 @@ import (
     "dw/poker/utils"
     "dw/poker/proto/exsync"
     "bytes"
+    "log"
 )
 
 type Future struct {
@@ -504,30 +505,22 @@ func NewFutureSync(apiKey, apiSecret, wss, contractType string) (*FutureSync, er
 
 func (this *FutureSync) connected(args ...interface{}) {
     channels := []string{
-        //ticker订阅
-        //"ok_sub_futureusd_btc_ticker_" + this.contractType,
         //最新深度订阅
         fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 5),
-        //fmt.Sprintf("ok_sub_future_btc_depth_%s_usd", this.contractType),
         //最新交易单订阅
         fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType),
 
         "ok_sub_futureusd_btc_index",
     }
-
-    authChan := []string{
-        //订单交易结果订阅
-        "ok_sub_futureusd_trades",
-    }
-
     for _, name := range channels {
         this.subChannel(name, nil)
     }
-    for _, name := range authChan {
-        this.subChannel(name, map[string]interface{}{})
+    msg := map[string]interface{} {
+        "event": "login",
+        "parameters": this.signParams(nil),
     }
+    this.ws.SendJson(msg)
 }
-
 
 func (this *FutureSync) subChannel(name string, params map[string]interface{}) {
     msg := map[string]interface{} {
@@ -570,7 +563,7 @@ func (this *FutureSync) newMsg(args ...interface{}) {
     for _, r := range resp {
         switch r.Channel {
         case fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 5):
-            this.updateDepth(r.Data)
+            this.depthUpdate(r.Data)
 
         case fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType):
             this.newTrade(r.Data)
@@ -583,6 +576,18 @@ func (this *FutureSync) newMsg(args ...interface{}) {
 
         case "ok_sub_futureusd_trades":
             this.orderUpdate(r.Data)
+
+        case "ok_sub_futureusd_positions":
+            this.positionUpdate(r.Data)
+
+        case "ok_sub_futureusd_userinfo":
+            this.balanceUpdate(r.Data)
+
+        case "login", "addChannel":
+            utils.DebugLog.Write("event %s", r.Channel)
+
+        default:
+            utils.WarningLog.Write("okex channel not handled %s %s", r.Channel, r.Data)
         }
     }
 }
@@ -671,7 +676,7 @@ type depthResp struct {
     Asks json.RawMessage `json:"asks"`
     Bids json.RawMessage `json:"bids"`
 }
-func (this *FutureSync) updateDepth(d []byte) {
+func (this *FutureSync) depthUpdate(d []byte) {
     var r depthResp
     err := json.Unmarshal(d, &r)
     if err != nil {
@@ -715,4 +720,93 @@ func (this *FutureSync) updateDepth(d []byte) {
     }
     this.Trigger("DepthUpdate", asks, bids)
 }
+
+/*
+position(string): 仓位 1多仓 2空仓
+contract_name(string): 合约名称
+costprice(string): 开仓价格
+bondfreez(string): 当前合约冻结保证金
+avgprice(string): 开仓均价
+contract_id(long): 合约id
+position_id(long): 仓位id
+hold_amount(string): 持仓量
+eveningup(string): 可平仓量
+margin(double): 固定保证金
+realized(double):已实现盈亏
+ */
+type positionResp struct {
+    Symbol string `json:"symbol"`
+    Userid int64 `json:"user_id"`
+    Positions []struct {
+        Id int64 `json:"position_id"`
+        Position string `json:"position"`
+        ContractName string `json:"contract_name"`
+        Margin float64 `json:"margin"`
+        Costprice string `json:"costprice"`
+        Avgprice string `json:"avgprice"`
+        HoldAmount string `json:"hold_amount"`
+        Eveningup string `json:"eveningup"`
+        Realized float64 `json:"realized"`
+    } `json:"positions"`
+}
+func (this *FutureSync) positionUpdate(d []byte) {
+    var r positionResp
+    err := json.Unmarshal(d, &r)
+    if err != nil {
+        utils.WarningLog.Write("okex %s ws position error %s", this.contractType, err.Error())
+        return
+    }
+    if r.Symbol == this.symbol {
+        var long, short *exsync.Position
+        for _, v := range r.Positions {
+            pos := &exsync.Position{}
+
+            pos.Id = fmt.Sprintf("okex/%d", v.Id)
+            pos.Amount, _ = strconv.ParseFloat(v.HoldAmount, 64)
+            usd, _ := strconv.ParseFloat(v.Avgprice, 64)
+            pos.AvgPrice = FutureUSD_BTC(usd)
+            pos.Money = pos.Amount * pos.AvgPrice
+            pos.AvailableAmount, _ = strconv.ParseFloat(v.Eveningup, 64)
+            pos.Deposit = v.Margin
+            pos.Leverge = this.leverage
+
+            if v.Position == "2" {
+                pos.Ptype = exsync.PositionType_Long
+                long = pos
+            } else {
+                pos.Ptype = exsync.PositionType_Short
+                short = pos
+            }
+        }
+        this.Trigger("PositionUpdate", long, short)
+    }
+}
+
+/*
+{"symbol":"btc_usd","balance":0.15834175,"unit_amount":100.0,"profit_real":-0.00241497,"keep_deposit":0.0028497335}
+ */
+type balanceResp struct {
+    Symbol string `json:"symbol"`
+    Balance float64 `json:"balance"`
+    UnitAmount float64 `json:"unit_amount"`
+    ProfitReal float64 `json:"profit_real"`
+    KeepDeposit float64 `json:"keep_deposit"`
+}
+func (this *FutureSync) balanceUpdate(d []byte) {
+    log.Println(string(d))
+    var r balanceResp
+    err := json.Unmarshal(d, &r)
+    if err != nil {
+        utils.WarningLog.Write("okex %s ws sync balance error %s", this.contractType, err.Error())
+        return
+    }
+    if r.Symbol == this.symbol {
+        b := &exsync.Balance{}
+        b.Amount = r.Balance
+        b.Deposit = r.KeepDeposit
+        b.RealProfil = r.ProfitReal
+        this.Trigger("BalanceUpdate", r)
+    }
+}
+
 

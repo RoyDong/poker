@@ -104,8 +104,9 @@ func (ws *WsClient) readLoop() {
     for ws.inLoop {
         mtype, msg, err := ws.conn.ReadMessage()
         if err != nil {
+            ws.conn.Close()
             for {
-                WarningLog.Write("wsclient reconnect %s %d", ws.wss, reconnectNum)
+                FatalLog.Write("wsclient reconnect %s %d", ws.wss, reconnectNum)
                 if ws.reconnectNum >= 0 {
                     reconnectNum++
                     if reconnectNum > ws.reconnectNum {

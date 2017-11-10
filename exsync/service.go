@@ -106,8 +106,8 @@ func (c *dataCache) init() {
         c.asks = asks
         c.bids = bids
         c.mu.Unlock()
-        utils.DebugLog.Write(c.exname + " depth %v", c.asks)
-        utils.DebugLog.Write(c.exname + " depth %v", c.bids)
+        utils.DebugLog.Write(c.exname + " depth %v", asks)
+        utils.DebugLog.Write(c.exname + " depth %v", bids)
     })
 
     c.orders = make(map[string]*exsync.Order)
@@ -125,11 +125,39 @@ func (c *dataCache) init() {
         utils.DebugLog.Write(c.exname + " order update %v", order)
     })
 
-    /*
-    c.syncEvent.AddHandler("position_update")
+    c.syncEvent.AddHandler("PositionUpdate", func(args ...interface{}) {
+        if len(args) != 2 {
+            return
+        }
+        long, ok := args[0].(*exsync.Position)
+        if !ok {
+            return
+        }
+        short, ok := args[1].(*exsync.Position)
+        if !ok {
+            return
+        }
+        c.mu.Lock()
+        c.long = long
+        c.short = short
+        c.mu.Unlock()
+        utils.DebugLog.Write(c.exname + " %v", long)
+        utils.DebugLog.Write(c.exname + " %v", short)
+    })
 
-    c.syncEvent.AddHandler("balance_update")
-    */
+    c.syncEvent.AddHandler("BalanceUpdate", func(args ...interface{}) {
+        if len(args) != 1 {
+            return
+        }
+        balance, ok := args[0].(*exsync.Balance)
+        if !ok {
+            return
+        }
+        c.mu.Lock()
+        c.balance = balance
+        c.mu.Unlock()
+        utils.DebugLog.Write(c.exname + " balance %v", balance)
+    })
 }
 
 
@@ -158,6 +186,7 @@ func newSyncService(conf *context.Config) (*syncService, error) {
     srv.okexQuarter = cache
 
     //okex week
+    /*
     cache = &dataCache{}
     cache.exname = market.OkexWeek
     cache.syncEvent, err = okex.NewFutureSync(
@@ -170,6 +199,7 @@ func newSyncService(conf *context.Config) (*syncService, error) {
     }
     cache.init()
     srv.okexWeek = cache
+    */
 
     //bitmex xbtusd
     cache = &dataCache{}
@@ -241,8 +271,16 @@ func (s *syncService) GetTrades(ctx gctx.Context, in *exsync.ReqTrades) (*exsync
 }
 
 func (s *syncService) GetDepth(ctx gctx.Context, in *exsync.Req) (*exsync.RespDepth, error) {
-
-    return nil, nil
+    cache := s.getCache(in.Exname)
+    if cache == nil {
+        return nil, errors.New("ex not found " + in.Exname)
+    }
+    resp := &exsync.RespDepth{}
+    cache.mu.RLock()
+    resp.Asks = cache.asks
+    resp.Bids = cache.bids
+    cache.mu.RUnlock()
+    return resp, nil
 }
 
 func (s *syncService) GetIndex(ctx gctx.Context, in *exsync.Req) (*exsync.RespIndex, error) {
@@ -258,13 +296,28 @@ func (s *syncService) GetIndex(ctx gctx.Context, in *exsync.Req) (*exsync.RespIn
 }
 
 func (s *syncService) GetPosition(ctx gctx.Context, in *exsync.Req) (*exsync.RespPosition, error) {
-
-    return nil, nil
+    cache := s.getCache(in.Exname)
+    if cache == nil {
+        return nil, errors.New("ex not found " + in.Exname)
+    }
+    resp := &exsync.RespPosition{}
+    cache.mu.RLock()
+    resp.Long = cache.long
+    resp.Short = cache.short
+    cache.mu.RUnlock()
+    return resp, nil
 }
 
 func (s *syncService) GetBalance(ctx gctx.Context, in *exsync.Req) (*exsync.RespBalance, error) {
-
-    return nil, nil
+    cache := s.getCache(in.Exname)
+    if cache == nil {
+        return nil, errors.New("ex not found " + in.Exname)
+    }
+    resp := &exsync.RespBalance{}
+    cache.mu.RLock()
+    resp.Balance = cache.balance
+    cache.mu.RUnlock()
+    return resp, nil
 }
 
 
