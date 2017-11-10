@@ -185,20 +185,18 @@ func newSyncService(conf *context.Config) (*syncService, error) {
     srv.okexQuarter = cache
 
     //okex week
-    /*
     cache = &dataCache{}
     cache.exname = market.OkexWeek
     cache.syncEvent, err = okex.NewFutureSync(
-        conf.Market.Okex.ApiKey,
-        conf.Market.Okex.ApiSecret,
-        conf.Market.Okex.Wss,
+        conf.Market.OkexWeek.ApiKey,
+        conf.Market.OkexWeek.ApiSecret,
+        conf.Market.OkexWeek.Wss,
         "this_week")
     if err != nil {
         return nil, err
     }
     cache.init()
     srv.okexWeek = cache
-    */
 
     //bitmex xbtusd
     cache = &dataCache{}

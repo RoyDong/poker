@@ -1,4 +1,4 @@
-package riskctrl
+package riskcontrol
 
 import (
     "time"

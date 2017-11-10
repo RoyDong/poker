@@ -47,6 +47,12 @@ type Config struct {
             ApiSecret string
             Wss       string
         }
+        OkexWeek struct {
+            HttpHost  string
+            ApiKey    string
+            ApiSecret string
+            Wss       string
+        }
         Bitmex struct {
             HttpHost  string
             Wss       string
