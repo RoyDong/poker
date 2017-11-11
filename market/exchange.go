@@ -4,12 +4,12 @@ import (
     "sync"
     "time"
     "dw/poker/utils"
-    "dw/poker/context"
     "math"
     "errors"
     "google.golang.org/grpc"
     gctx "golang.org/x/net/context"
     "dw/poker/protobuf/exsync"
+    "dw/poker/market/common"
 )
 
 var RPCTimeout = 10 * time.Millisecond
@@ -32,7 +32,7 @@ type Exchange struct {
     inLoop bool
     trades []*exsync.Trade
     maxKlinesLen int
-    klines []*context.Kline
+    klines []*common.Kline
 }
 
 func NewExchange(name, exsyncHost string, itrade ITrade) *Exchange {
@@ -40,7 +40,7 @@ func NewExchange(name, exsyncHost string, itrade ITrade) *Exchange {
     ex.name = name
     ex.ITrade = itrade
     ex.maxKlinesLen = 100
-    ex.klines = make([]*context.Kline, 0, ex.maxKlinesLen)
+    ex.klines = make([]*common.Kline, 0, ex.maxKlinesLen)
     ex.inLoop = true
 
     var err error
@@ -135,7 +135,7 @@ func (ex *Exchange) LastTrades() []*exsync.Trade {
     return ex.trades
 }
 
-func (ex *Exchange) LastKlines() []*context.Kline {
+func (ex *Exchange) LastKlines() []*common.Kline {
     ex.tradeMu.RLock()
     defer ex.tradeMu.RUnlock()
     return ex.klines
@@ -244,7 +244,8 @@ func (ex *Exchange) OrderCompleteOrPriceChange(order *exsync.Order, spread float
     for i := 0; i < 20; i++ {
         o, err := ex.GetOrder(order.Id)
         if err == nil {
-            if o.Status == context.OrderStatusComplete || o.Status == context.OrderStatusCanceled {
+            if o.Status == exsync.OrderStatus_OrderStatusComplete ||
+                o.Status == exsync.OrderStatus_OrderStatusCanceled {
                 return o, true
             }
             order = o

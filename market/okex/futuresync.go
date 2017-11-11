@@ -142,7 +142,6 @@ func (this *FutureSync) newTrade(d []byte) {
     if err != nil {
         utils.WarningLog.Write("ws new trade %s", err.Error())
     }
-    trades := make([]*exsync.Trade, 0, len(raw))
     for _, v := range raw {
         if len(v) == 6 {
             t := &exsync.Trade{}
@@ -163,11 +162,10 @@ func (this *FutureSync) newTrade(d []byte) {
                 deltaSec += 60
             }
             t.CreateTime = &exsync.Timestamp{now.Unix() - int64(deltaSec), 0}
-            trades = append(trades, t)
+            this.NewTrade(t)
+            this.Trigger("NewTrade", t)
         }
     }
-    this.NewTrades(trades)
-    this.Trigger("NewTrade", trades)
 }
 
 

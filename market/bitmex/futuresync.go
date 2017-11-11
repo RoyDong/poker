@@ -101,7 +101,6 @@ func (this *FutureSync) newTrade(wsd *wsdata) {
     if err != nil {
         utils.WarningLog.Write("bitmex.newTrade %s", err.Error())
     }
-    trades := make([]*exsync.Trade, 0, len(resp))
     for i := len(resp) - 1; i >= 0; i-- {
         t := resp[i]
         loct := t.Timestamp.Local()
@@ -115,10 +114,9 @@ func (this *FutureSync) newTrade(wsd *wsdata) {
         } else {
             trade.TAction = exsync.TradeAction_Buy
         }
-        trades = append(trades, trade)
+        this.NewTrade(trade)
+        this.Trigger("NewTrade", trade)
     }
-    this.NewTrades(trades)
-    this.Trigger("NewTrade", trades)
 }
 
 func (this *FutureSync) newMsg(args ...interface{}) {

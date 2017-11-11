@@ -10,8 +10,6 @@ import (
     "dw/poker/market/common"
     "dw/poker/utils"
     "dw/poker/protobuf/exsync"
-    "bytes"
-    "log"
 )
 
 type Future struct {
