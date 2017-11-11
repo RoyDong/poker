@@ -1,7 +1,7 @@
 package market
 
 import (
-    "dw/poker/proto/exsync"
+    "dw/poker/protobuf/exsync"
     "dw/poker/market/okex"
     "dw/poker/context"
 )
@@ -46,8 +46,8 @@ func GetProfit(pos *exsync.Position, price float64) float64 {
 }
 
 func GetROP(pos *exsync.Position, price float64) float64 {
-    if pos.Deposit > 0 {
-        return GetProfit(pos, price) / pos.Deposit
+    if pos.Money > 0 {
+        return GetProfit(pos, price) / pos.Money * pos.Leverge
     }
     return 0
 }

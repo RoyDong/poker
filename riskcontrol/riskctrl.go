@@ -9,7 +9,7 @@ import (
     "dw/poker/market"
     "dw/poker/market/okex"
     "math"
-    "dw/poker/proto/exsync"
+    "dw/poker/protobuf/exsync"
 )
 
 type RiskCtrl struct {

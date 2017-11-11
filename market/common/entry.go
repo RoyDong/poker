@@ -1,9 +1,9 @@
-package context
+package common
 
 import (
     "time"
     "fmt"
-    "dw/poker/proto/exsync"
+    "dw/poker/protobuf/exsync"
 )
 
 /*
@@ -190,3 +190,4 @@ func (k *Kline) AddTrade(t *exsync.Trade) int {
     }
     return 1
 }
+

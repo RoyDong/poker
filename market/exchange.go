@@ -9,7 +9,7 @@ import (
     "errors"
     "google.golang.org/grpc"
     gctx "golang.org/x/net/context"
-    "dw/poker/proto/exsync"
+    "dw/poker/protobuf/exsync"
 )
 
 var RPCTimeout = 10 * time.Millisecond

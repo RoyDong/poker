@@ -11,7 +11,7 @@ import (
     "dw/poker/context"
     "dw/poker/utils"
     "google.golang.org/grpc"
-    "dw/poker/proto/exsync"
+    "dw/poker/protobuf/exsync"
 )
 
 func main() {
