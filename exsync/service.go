@@ -30,9 +30,6 @@ func newSyncService(conf *context.Config) (*syncService, error) {
     if err != nil {
         return nil, err
     }
-    srv.okexQuarter.AddHandler("NewTrade", func(args ...interface{}) {
-
-    })
 
     //okex week
     srv.okexWeek, err = okex.NewFutureSync(

@@ -15,10 +15,10 @@ type FutureSync struct {
 
     apiKey string
     apiSecret string
-
     ws *utils.WsClient
 
     symbol string
+    tradePipe chan json.RawMessage
 }
 
 func NewFutureSync(apiKey, apiSecret, wss, exname string) (*FutureSync, error) {
@@ -28,6 +28,8 @@ func NewFutureSync(apiKey, apiSecret, wss, exname string) (*FutureSync, error) {
     this.apiSecret = apiSecret
     this.symbol = "XBTUSD"
     this.Exname = exname
+    this.tradePipe = make(chan json.RawMessage, 10)
+    go this.syncTrade()
 
     this.ws = utils.NewWsClient(wss)
     this.ws.AddHandler("Connect", this.connected)
@@ -95,27 +97,32 @@ func (this *FutureSync) wsauth() {
     this.ws.SendJson(cmd)
 }
 
-func (this *FutureSync) newTrade(wsd *wsdata) {
-    var resp []tradesResp
-    err := json.Unmarshal(wsd.Data, &resp)
-    if err != nil {
-        utils.WarningLog.Write("bitmex.newTrade %s", err.Error())
-    }
-    for i := len(resp) - 1; i >= 0; i-- {
-        t := resp[i]
-        loct := t.Timestamp.Local()
-        trade := &exsync.Trade{}
-        trade.Id = "bitmex/" + t.TrdMatchID
-        trade.CreateTime = &exsync.Timestamp{loct.Unix(), int64(loct.Nanosecond())}
-        trade.Price = 1 / t.Price
-        trade.Amount = t.Size
-        if t.Side == "Sell" {
-            trade.TAction = exsync.TradeAction_Sell
-        } else {
-            trade.TAction = exsync.TradeAction_Buy
+func (this *FutureSync) syncTrade() {
+    for d := range this.tradePipe {
+        var resp []tradesResp
+        err := json.Unmarshal(d, &resp)
+        if err != nil {
+            utils.WarningLog.Write("bitmex.newTrade %s", err.Error())
+            continue
         }
-        this.NewTrade(trade)
-        this.Trigger("NewTrade", trade)
+        trades := make([]*exsync.Trade, 0, len(resp))
+        for i := len(resp) - 1; i >= 0; i-- {
+            t := resp[i]
+            loct := t.Timestamp.Local()
+            trade := &exsync.Trade{}
+            trade.Id = "bitmex/" + t.TrdMatchID
+            trade.CreateTime = &exsync.Timestamp{loct.Unix(), int64(loct.Nanosecond())}
+            trade.Price = 1 / t.Price
+            trade.Amount = t.Size
+            if t.Side == "Sell" {
+                trade.TAction = exsync.TradeAction_Sell
+            } else {
+                trade.TAction = exsync.TradeAction_Buy
+            }
+            trades = append(trades, trade)
+        }
+        this.NewTrade(trades)
+        this.Trigger("NewTrade", trades)
     }
 }
 
@@ -146,7 +153,7 @@ func (this *FutureSync) newMsg(args ...interface{}) {
     switch wsd.Table {
     case "orderBookL2":
     case "trade":
-        this.newTrade(&wsd)
+        this.tradePipe <-wsd.Data
 
     case "instrument":
         this.instrument(&wsd)

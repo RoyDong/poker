@@ -24,6 +24,8 @@ type FutureSync struct {
     contractType string
     symbol string
     leverage float64
+
+    tradePipe chan json.RawMessage
 }
 
 
@@ -36,11 +38,15 @@ func NewFutureSync(apiKey, apiSecret, wss, contractType, exname string) (*Future
     this.symbol = "btc_usd"
     this.leverage = 20
     this.Exname = exname
+    this.tradePipe = make(chan json.RawMessage, 10)
+    go this.syncTrade()
 
     this.ws = utils.NewWsClient(wss)
     this.ws.AddHandler("Connect", this.connected)
     this.ws.AddHandler("Message", this.newMsg)
     err = this.ws.Start()
+
+
     return this, err
 }
 
@@ -107,7 +113,7 @@ func (this *FutureSync) newMsg(args ...interface{}) {
             this.depthUpdate(r.Data)
 
         case fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType):
-            this.newTrade(r.Data)
+            this.tradePipe <-r.Data
 
         case "ok_sub_futureusd_btc_index":
             var idx indexResp
@@ -136,35 +142,39 @@ func (this *FutureSync) newMsg(args ...interface{}) {
     }
 }
 
-func (this *FutureSync) newTrade(d []byte) {
-    var raw [][]string
-    err := json.Unmarshal(d, &raw)
-    if err != nil {
-        utils.WarningLog.Write("ws new trade %s", err.Error())
-    }
-    for _, v := range raw {
-        if len(v) == 6 {
-            t := &exsync.Trade{}
-            t.Id = "okex/" + v[0]
-            usd, _ := strconv.ParseFloat(v[1], 64)
-            t.Price = FutureUSD_BTC(usd)
-            t.Amount, _ = strconv.ParseFloat(v[2], 64)
-            if v[4] == "ask" {
-                t.TAction = exsync.TradeAction_Sell
-            } else {
-                t.TAction = exsync.TradeAction_Buy
-            }
-
-            loct, _ := time.ParseInLocation("15:04:05", v[3], time.Local)
-            now := time.Now()
-            deltaSec := now.Second() - loct.Second()
-            if deltaSec < -30 {
-                deltaSec += 60
-            }
-            t.CreateTime = &exsync.Timestamp{now.Unix() - int64(deltaSec), 0}
-            this.NewTrade(t)
-            this.Trigger("NewTrade", t)
+func (this *FutureSync) syncTrade() {
+    for d := range this.tradePipe {
+        var raw [][]string
+        err := json.Unmarshal(d, &raw)
+        if err != nil {
+            utils.WarningLog.Write("ws new trade %s", err.Error())
+            continue
         }
+        trades := make([]*exsync.Trade, 0, len(raw))
+        for _, v := range raw {
+            if len(v) == 6 {
+                t := &exsync.Trade{}
+                t.Id = "okex/" + v[0]
+                usd, _ := strconv.ParseFloat(v[1], 64)
+                t.Price = FutureUSD_BTC(usd)
+                t.Amount, _ = strconv.ParseFloat(v[2], 64)
+                if v[4] == "ask" {
+                    t.TAction = exsync.TradeAction_Sell
+                } else {
+                    t.TAction = exsync.TradeAction_Buy
+                }
+                loct, _ := time.ParseInLocation("15:04:05", v[3], time.Local)
+                now := time.Now()
+                deltaSec := now.Second() - loct.Second()
+                if deltaSec < -30 {
+                    deltaSec += 60
+                }
+                t.CreateTime = &exsync.Timestamp{now.Unix() - int64(deltaSec), 0}
+                trades = append(trades, t)
+            }
+        }
+        this.NewTrade(trades)
+        this.Trigger("NewTrade", trades)
     }
 }
 

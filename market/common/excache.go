@@ -123,33 +123,33 @@ func (c *ExCache) GetIndex() float64 {
     return c.index
 }
 
-func (c *ExCache) NewTrade(t *exsync.Trade) {
+func (c *ExCache) NewTrade(trades []*exsync.Trade) {
     c.mu.Lock()
-    defer c.mu.Unlock()
     if len(c.trades) > c.maxTradesLen * 2 {
-        c.trades = append(c.trades[c.maxTradesLen:], t)
+        c.trades = append(c.trades[c.maxTradesLen:], trades...)
     } else {
-        c.trades = append(c.trades, t)
+        c.trades = append(c.trades, trades...)
     }
-
-    if c.kline == nil {
-        c.kline = NewKline(c.Exname, t, time.Minute)
-    } else {
-        rt := c.kline.AddTrade(t)
-        if rt == 1 {
-            //save
-            var err error
-            err = utils.Save(c.kline, "kline", utils.MainDB)
-            if err != nil {
-                utils.FatalLog.Write(err.Error())
-            }
-            utils.DebugLog.Write("kline: %v", c.kline)
+    c.mu.Unlock()
+    for _, t := range trades {
+        if c.kline == nil {
             c.kline = NewKline(c.Exname, t, time.Minute)
+        } else {
+            rt := c.kline.AddTrade(t)
+            if rt == 1 {
+                //save
+                var err error
+                err = utils.Save(c.kline, "kline", utils.MainDB)
+                if err != nil {
+                    utils.FatalLog.Write(err.Error())
+                }
+                utils.DebugLog.Write("kline: %v", c.kline)
+                c.kline = NewKline(c.Exname, t, time.Minute)
+            }
         }
+        tt := time.Unix(t.GetCreateTime().Seconds, t.GetCreateTime().Nanos)
+        utils.DebugLog.Write("%s %s %v %v %v", c.Exname, t.TAction, t.Amount, t.Price, tt)
     }
-
-    tt := time.Unix(t.GetCreateTime().Seconds, t.GetCreateTime().Nanos)
-    utils.DebugLog.Write("%s %s %v %v %v", c.Exname, t.TAction, t.Amount, t.Price, tt)
 }
 
 func (c *ExCache) GetTrades(n int) []*exsync.Trade {
