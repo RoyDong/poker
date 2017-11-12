@@ -2,7 +2,6 @@ package market
 
 import (
     "dw/poker/protobuf/exsync"
-    "dw/poker/market/okex"
     "dw/poker/context"
 )
 
@@ -23,9 +22,8 @@ func GetExchange(name string) *Exchange {
 }
 
 func Init(conf *context.Config) {
-    okconf := conf.Market.Okex
-    ok := okex.NewFuture(okconf.HttpHost, okconf.ApiKey, okconf.ApiSecret, "quarter")
-    AddExchange(NewExchange(OkexQuarter, conf.Market.ExsyncHost, ok))
+    AddExchange(NewExchange(OkexQuarter, conf.Market.ExsyncHost))
+    AddExchange(NewExchange(OkexWeek, conf.Market.ExsyncHost))
 
     /*
         bmconf := conf.Market.Bitmex
@@ -47,7 +45,7 @@ func GetProfit(pos *exsync.Position, price float64) float64 {
 
 func GetROP(pos *exsync.Position, price float64) float64 {
     if pos.Money > 0 {
-        return GetProfit(pos, price) / pos.Money * pos.Leverge
+        return GetProfit(pos, price) / pos.Deposit
     }
     return 0
 }

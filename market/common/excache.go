@@ -46,11 +46,25 @@ func (c *ExCache) GetBalance() *exsync.Balance {
     return c.balance
 }
 
-func (c *ExCache) SetPosition(long, short *exsync.Position) {
+func (c *ExCache) SetPosition(long, short *exsync.Position) bool {
+    changed := false
     c.mu.Lock()
-    c.long = long
-    c.short = short
+    if c.long == nil {
+        c.long = &exsync.Position{}
+    }
+    if c.short == nil {
+        c.short = &exsync.Position{}
+    }
+    if c.long.Amount != long.Amount {
+        c.long = long
+        changed = true
+    }
+    if c.short.Amount != short.Amount {
+        c.short = short
+        changed = true
+    }
     c.mu.Unlock()
+    return changed
 }
 
 func (c *ExCache) GetLong() *exsync.Position {
@@ -90,6 +104,12 @@ func (c *ExCache) GetOrders(ids ...string) []*exsync.Order {
         }
     }
     return orders
+}
+
+func (c *ExCache) GetOrder(id string) *exsync.Order {
+    c.mu.RLock()
+    defer c.mu.RUnlock()
+    return c.orders[id]
 }
 
 func (c *ExCache) SetDepth(asks, bids []*exsync.Trade) {

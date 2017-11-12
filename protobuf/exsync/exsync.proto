@@ -6,6 +6,10 @@ service SyncService {
 
     rpc Ping(ReqPing) returns (Pong) {}
 
+    rpc MakeOrder(ReqMakeOrder) returns (RespMakeOrder) {}
+
+    rpc CancelOrder(ReqCancelOrder) returns (Resp) {}
+
     rpc GetOrders(ReqOrders) returns (RespOrders) {}
 
     rpc GetTrades(ReqTrades) returns (RespTrades) {}
@@ -20,12 +24,13 @@ service SyncService {
 }
 
 enum TradeAction {
-    OpenLong   = 0;
-    OpenShort  = 1;
-    CloseLong  = 2;
-    CloseShort = 3;
-    Buy  = 4;
-    Sell = 5;
+    ActionUnkown   = 0;
+    OpenLong   = 1;
+    OpenShort  = 2;
+    CloseLong  = 3;
+    CloseShort = 4;
+    Buy  = 5;
+    Sell = 6;
 }
 
 enum PositionType {
@@ -41,11 +46,12 @@ enum CurrencyUnit {
 }
 
 enum OrderStatus {
-    OrderStatusCreated   = 0;
-    OrderStatusPartial   = 1; //部分成交
-    OrderStatusComplete  = 2;
-    OrderStatusCanceled  = 3;
-    OrderStatusCanceling = 4;
+    StatusUnkown = 0;
+    Created   = 1;
+    Partial   = 2; //部分成交
+    Complete  = 3;
+    Canceled  = 4;
+    Canceling = 5;
 }
 
 message ReqPing {}
@@ -53,6 +59,24 @@ message Pong {}
 
 message Req {
     string exname = 1;
+}
+
+message Resp { }
+
+message ReqMakeOrder {
+    string exname = 1;
+    TradeAction tAction = 2;
+    double amount = 3;
+    double price = 4;
+}
+
+message RespMakeOrder {
+    Order order = 1;
+}
+
+message ReqCancelOrder {
+    string exname = 1;
+    repeated string ids = 2;
 }
 
 message ReqTrades {
@@ -113,10 +137,10 @@ message RespDepth {
 message Balance {
     double amount = 1;
     double deposit = 2;
-    double realProfil = 3;
-    double UnrealProfit = 4;
-    double RiskRate = 5;
-    CurrencyUnit currentcy = 6;
+    double realProfit = 3;
+    double unrealProfit = 4;
+    double riskRate = 5;
+    CurrencyUnit currency = 6;
 }
 
 message Position {
@@ -127,7 +151,7 @@ message Position {
     double avgPrice = 5;
     double money = 6;
     double deposit = 7;
-    double leverge = 8;
+    double leverage = 8;
     double forceClosePrice = 9;
 }
 

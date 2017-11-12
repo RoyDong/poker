@@ -12,8 +12,8 @@ import (
 )
 
 type syncService struct {
-    okexQuarter *okex.FutureSync
-    okexWeek *okex.FutureSync
+    okexQuarter *okex.Future
+    okexWeek *okex.Future
     bitmexXbtusd *bitmex.FutureSync
 }
 
@@ -22,21 +22,27 @@ func newSyncService(conf *context.Config) (*syncService, error) {
 
     //okex quarter
     var err error
-    srv.okexQuarter, err = okex.NewFutureSync(
+    srv.okexQuarter = okex.NewFuture(
+        conf.Market.Okex.HttpHost,
+        conf.Market.Okex.Wss,
         conf.Market.Okex.ApiKey,
         conf.Market.Okex.ApiSecret,
-        conf.Market.Okex.Wss,
         "quarter", market.OkexQuarter)
+
+    err = srv.okexQuarter.StartSync()
     if err != nil {
         return nil, err
     }
 
     //okex week
-    srv.okexWeek, err = okex.NewFutureSync(
+    srv.okexWeek = okex.NewFuture(
+        conf.Market.OkexWeek.HttpHost,
+        conf.Market.OkexWeek.Wss,
         conf.Market.OkexWeek.ApiKey,
         conf.Market.OkexWeek.ApiSecret,
-        conf.Market.OkexWeek.Wss,
         "this_week", market.OkexWeek)
+
+    err = srv.okexWeek.StartSync()
     if err != nil {
         return nil, err
     }
@@ -61,7 +67,22 @@ func (s *syncService) getCache(exname string) *common.ExCache {
         return &s.okexWeek.ExCache
 
     case market.BitmexXbtusd:
-        return &s.bitmexXbtusd.ExCache
+        //return &s.bitmexXbtusd.ExCache
+
+    }
+    return nil
+}
+
+func (s *syncService) getExTrade(exname string) market.ITrade {
+    switch exname {
+    case market.OkexQuarter:
+        return s.okexQuarter
+
+    case market.OkexWeek:
+        return s.okexWeek
+
+    case market.BitmexXbtusd:
+        //return &s.bitmexXbtusd.ExCache
 
     }
     return nil
@@ -71,10 +92,37 @@ func (s *syncService) Ping(ctx gctx.Context, in *exsync.ReqPing) (*exsync.Pong, 
     return &exsync.Pong{}, nil
 }
 
+func (s *syncService) MakeOrder(ctx gctx.Context, in *exsync.ReqMakeOrder) (*exsync.RespMakeOrder, error) {
+    ex := s.getExTrade(in.GetExname())
+    if ex == nil {
+        return nil, errors.New("ex not found " + in.GetExname())
+    }
+    order, err := ex.MakeOrder(in.GetTAction(), in.GetAmount(), in.GetPrice())
+    if err != nil {
+        return nil, err
+    }
+    resp := &exsync.RespMakeOrder{}
+    resp.Order = order
+    return resp, nil
+}
+
+func (s *syncService) CancelOrder(ctx gctx.Context, in *exsync.ReqCancelOrder) (*exsync.Resp, error) {
+    ex := s.getExTrade(in.GetExname())
+    if ex == nil {
+        return nil, errors.New("ex not found " + in.GetExname())
+    }
+    err := ex.CancelOrder(in.GetIds()...)
+    if err != nil {
+        return nil, err
+    }
+    resp := &exsync.Resp{}
+    return resp, nil
+}
+
 func (s *syncService) GetOrders(ctx gctx.Context, in *exsync.ReqOrders) (*exsync.RespOrders, error) {
-    cache := s.getCache(in.Exname)
+    cache := s.getCache(in.GetExname())
     if cache == nil {
-        return nil, errors.New("ex not found " + in.Exname)
+        return nil, errors.New("ex not found " + in.GetExname())
     }
     resp := &exsync.RespOrders{}
     resp.Orders = cache.GetOrders(in.GetIds()...)
@@ -82,9 +130,9 @@ func (s *syncService) GetOrders(ctx gctx.Context, in *exsync.ReqOrders) (*exsync
 }
 
 func (s *syncService) GetTrades(ctx gctx.Context, in *exsync.ReqTrades) (*exsync.RespTrades, error) {
-    cache := s.getCache(in.Exname)
+    cache := s.getCache(in.GetExname())
     if cache == nil {
-        return nil, errors.New("ex not found " + in.Exname)
+        return nil, errors.New("ex not found " + in.GetExname())
     }
     resp := &exsync.RespTrades{}
     resp.Trades = cache.GetTrades(int(in.Num))

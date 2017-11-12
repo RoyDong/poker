@@ -16,11 +16,10 @@ var RPCTimeout = 10 * time.Millisecond
 
 type ITrade interface {
     MakeOrder(ta exsync.TradeAction, amount, price float64) (*exsync.Order, error)
-    CancelOrder(id ...string) error
+    CancelOrder(ids ...string) error
 }
 
 type Exchange struct {
-    ITrade
     utils.Event
 
     exsyncHost string
@@ -35,10 +34,9 @@ type Exchange struct {
     klines []*common.Kline
 }
 
-func NewExchange(name, exsyncHost string, itrade ITrade) *Exchange {
+func NewExchange(name, exsyncHost string) *Exchange {
     ex := &Exchange{}
     ex.name = name
-    ex.ITrade = itrade
     ex.maxKlinesLen = 100
     ex.klines = make([]*common.Kline, 0, ex.maxKlinesLen)
     ex.inLoop = true
@@ -81,6 +79,25 @@ func (ex *Exchange) timeoutCtx() gctx.Context {
     return ctx
 }
 
+func (ex *Exchange) MakeOrder(ta exsync.TradeAction, amount, price float64) (*exsync.Order, error) {
+    req := &exsync.ReqMakeOrder{
+        Exname:ex.name,
+        TAction:ta,
+        Amount:amount,
+        Price:price,
+    }
+    resp, err := ex.getExsyncClient().MakeOrder(gctx.Background(), req)
+    if err != nil {
+        return nil, err
+    }
+    return resp.Order, nil
+}
+
+func (ex *Exchange) CancelOrder(ids ...string) error {
+    _, err := ex.getExsyncClient().CancelOrder(gctx.Background(), &exsync.ReqCancelOrder{Exname:ex.name,Ids:ids})
+    return err
+}
+
 func (ex *Exchange) GetTrades(n int32) ([]*exsync.Trade, error) {
     resp, err := ex.getExsyncClient().GetTrades(ex.timeoutCtx(), &exsync.ReqTrades{Exname:ex.name, Num:n})
     if err != nil {
@@ -98,7 +115,7 @@ func (ex *Exchange) GetOrder(id string) (*exsync.Order, error) {
     if len(resp.GetOrders()) == 1 {
         return resp.GetOrders()[0], nil
     }
-    return nil, err
+    return nil, errors.New("order not found " + id)
 }
 
 func (ex *Exchange) GetOrders() ([]*exsync.Order, error) {
@@ -244,8 +261,8 @@ func (ex *Exchange) OrderCompleteOrPriceChange(order *exsync.Order, spread float
     for i := 0; i < 20; i++ {
         o, err := ex.GetOrder(order.Id)
         if err == nil {
-            if o.Status == exsync.OrderStatus_OrderStatusComplete ||
-                o.Status == exsync.OrderStatus_OrderStatusCanceled {
+            if o.Status == exsync.OrderStatus_Complete ||
+                o.Status == exsync.OrderStatus_Canceled {
                 return o, true
             }
             order = o
