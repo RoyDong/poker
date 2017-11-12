@@ -6,6 +6,7 @@ import (
     "dw/poker/riskcontrol"
     "net/http"
     "strings"
+    "dw/poker/gamble"
 )
 
 type IModule interface {
@@ -16,6 +17,9 @@ type IModule interface {
 var routes = map[string][]IModule{
     "/riskcontrol": {
         &riskcontrol.RiskCtrl{},
+    },
+    "/gamble": {
+        &gamble.Gamble{},
     },
 }
 

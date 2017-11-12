@@ -26,7 +26,6 @@ type Future struct {
     leverage float64
 
     tradePipe chan json.RawMessage
-
     tradeSig chan struct{}
 }
 
@@ -102,6 +101,7 @@ func (this *Future) MakeOrder(ta exsync.TradeAction, amount, price float64) (*ex
     }
     go this.sendTradeSig()
     order.Id = okidToOrderid(mkr.OrderId)
+    this.SetOrder(order)
     this.syncOrder(order)
     return order, nil
 }
@@ -138,7 +138,6 @@ func (this *Future) CancelOrder(id ...string) error {
     if !resp.Result || len(resp.Error) > 0 {
         return errors.New("cancel order error")
     }
-
     return nil
 }
 
@@ -464,6 +463,7 @@ func (this *Future) syncTrade() {
             }
         }
         this.NewTrade(trades)
+        this.UpdateKline(trades)
         this.Trigger("NewTrade", trades)
     }
 }

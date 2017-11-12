@@ -3,6 +3,7 @@ package market
 import (
     "dw/poker/protobuf/exsync"
     "dw/poker/context"
+    "dw/poker/utils"
 )
 
 const (
@@ -14,6 +15,9 @@ const (
 var exchanges = make(map[string]*Exchange, 0)
 
 func AddExchange(ex *Exchange) {
+    if ex == nil {
+        utils.FatalLog.Write("ex is nil")
+    }
     exchanges[ex.Name()] = ex
 }
 

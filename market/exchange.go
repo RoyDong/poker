@@ -21,32 +21,26 @@ type ITrade interface {
 
 type Exchange struct {
     utils.Event
+    name string
 
     exsyncHost string
     exsyncMu sync.RWMutex
     exsync exsync.SyncServiceClient
 
-    name string
-    tradeMu sync.RWMutex
-    inLoop bool
-    trades []*exsync.Trade
-    maxKlinesLen int
+    mu sync.RWMutex
     klines []*common.Kline
 }
 
 func NewExchange(name, exsyncHost string) *Exchange {
     ex := &Exchange{}
     ex.name = name
-    ex.maxKlinesLen = 100
-    ex.klines = make([]*common.Kline, 0, ex.maxKlinesLen)
-    ex.inLoop = true
-
     var err error
     ex.exsyncHost = exsyncHost
     ex.exsync, err = ex.createExsyncClient()
     if err != nil {
         return nil
     }
+    go ex.loadKlines()
     return ex
 }
 
@@ -146,18 +140,6 @@ func (ex *Exchange) GetBalance() (*exsync.Balance, error) {
     return resp.Balance, err
 }
 
-func (ex *Exchange) LastTrades() []*exsync.Trade {
-    ex.tradeMu.RLock()
-    defer ex.tradeMu.RUnlock()
-    return ex.trades
-}
-
-func (ex *Exchange) LastKlines() []*common.Kline {
-    ex.tradeMu.RLock()
-    defer ex.tradeMu.RUnlock()
-    return ex.klines
-}
-
 func (ex *Exchange) LastnAvgPrice(n int32) float64 {
     trades, err := ex.GetTrades(n)
     if err != nil {
@@ -168,6 +150,44 @@ func (ex *Exchange) LastnAvgPrice(n int32) float64 {
         sum += t.Price
     }
     return sum / float64(n)
+}
+
+func (ex *Exchange) GetKlines(n int) []*common.Kline {
+    ex.mu.RLock()
+    defer ex.mu.RUnlock()
+    return ex.klines[len(ex.klines) - n:]
+}
+
+func (ex *Exchange) loadKlines() {
+    lastid := 0
+    for {
+        stmt := "select * from kline where exname = ? and id > ? order by open_time desc limit 10"
+        r, err := utils.MainDB.Query(stmt, ex.name, lastid)
+        if err != nil {
+            utils.WarningLog.Write("load kline from db error %s", err.Error())
+            return
+        }
+        var klines []*common.Kline
+        for r.Next() {
+            var k *common.Kline
+            err = utils.Scan(r, &k)
+            if err != nil {
+                utils.WarningLog.Write("scan kline from db error %s", err.Error())
+                continue
+            }
+            klines = append(klines, k)
+        }
+        for i := len(klines) - 1; i >= 0; i-- {
+            v := klines[i]
+            ex.mu.Lock()
+            ex.klines = append(ex.klines, v)
+            ex.mu.Unlock()
+            ex.Trigger("KlineClose", v)
+            utils.DebugLog.Write(ex.name + " load kline from db %v", v)
+            lastid = v.Id
+        }
+        time.Sleep(5 * time.Second)
+    }
 }
 
 /*
