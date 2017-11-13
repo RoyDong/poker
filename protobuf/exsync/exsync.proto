@@ -34,8 +34,9 @@ enum TradeAction {
 }
 
 enum PositionType {
-    Long  = 0;
-    Short = 1;
+    PositionNone = 0;
+    Long  = 1;
+    Short = 2;
 }
 
 enum CurrencyUnit {

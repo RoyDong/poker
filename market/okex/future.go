@@ -297,7 +297,7 @@ func (this *Future) syncPosition() {
         if !changed {
             select {
             case <-this.tradeSig:
-            case <-time.After(100 * time.Second):
+            case <-time.After(5 * time.Second):
             }
         }
     }
