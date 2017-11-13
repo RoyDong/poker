@@ -27,6 +27,8 @@ type ExCache struct {
 
     kline *Kline
     klines []*Kline
+
+    TradeLogger *utils.Logger
 }
 
 func (c *ExCache) SetBalance(b *exsync.Balance) {
@@ -146,9 +148,19 @@ func (c *ExCache) NewTrade(trades []*exsync.Trade) {
         c.trades = append(c.trades, trades...)
     }
     c.mu.Unlock()
+    c.saveTrades(trades)
+    c.updateKline(trades)
 }
 
-func (c *ExCache) UpdateKline(trades []*exsync.Trade) {
+func (c *ExCache) saveTrades(trades []*exsync.Trade) {
+    for _, t := range trades {
+        c.TradeLogger.Write("%s %s %f %.16f %.16f %d %d",
+            t.GetId(), t.GetTAction(), t.GetAmount(), t.GetPrice(),
+            t.GetFee(), t.GetCreateTime().GetSeconds(), t.GetCreateTime().GetNanos())
+    }
+}
+
+func (c *ExCache) updateKline(trades []*exsync.Trade) {
     for _, t := range trades {
         if c.kline == nil {
             c.mu.Lock()

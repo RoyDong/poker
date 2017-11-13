@@ -28,6 +28,7 @@ func NewFutureSync(apiKey, apiSecret, wss, exname string) (*FutureSync, error) {
     this.apiSecret = apiSecret
     this.symbol = "XBTUSD"
     this.Exname = exname
+    this.TradeLogger = utils.NewLogger("exdata", exname + "-trade", "daily", false)
     this.tradePipe = make(chan json.RawMessage, 10)
     go this.syncTrade()
 

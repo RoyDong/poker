@@ -38,6 +38,7 @@ func NewFuture(httpHost, wss, apiKey, apiSecret, contractType, exname string) *F
     this.symbol = "btc_usd"
     this.leverage = 20
     this.Exname = exname
+    this.TradeLogger = utils.NewLogger("exdata", exname + "-trade", "daily", false)
     this.tradePipe = make(chan json.RawMessage, 10)
     this.tradeSig = make(chan struct{}, 1)
 
@@ -463,7 +464,6 @@ func (this *Future) syncTrade() {
             }
         }
         this.NewTrade(trades)
-        this.UpdateKline(trades)
         this.Trigger("NewTrade", trades)
     }
 }

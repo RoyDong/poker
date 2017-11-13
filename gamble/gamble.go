@@ -5,7 +5,6 @@ import (
     "dw/poker/market/common"
     "dw/poker/utils"
     "dw/poker/market"
-    "time"
     "log"
 )
 
@@ -22,31 +21,67 @@ type indicator struct {
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
-    all := g.loadKlinesFromdb(1000)
+    all := g.loadKlinesFromdb(10000)
 
+    log.Println(len(all))
+
+    n := 0
+    nl := 0
+    ns := 0
+
+    ml := 0
+    ms := 0
     for i := 0; i < len(all) - 11; i++ {
-        time.Sleep(10*time.Second)
-        klines := all[i:i+7]
-        testk := all[i+7]
+        //time.Sleep(time.Second)
+        klines := all[i:i+6]
+        testk := all[i+6]
+        testk2 := all[i+7]
+
+
 
         ins := g.getIndicator(klines)
 
-        slopes := make([]float64, 0, 10)
+        if len(ins) != 5 {
+            log.Println("not 5")
+            continue
+        }
+
+        slopes := make([]float64, 0, 5)
         for _, in := range ins {
             slopes = append(slopes, in.slope)
         }
+        prices := make([]float64, 0, 5)
+        for _, in := range ins {
+            prices = append(prices, in.price)
+        }
+        prices = append(prices, testk.AvgPrice)
+        prices = append(prices, testk2.AvgPrice)
+
 
         if g.guessLong(ins) {
 
-            utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes, testk.AvgPrice)
+            nl++
+
+            utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
+
+            if prices[5] > prices[4] || prices[6] > prices[4] {
+                ml ++
+            }
+
         } else if g.guessShort(ins) {
 
-            utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, testk.AvgPrice)
+            ns ++
+            utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
+            if prices[5] < prices[4] || prices[6] < prices [4] {
+                ms ++
+            }
         } else {
 
-            utils.DebugLog.Write("gamble guess none %v nextAvg: %f", slopes, testk.AvgPrice)
+            n++
         }
     }
+
+    log.Println(n, nl, ml, ns, ms)
 
 
     return nil
@@ -106,27 +141,22 @@ func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
 }
 
 func (g *Gamble) guessLong(ins []*indicator) bool {
-    log.Println("guess long")
     //前7次斜率必须小于等于0
-    for i := 0; i < 4;  i++ {
+    for i := 0; i < 2;  i++ {
         if ins[i].slope > 0 {
-            log.Println("1-7 error")
             return false
         }
     }
     //最近3次斜率必须大于等于0，且递增
     //主动交易 buy > sell
-    for i := 4; i < 6; i++ {
+    for i := 2; i < 5; i++ {
         if ins[i].slope < 0 {
-            log.Println("7-10 s1")
             return false
         }
         if ins[i].slope < ins[i-1].slope {
-            log.Println("7-10 s2")
             return false
         }
         if ins[i].dealDelta < 0 {
-            log.Println("7-10 s3")
             return false
         }
     }
@@ -135,32 +165,26 @@ func (g *Gamble) guessLong(ins []*indicator) bool {
 
 func (g *Gamble) guessShort(ins []*indicator) bool {
     //前7次斜率必须大于等0
-    log.Println("guess short")
-    for i := 0; i < 4;  i++ {
+    for i := 0; i < 2;  i++ {
         if ins[i].slope < 0 {
-            log.Println("1-7 error")
             return false
         }
     }
     //最近3次斜率必须小于等于0，且递减
     //主动交易 buy < sell
-    for i := 4; i < 6; i++ {
+    for i := 2; i < 5; i++ {
         if ins[i].slope > 0 {
-            log.Println("7-10 s2")
             return false
         }
         if ins[i].slope > ins[i-1].slope {
-            log.Println("7-10 s2")
             return false
         }
         if ins[i].dealDelta > 0 {
-            log.Println("7-10 s2")
             return false
         }
     }
     return true
 }
-
 
 
 
