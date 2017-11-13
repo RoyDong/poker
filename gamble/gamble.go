@@ -51,7 +51,7 @@ func (g *Gamble) play(exname string) {
         //暂时没有新的分钟线
 
         guess = g.guess(klines, price)
-        utils.DebugLog.Write("new guess %s", guess)
+        utils.DebugLog.Write("guess %s", guess)
 
         long, short, err := ex.GetPosition()
         if err != nil {
@@ -87,10 +87,9 @@ func (g *Gamble) play(exname string) {
         prices := make([]float64, 0, n + 1)
         for _, k := range klines {
             prices = append(prices, k.AvgPrice)
-            log.Println(k.Id)
         }
         prices = append(prices, price)
-        utils.DebugLog.Write("guess %s %v", guess, prices)
+        utils.DebugLog.Write("%v", guess, prices)
     }
 }
 
