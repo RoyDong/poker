@@ -145,11 +145,7 @@ func (ex *Exchange) LastnAvgPrice(n int32) float64 {
     if err != nil {
         return 0
     }
-    var sum float64
-    for _, t := range trades {
-        sum += t.Price
-    }
-    return sum / float64(n)
+    return GetAvgPrice(trades)
 }
 
 func (ex *Exchange) GetKlines(n int) []*common.Kline {

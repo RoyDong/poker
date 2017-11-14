@@ -142,8 +142,8 @@ func (c *ExCache) GetIndex() float64 {
 
 func (c *ExCache) NewTrade(trades []*exsync.Trade) {
     c.mu.Lock()
-    if len(c.trades) > 2000 {
-        c.trades = append(c.trades[200:], trades...)
+    if len(c.trades) > 21000 {
+        c.trades = append(c.trades[1000:], trades...)
     } else {
         c.trades = append(c.trades, trades...)
     }
@@ -165,7 +165,7 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
         if c.kline == nil {
             c.mu.Lock()
             c.kline = NewKline(c.Exname, t, time.Minute)
-            c.klines = make([]*Kline, 0, 10000)
+            c.klines = make([]*Kline, 0, 11000)
             c.mu.Unlock()
         } else {
             rt := c.kline.AddTrade(t)
@@ -178,8 +178,8 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
                 }
                 utils.DebugLog.Write("kline: %v", c.kline)
                 c.mu.Lock()
-                if len(c.klines) > 10000 {
-                    c.klines = append(c.klines[2000:], c.kline)
+                if len(c.klines) > 11000 {
+                    c.klines = append(c.klines[1000:], c.kline)
                 } else {
                     c.klines = append(c.klines, c.kline)
                 }
@@ -195,7 +195,10 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
 func (c *ExCache) GetTrades(n int) []*exsync.Trade {
     c.mu.RLock()
     defer c.mu.RUnlock()
-    return c.trades[len(c.trades) - n:]
+    if n < len(c.trades) {
+        return c.trades[len(c.trades) - n:]
+    }
+    return c.trades
 }
 
 func (c *ExCache) GetKlines(n int) []*Kline {

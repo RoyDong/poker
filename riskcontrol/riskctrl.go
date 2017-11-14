@@ -43,7 +43,7 @@ func (this *RiskCtrl) baseCtrl() {
     var sMaxRop = math.Inf(-1)
     var lMaxRop = math.Inf(-1)
     for this.inLoop {
-        time.Sleep(2 * time.Second)
+        time.Sleep(5 * time.Second)
         ticker, err := ok.Tick()
         if err != nil {
             utils.WarningLog.Write(err.Error())

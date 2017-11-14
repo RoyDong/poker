@@ -10,6 +10,16 @@ import (
     "time"
 )
 
+const (
+    GuessLong = 1
+    GuessLongPending = 2
+
+    GuessShort = 3
+    GuessShortPending = 4
+
+    GuessNone = 5
+)
+
 type Gamble struct {
 
     inloop bool
@@ -28,8 +38,8 @@ func (g *Gamble) Init(conf *context.Config) error {
 }
 
 func (g *Gamble) Run(ctx *context.Context) error {
-    g.test(market.OkexQuarter, 2)
-    g.test(market.OkexWeek, 2)
+    g.test(market.OkexQuarter, 3)
+    g.test(market.OkexWeek, 3)
 
     return nil
 }
@@ -41,16 +51,19 @@ func (g *Gamble) play(exname string) {
     ex := market.GetExchange(exname)
     g.inloop = true
     guess := exsync.PositionType_PositionNone
-    n := 1
     for g.inloop {
         time.Sleep(5 * time.Second)
         amount := float64(10)
-        klines := g.loadKlinesFromdb(exname, n + 1)
-        price := ex.LastnAvgPrice(50)
+        klines := g.loadKlinesFromdb(exname, 2)
+        price := ex.LastnAvgPrice(10)
 
-        //暂时没有新的分钟线
+        prices := []float64 {
+            klines[0].AvgPrice,
+            klines[1].AvgPrice,
+            price,
+        }
 
-        guess = g.guess(klines, price)
+        guess = g.guess(prices)
         utils.DebugLog.Write("guess %s", guess)
 
         long, short, err := ex.GetPosition()
@@ -84,18 +97,16 @@ func (g *Gamble) play(exname string) {
                 ex.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0, 10)
             }
         }
-        prices := make([]float64, 0, n + 1)
-        for _, k := range klines {
-            prices = append(prices, k.AvgPrice)
-        }
-        prices = append(prices, price)
-        utils.DebugLog.Write("%v", guess, prices)
     }
 }
 
-func (g *Gamble) guess(klines []*common.Kline, price float64) exsync.PositionType {
-    klines = append(klines, &common.Kline{AvgPrice:price})
-    ins := g.getIndicator(klines)
+func (g *Gamble) guess(prices []float64) exsync.PositionType {
+    ins := g.getIndicator(prices)
+    var v []float64
+    for _, in := range ins {
+        v = append(v, in.slope)
+    }
+    utils.DebugLog.Write("slopes %.6f %.6f", v[0], v[1])
     if g.guessLong(ins) {
         return exsync.PositionType_Long
     }
@@ -116,7 +127,11 @@ func (g *Gamble) test(ex string, n int) {
         testk := all[i + n]
         testk2 := all[i+ n + 1]
 
-        ins := g.getIndicator(klines)
+        prices := make([]float64, 0)
+        for _, k := range klines {
+            prices = append(prices, k.AvgPrice)
+        }
+        ins := g.getIndicator(prices)
 
         if len(ins) != n {
             log.Println("not ", i, n, len(ins))
@@ -127,18 +142,14 @@ func (g *Gamble) test(ex string, n int) {
         for _, in := range ins {
             slopes = append(slopes, in.slope)
         }
-        prices := make([]float64, 0, n)
-        for _, in := range ins {
-            prices = append(prices, in.price)
-        }
         prices = append(prices, testk.AvgPrice)
         prices = append(prices, testk2.AvgPrice)
 
         if g.guessLong(ins) {
             nl++
-            utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
+            //utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
 
-            w := prices[n] - prices[n-1]
+            w := prices[n+1] - prices[n]
             if w > 0 {//|| prices[n+1] > prices[n-1]{
                 ml ++
             }
@@ -146,8 +157,8 @@ func (g *Gamble) test(ex string, n int) {
 
         } else if g.guessShort(ins) {
             ns ++
-            utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
-            w := prices[n] - prices[n-1]
+            //utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
+            w := prices[n+1] - prices[n]
             if w < 0 {//|| prices[n+1] > prices[n-1]{
                 ms ++
             }
@@ -161,7 +172,6 @@ func (g *Gamble) test(ex string, n int) {
     log.Println(lwin * 6000, swin * 6000)
 
 }
-
 func (g *Gamble) loadKlinesFromdb(ex string, n int) []*common.Kline {
     stmt := "select * from kline where exname = ? order by open_time desc limit ?"
     r, err := utils.MainDB.Query(stmt, ex, n)
@@ -179,13 +189,11 @@ func (g *Gamble) loadKlinesFromdb(ex string, n int) []*common.Kline {
         }
         klines = append(klines, k)
     }
-
-    l := len(klines)
-    ret := make([]*common.Kline, l)
-    for i, k := range klines {
-        ret[l - i - 1] = k
+    for i := 0; i < len(klines) / 2; i++ {
+        j := len(klines) - i - 1
+        klines[i], klines[j] = klines[j], klines[i]
     }
-    return ret
+    return klines
 }
 
 
@@ -194,17 +202,13 @@ func (g *Gamble) loadKlinesFromdb(ex string, n int) []*common.Kline {
 同时斜率保持在一个绝对值较低的位置
 
  */
-func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
-    indicators := make([]*indicator, 0, len(klines))
-    for i := 1; i < len(klines); i++ {
-        last := klines[i - 1]
-        v := klines[i]
-        slope := (v.AvgPrice - last.AvgPrice) / last.AvgPrice
-        dealDelta := v.BuyAmount - v.SellAmount
+func (g *Gamble) getIndicator(prices []float64) []*indicator {
+    indicators := make([]*indicator, 0, len(prices))
+    for i := 1; i < len(prices); i++ {
+        slope := (prices[i] - prices[i - 1]) / prices[i - 1]
         in := &indicator{
-            price:v.AvgPrice,
+            price:prices[i],
             slope: slope,
-            dealDelta:dealDelta,
         }
         indicators = append(indicators, in)
     }
@@ -228,8 +232,6 @@ func (g *Gamble) guessShort(ins []*indicator) bool {
     }
     return ins[len(ins) - 1].slope < 0
 }
-
-
 
 
 

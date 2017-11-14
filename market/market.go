@@ -53,3 +53,12 @@ func GetROP(pos *exsync.Position, price float64) float64 {
     }
     return 0
 }
+
+func GetAvgPrice(trades []*exsync.Trade) float64 {
+    var sum float64
+    for _, t := range trades {
+        sum += t.Price
+    }
+    return sum / float64(len(trades))
+}
+
