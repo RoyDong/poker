@@ -28,12 +28,13 @@ type Gamble struct {
 type indicator struct {
     //buy - sell
     dealDelta float64
-    slope float64
+    slope int
     price float64
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
-    go g.play(market.OkexQuarter)
+    g.test(market.OkexWeek, 2)
+    go g.play(market.OkexWeek)
     return nil
 }
 
@@ -57,13 +58,8 @@ func (g *Gamble) play(exname string) {
         klines := g.loadKlinesFromdb(exname, 2)
         price := ex.LastnAvgPrice(10)
 
-        prices := []float64 {
-            klines[0].AvgPrice,
-            klines[1].AvgPrice,
-            price,
-        }
 
-        guess = g.guess(prices)
+        guess = g.guess(append(klines, &common.Kline{AvgPrice:price}))
         utils.DebugLog.Write("guess %s", guess)
 
         long, short, err := ex.GetPosition()
@@ -100,13 +96,13 @@ func (g *Gamble) play(exname string) {
     }
 }
 
-func (g *Gamble) guess(prices []float64) exsync.PositionType {
-    ins := g.getIndicator(prices)
-    var v []float64
+func (g *Gamble) guess(klines []*common.Kline) exsync.PositionType {
+    ins := g.getIndicator(klines)
+    var v []int
     for _, in := range ins {
         v = append(v, in.slope)
     }
-    utils.DebugLog.Write("slopes %.6f %.6f", v[0], v[1])
+    utils.DebugLog.Write("slopes %v", v)
     if g.guessLong(ins) {
         return exsync.PositionType_Long
     }
@@ -119,6 +115,8 @@ func (g *Gamble) guess(prices []float64) exsync.PositionType {
 func (g *Gamble) test(ex string, n int) {
     all := g.loadKlinesFromdb(ex, 50000)
 
+    var maxs float64
+    var mins float64
     var sum,nl, ns, ml, ms float64
     var lwin, swin float64
     for i := 1; i < len(all) - n - 5; i++ {
@@ -131,14 +129,14 @@ func (g *Gamble) test(ex string, n int) {
         for _, k := range klines {
             prices = append(prices, k.AvgPrice)
         }
-        ins := g.getIndicator(prices)
+        ins := g.getIndicator(klines)
 
         if len(ins) != n {
             log.Println("not ", i, n, len(ins))
             return
         }
 
-        slopes := make([]float64, 0, n)
+        slopes := make([]int, 0, n)
         for _, in := range ins {
             slopes = append(slopes, in.slope)
         }
@@ -150,7 +148,7 @@ func (g *Gamble) test(ex string, n int) {
             //utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
 
             w := prices[n+1] - prices[n]
-            if w > 0 {//|| prices[n+1] > prices[n-1]{
+            if w > 0 {
                 ml ++
             }
             lwin += w
@@ -159,7 +157,7 @@ func (g *Gamble) test(ex string, n int) {
             ns ++
             //utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
             w := prices[n+1] - prices[n]
-            if w < 0 {//|| prices[n+1] > prices[n-1]{
+            if w < 0 {
                 ms ++
             }
             swin += w
@@ -168,8 +166,10 @@ func (g *Gamble) test(ex string, n int) {
         }
     }
 
-    log.Println(n, len(all),sum, nl, ml, ml/nl, ns, ms, ms/ns)
-    log.Println(lwin * 6000, swin * 6000)
+    log.Println("max min", maxs, mins)
+    log.Println("all", n, len(all), sum, 1 - sum / float64(len(all)))
+    log.Println(nl, ml, ml/nl, ns, ms, ms/ns)
+    log.Println(lwin * 6000 / nl, lwin * 6000, swin * 6000 / ns, swin * 6000)
 
 }
 func (g *Gamble) loadKlinesFromdb(ex string, n int) []*common.Kline {
@@ -196,19 +196,23 @@ func (g *Gamble) loadKlinesFromdb(ex string, n int) []*common.Kline {
     return klines
 }
 
+var maxSlope = 0.05
 
 /*
 斜率保持连续的增长或降低，并且在最近3分钟内都保持和趋势一致的方向， 代表了价格走势的动量
 同时斜率保持在一个绝对值较低的位置
-
  */
-func (g *Gamble) getIndicator(prices []float64) []*indicator {
-    indicators := make([]*indicator, 0, len(prices))
-    for i := 1; i < len(prices); i++ {
-        slope := (prices[i] - prices[i - 1]) / prices[i - 1]
+func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
+    indicators := make([]*indicator, 0, len(klines))
+    for i := 1; i < len(klines); i++ {
+        v1 := klines[i-1]
+        v2 := klines[i]
+        s := (v2.AvgPrice - v1.AvgPrice) / v1.AvgPrice
+        slope := int(s / maxSlope * 25)
         in := &indicator{
-            price:prices[i],
+            price:v2.AvgPrice,
             slope: slope,
+            dealDelta:v2.BuyAmount - v2.SellAmount,
         }
         indicators = append(indicators, in)
     }

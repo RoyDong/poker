@@ -62,7 +62,7 @@ message Req {
     string exname = 1;
 }
 
-message Resp { }
+message Resp {}
 
 message ReqMakeOrder {
     string exname = 1;
@@ -163,5 +163,28 @@ message RespPosition {
 
 message RespBalance {
     Balance balance = 1;
+}
+
+message TradePack {
+    string exname = 1;
+
+    int64 openTime = 2;
+    int64 closeTime = 3;
+
+    double amount = 4;
+    double avgPrice = 5;
+    double money = 6;
+    double tradeNum = 7;
+
+    double buyNum = 8;
+    double buyAmount = 9;
+    double buyAvgPrice = 10;
+
+    double sellNum = 11;
+    double sellAmount = 12;
+    double sellAvgPrice = 13;
+
+    double topAvgPrice = 14;
+    double buttonAvgPrice = 15;
 }
 

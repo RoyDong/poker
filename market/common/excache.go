@@ -192,6 +192,10 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
     }
 }
 
+func (c *ExCache) updateTradePack(trades []*exsync.Trade) {
+
+}
+
 func (c *ExCache) GetTrades(n int) []*exsync.Trade {
     c.mu.RLock()
     defer c.mu.RUnlock()

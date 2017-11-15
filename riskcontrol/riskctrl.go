@@ -31,7 +31,7 @@ func (this *RiskCtrl) baseCtrl() {
     if this.inLoop {
         return
     }
-    ok := market.GetExchange(market.OkexQuarter)
+    ok := market.GetExchange(market.OkexWeek)
     if ok == nil {
         utils.FatalLog.Write("okex exchange not found")
         return
