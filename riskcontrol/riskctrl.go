@@ -18,7 +18,8 @@ type RiskCtrl struct {
 }
 
 func (this *RiskCtrl) Init(conf *context.Config) error {
-    go this.baseCtrl()
+    go this.baseCtrl(market.OkexQuarter)
+    go this.baseCtrl(market.OkexWeek)
     return nil
 }
 
@@ -27,11 +28,11 @@ func (this *RiskCtrl) Run(ctx *context.Context) error {
     return nil
 }
 
-func (this *RiskCtrl) baseCtrl() {
+func (this *RiskCtrl) baseCtrl(exname string) {
     if this.inLoop {
         return
     }
-    ok := market.GetExchange(market.OkexWeek)
+    ok := market.GetExchange(exname)
     if ok == nil {
         utils.FatalLog.Write("okex exchange not found")
         return

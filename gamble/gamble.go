@@ -33,8 +33,10 @@ type indicator struct {
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
-    g.test(market.OkexWeek, 2)
+    g.test(market.OkexWeek, 3)
+    g.test(market.OkexQuarter, 3)
     go g.play(market.OkexWeek)
+    go g.play(market.OkexQuarter)
     return nil
 }
 
@@ -55,7 +57,7 @@ func (g *Gamble) play(exname string) {
     for g.inloop {
         time.Sleep(5 * time.Second)
         amount := float64(10)
-        klines := g.loadKlinesFromdb(exname, 2)
+        klines := g.loadKlinesFromdb(exname, 3)
         price := ex.LastnAvgPrice(10)
 
 
@@ -114,7 +116,6 @@ func (g *Gamble) guess(klines []*common.Kline) exsync.PositionType {
 
 func (g *Gamble) test(ex string, n int) {
     all := g.loadKlinesFromdb(ex, 50000)
-
     var maxs float64
     var mins float64
     var sum,nl, ns, ml, ms float64
@@ -208,7 +209,7 @@ func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
         v1 := klines[i-1]
         v2 := klines[i]
         s := (v2.AvgPrice - v1.AvgPrice) / v1.AvgPrice
-        slope := int(s / maxSlope * 25)
+        slope := int(s / maxSlope * 100)
         in := &indicator{
             price:v2.AvgPrice,
             slope: slope,
@@ -225,7 +226,8 @@ func (g *Gamble) guessLong(ins []*indicator) bool {
             return false
         }
     }
-    return ins[len(ins) - 1].slope > 0
+    slope := ins[len(ins) - 1].slope
+    return slope > 5 && slope < 14
 }
 
 func (g *Gamble) guessShort(ins []*indicator) bool {
@@ -234,7 +236,8 @@ func (g *Gamble) guessShort(ins []*indicator) bool {
             return false
         }
     }
-    return ins[len(ins) - 1].slope < 0
+    slope := ins[len(ins) - 1].slope
+    return slope < -5 && slope > -14
 }
 
 
