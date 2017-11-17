@@ -14,7 +14,6 @@ import (
 
 type RiskCtrl struct {
 
-    inLoop bool
 }
 
 func (this *RiskCtrl) Init(conf *context.Config) error {
@@ -29,9 +28,6 @@ func (this *RiskCtrl) Run(ctx *context.Context) error {
 }
 
 func (this *RiskCtrl) baseCtrl(exname string) {
-    if this.inLoop {
-        return
-    }
     ok := market.GetExchange(exname)
     if ok == nil {
         utils.FatalLog.Write("okex exchange not found")
@@ -40,10 +36,9 @@ func (this *RiskCtrl) baseCtrl(exname string) {
     //utils.SendSysMail("start risk control")
     n := 0
     stop := false
-    this.inLoop = true
     var sMaxRop = math.Inf(-1)
     var lMaxRop = math.Inf(-1)
-    for this.inLoop {
+    for {
         time.Sleep(5 * time.Second)
         ticker, err := ok.Tick()
         if err != nil {

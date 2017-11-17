@@ -8,6 +8,7 @@ import (
     "log"
     "dw/poker/protobuf/exsync"
     "time"
+    "dw/poker/ml"
 )
 
 const (
@@ -22,7 +23,6 @@ const (
 
 type Gamble struct {
 
-    inloop bool
 }
 
 type indicator struct {
@@ -33,10 +33,10 @@ type indicator struct {
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
-    g.test(market.OkexWeek, 3)
-    g.test(market.OkexQuarter, 3)
-    go g.play(market.OkexWeek)
-    go g.play(market.OkexQuarter)
+    g.test(market.OkexWeek, 2)
+    g.test(market.OkexQuarter, 2)
+    //go g.play(market.OkexWeek)
+    //go g.play(market.OkexQuarter)
     return nil
 }
 
@@ -47,14 +47,26 @@ func (g *Gamble) Run(ctx *context.Context) error {
     return nil
 }
 
-func (g *Gamble) play(exname string) {
-    if g.inloop {
-        return
-    }
+func (g *Gamble) train(exname string) {
     ex := market.GetExchange(exname)
-    g.inloop = true
+    sample := make([]*ml.LabeledPoint, 0)
+
+    klines := g.loadKlinesFromdb(exname, 50000)
+    slopes := make([]int, 0, len(klines))
+
+    for i := 1; i < len(klines); i++ {
+        slope
+    }
+
+
+
+}
+
+
+func (g *Gamble) play(exname string) {
+    ex := market.GetExchange(exname)
     guess := exsync.PositionType_PositionNone
-    for g.inloop {
+    for {
         time.Sleep(5 * time.Second)
         amount := float64(10)
         klines := g.loadKlinesFromdb(exname, 3)
@@ -148,7 +160,7 @@ func (g *Gamble) test(ex string, n int) {
             nl++
             //utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
 
-            w := prices[n+1] - prices[n]
+            w := prices[n+2] - prices[n + 1]
             if w > 0 {
                 ml ++
             }
@@ -157,7 +169,7 @@ func (g *Gamble) test(ex string, n int) {
         } else if g.guessShort(ins) {
             ns ++
             //utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
-            w := prices[n+1] - prices[n]
+            w := prices[n+2] - prices[n+1]
             if w < 0 {
                 ms ++
             }
@@ -222,7 +234,7 @@ func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
 
 func (g *Gamble) guessLong(ins []*indicator) bool {
     for i := 1; i < len(ins); i++ {
-        if ins[i].slope < ins[i-1].slope {
+        if ins[i].slope <= ins[i-1].slope {
             return false
         }
     }
@@ -232,7 +244,7 @@ func (g *Gamble) guessLong(ins []*indicator) bool {
 
 func (g *Gamble) guessShort(ins []*indicator) bool {
     for i := 1; i < len(ins); i++ {
-        if ins[i].slope > ins[i-1].slope {
+        if ins[i].slope >= ins[i-1].slope {
             return false
         }
     }
