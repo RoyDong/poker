@@ -40,6 +40,9 @@ func (c *ExCache) SetBalance(b *exsync.Balance) {
 func (c *ExCache) GetBalance() *exsync.Balance {
     c.mu.RLock()
     defer c.mu.RUnlock()
+    if c.balance == nil {
+        c.balance = &exsync.Balance{}
+    }
     return c.balance
 }
 
@@ -67,12 +70,18 @@ func (c *ExCache) SetPosition(long, short *exsync.Position) bool {
 func (c *ExCache) GetLong() *exsync.Position {
     c.mu.RLock()
     defer c.mu.RUnlock()
+    if c.long == nil {
+        c.long = &exsync.Position{}
+    }
     return c.long
 }
 
 func (c *ExCache) GetShort() *exsync.Position {
     c.mu.RLock()
     defer c.mu.RUnlock()
+    if c.short == nil {
+        c.short = &exsync.Position{}
+    }
     return c.short
 }
 

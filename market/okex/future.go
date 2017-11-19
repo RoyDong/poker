@@ -198,6 +198,7 @@ type getBalanceResp struct {
 }
 func (this *Future) syncBalance() {
     for {
+        time.Sleep(10 * time.Second)
         resp := getBalanceResp{}
         err := this.callHttpJson(&resp, "future_userinfo.do", nil, map[string]interface{}{})
         b := &exsync.Balance{}
@@ -206,7 +207,7 @@ func (this *Future) syncBalance() {
             continue
         }
         if !resp.Result {
-            utils.WarningLog.Write("get balance error")
+            utils.WarningLog.Write(this.Exname + " get balance error %v", resp)
             continue
         }
 
@@ -220,7 +221,6 @@ func (this *Future) syncBalance() {
         this.SetBalance(b)
 
         utils.DebugLog.Write(this.Exname + " balance %v", b)
-        time.Sleep(10 * time.Second)
     }
 }
 
@@ -258,10 +258,12 @@ func (this *Future) syncPosition() {
         short := &exsync.Position{PType: exsync.PositionType_Short}
         if err != nil {
             utils.WarningLog.Write("get position error %s", err.Error())
+            time.Sleep(5 * time.Second)
             continue
         }
         if !resp.Result {
-            utils.WarningLog.Write("get position error")
+            utils.WarningLog.Write(this.Exname + " get position error")
+            time.Sleep(5 * time.Second)
             continue
         }
 

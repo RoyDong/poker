@@ -33,11 +33,13 @@ type indicator struct {
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
-    g.train(market.OkexQuarter)
-    //g.test(market.OkexWeek, 2)
-    //g.test(market.OkexQuarter, 2)
-    //go g.play(market.OkexWeek)
-    //go g.play(market.OkexQuarter)
+    //g.train(market.OkexQuarter)
+    n := 3
+    g.test(market.OkexWeek, n)
+    g.test(market.OkexQuarter, n)
+    g.test(market.BitmexXbtusd, n)
+    go g.play(market.OkexWeek, n)
+    go g.play(market.OkexQuarter, n)
     return nil
 }
 
@@ -116,13 +118,13 @@ func (g *Gamble) lrTest() {
 }
 
 
-func (g *Gamble) play(exname string) {
+func (g *Gamble) play(exname string, num int) {
     ex := market.GetExchange(exname)
     guess := exsync.PositionType_PositionNone
     for {
         time.Sleep(5 * time.Second)
         amount := float64(10)
-        klines := g.loadKlinesFromdb(exname, 3)
+        klines := g.loadKlinesFromdb(exname, num)
         price := ex.LastnAvgPrice(10)
 
 
@@ -213,7 +215,7 @@ func (g *Gamble) test(ex string, n int) {
             nl++
             //utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
 
-            w := prices[n+2] - prices[n + 1]
+            w := prices[n+1] - prices[n]
             if w > 0 {
                 ml ++
             }
@@ -222,7 +224,7 @@ func (g *Gamble) test(ex string, n int) {
         } else if g.guessShort(ins) {
             ns ++
             //utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
-            w := prices[n+2] - prices[n+1]
+            w := prices[n+1] - prices[n]
             if w < 0 {
                 ms ++
             }
@@ -233,10 +235,9 @@ func (g *Gamble) test(ex string, n int) {
     }
 
     log.Println("max min", maxs, mins)
-    log.Println("all", n, len(all), sum, 1 - sum / float64(len(all)))
+    log.Println("all", n, len(all), sum, 1 - sum / float64(len(all)), len(all) - int(sum))
     log.Println(nl, ml, ml/nl, ns, ms, ms/ns)
     log.Println(lwin * 6000 / nl, lwin * 6000, swin * 6000 / ns, swin * 6000)
-
 }
 func (g *Gamble) loadKlinesFromdb(ex string, n int) []*common.Kline {
     stmt := "select * from kline where exname = ? order by open_time desc limit ?"
@@ -306,7 +307,7 @@ func (g *Gamble) guessShort(ins []*indicator) bool {
         }
     }
     slope := ins[len(ins) - 1].slope
-    return slope < -5 && slope > -14
+    return slope < -6 && slope > -14
 }
 
 

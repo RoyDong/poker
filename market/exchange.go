@@ -122,21 +122,33 @@ func (ex *Exchange) GetOrders() ([]*exsync.Order, error) {
 
 func (ex *Exchange) GetDepth() ([]*exsync.Trade, []*exsync.Trade, error) {
     resp, err := ex.getExsyncClient().GetDepth(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    if err != nil {
+        return nil, nil, err
+    }
     return resp.Asks, resp.Bids, err
 }
 
 func (ex *Exchange) GetIndex() (float64, error) {
     resp, err := ex.getExsyncClient().GetIndex(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    if err != nil {
+        return 0, err
+    }
     return resp.Index, err
 }
 
 func (ex *Exchange) GetPosition() (*exsync.Position, *exsync.Position, error) {
     resp, err := ex.getExsyncClient().GetPosition(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    if err != nil {
+        return nil, nil, err
+    }
     return resp.Long, resp.Short, err
 }
 
 func (ex *Exchange) GetBalance() (*exsync.Balance, error) {
     resp, err := ex.getExsyncClient().GetBalance(ex.timeoutCtx(), &exsync.Req{Exname:ex.name})
+    if err != nil {
+        return nil, err
+    }
     return resp.Balance, err
 }
 
