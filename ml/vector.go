@@ -29,12 +29,28 @@ func NewVector(size int, indices []int, values []float64) *Vector {
     return vec
 }
 
+func NewVectorWithDense(dense []float64) *Vector {
+    indices := make([]int, 0)
+    values := make([]float64, 0)
+    for i, v := range dense {
+        if v != 0 {
+            indices = append(indices, i)
+            values = append(values, v)
+        }
+    }
+    return NewVector(len(dense), indices, values)
+}
+
 func (v *Vector) Get(i int) float64 {
     return v.data[i]
 }
 
-func (v *Vector) Array() []float64 {
-
+func (v *Vector) DenseArray() []float64 {
+    dense := make([]float64, 0, v.size)
+    for i := 0; i < v.size; i++ {
+        dense = append(dense, v.data[i])
+    }
+    return dense
 }
 
 func (v *Vector) Size() int {
@@ -49,6 +65,14 @@ func (v *Vector) Dot(vec *Vector) float64 {
     var dotSum float64
     for i, w := range vec.data {
         dotSum += v.data[i] * w
+    }
+    return dotSum
+}
+
+func (v *Vector) DotDense(dense []float64) float64 {
+    var dotSum float64
+    for i, w := range v.data {
+        dotSum += dense[i] * w
     }
     return dotSum
 }

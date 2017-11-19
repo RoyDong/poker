@@ -8,6 +8,7 @@ import (
     "sync"
     "math/rand"
     "dw/poker/utils"
+    "log"
 )
 
 type LogisticRegression struct {
@@ -32,7 +33,6 @@ func (m *LogisticRegression) Predict(vec *Vector) float64 {
     defer m.mu.RUnlock()
     if m.weights.Size() == vec.Size() {
         dotSum := m.weights.Dot(vec)
-        utils.DebugLog.Write("%.10f", dotSum)
         return 1.0 / (1.0 + math.Exp(-dotSum))
     }
     return 0
@@ -52,7 +52,6 @@ func (m *LogisticRegression) PredictWithRandWeight(vec *Vector,
             w = (min + rand.Float64() * (max - min)) * vec.Get(i)
             dotSum += w
         }
-        utils.DebugLog.Write("%.10f", dotSum)
         return 1.0 / (1.0 + math.Exp(-dotSum)), w
     }
     return 0, 0
@@ -146,26 +145,64 @@ func (m *LogisticRegression) initWeights(size int) *Vector {
 
 func (m *LogisticRegression) StocGradAscent(sample []*LabeledPoint, iterNum int) {
     first := sample[0]
+    log.Println(first.Features.Size(), first.Features.DenseArray(), len(sample))
     weights := make([]float64, first.Features.Size())
     alpha := 0.01
     l1norm := 0.0
     for iter := 0; iter < iterNum; iter++ {
         var minloss float64
+        pnum := 0
         for _, lp := range sample {
-            hypothesis := predict(m.weights, lp.Features)
-            loss := hypothesis - lp.Label
-            if minloss > math.Abs(loss) {
-                minloss = math.Abs(loss)
+            if lp.Label > 0 {
+                pnum++
             }
+            dotSum := lp.Features.DotDense(weights)
+            hypothesis := 1.0 / (1.0 + math.Exp(-dotSum))
+
+            loss := hypothesis - lp.Label
+            minloss = loss
             for _, i := range lp.Features.Indices() {
                 v := lp.Features.Get(i)
                 weights[i] = weights[i] - alpha * (loss * v + weights[i] * l1norm)
             }
         }
-        utils.DebugLog.Write("SGD iter %d: loss %.6f", iter, minloss)
+        utils.DebugLog.Write("SGD iter %d: loss %.6f %v", iter, minloss, pnum)
     }
+    log.Println(weights)
+    m.weights = NewVectorWithDense(weights)
 }
 
+func (m *LogisticRegression) BatchGradAscent(sample []*LabeledPoint, iterNum int) {
+    first := sample[0]
+    log.Println(first.Features.Size(), first.Features.DenseArray(), len(sample))
+    weights := make([]float64, first.Features.Size())
+    alpha := 0.01
+    l1norm := 0.0
+    deltas := make([]float64, first.Features.Size())
+    for iter := 0; iter < iterNum; iter++ {
+        pnum := 0
+        errValue := 0.0
+        for _, lp := range sample {
+            if lp.Label > 0 {
+                pnum++
+            }
+            dotSum := lp.Features.DotDense(weights)
+            hypothesis := 1.0 / (1.0 + math.Exp(-dotSum))
+            loss := hypothesis - lp.Label
+            errValue += math.Pow(loss, 2) / 2
+            for _, i := range lp.Features.Indices() {
+                v := lp.Features.Get(i)
+                deltas[i] = deltas[i] - alpha * (loss * v + weights[i] * l1norm)
+            }
+        }
+        for i, v := range deltas {
+            weights[i] = v
+        }
+        utils.DebugLog.Write("BGD iter %d: loss %.6f %v", iter, errValue, pnum)
+    }
+    log.Println(weights)
+    m.weights = NewVectorWithDense(weights)
+}
 func predict(weights, features *Vector) float64 {
     if weights.Size() == features.Size() {
         dotSum := weights.Dot(features)

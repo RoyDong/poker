@@ -33,8 +33,9 @@ type indicator struct {
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
-    g.test(market.OkexWeek, 2)
-    g.test(market.OkexQuarter, 2)
+    g.train(market.OkexQuarter)
+    //g.test(market.OkexWeek, 2)
+    //g.test(market.OkexQuarter, 2)
     //go g.play(market.OkexWeek)
     //go g.play(market.OkexQuarter)
     return nil
@@ -48,17 +49,69 @@ func (g *Gamble) Run(ctx *context.Context) error {
 }
 
 func (g *Gamble) train(exname string) {
-    ex := market.GetExchange(exname)
-    sample := make([]*ml.LabeledPoint, 0)
-
+    //ex := market.GetExchange(exname)
     klines := g.loadKlinesFromdb(exname, 50000)
+    log.Println(len(klines))
     slopes := make([]int, 0, len(klines))
-
-    for i := 1; i < len(klines); i++ {
-        slope
+    //slopes = append(slopes, 0)
+    for i := 1; i < len(klines) - 100; i++ {
+        k1 := klines[i - 1]
+        k2 := klines[i]
+        slopes = append(slopes, g.getSlope(k1.AvgPrice, k2.AvgPrice))
     }
 
+    sample := make([]*ml.LabeledPoint, 0, len(klines))
+    fnum := 100
+    for i := 0; i < len(slopes) - fnum - 2; i++ {
+        label := 0.0
+        if slopes[i+fnum] < 0 {
+            label = 1
+        }
+        if slopes[i+fnum] > 0 {
+            //label = 1
+        }
+        dense := make([]float64, fnum * 40)
+        for fi, v := range slopes[i:i+fnum] {
+            if v >= 20 {
+                v = 19
+            } else if v < -20 {
+                v = -20
+            }
+            v = v + 20
+            dense[fi * 20 + v] = 1
+        }
+        lp := &ml.LabeledPoint{
+            Label:label,
+            Features:ml.NewVectorWithDense(dense),
+        }
+        sample = append(sample, lp)
+    }
 
+    lr := &ml.LogisticRegression{}
+    lr.BatchGradAscent(sample[:26000], 400)
+
+    rtp := make([]float64, 11)
+    rtn := make([]float64, 11)
+    testSample := sample[26000:]
+    for _, lp := range testSample {
+        p := lr.Predict(lp.Features)
+
+        i := int(p * 10)
+        if lp.Label > 0 {
+            rtp[i] = rtp[i] + 1
+        } else {
+            rtn[i] = rtn[i] + 1
+        }
+    }
+
+    log.Println(len(testSample), 26000 / len(testSample))
+    for i := 10; i >= 0; i-- {
+        log.Println(i, rtp[i], rtn[i], rtp[i] / (rtp[i] + rtn[i]))
+    }
+
+}
+
+func (g *Gamble) lrTest() {
 
 }
 
@@ -220,8 +273,7 @@ func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
     for i := 1; i < len(klines); i++ {
         v1 := klines[i-1]
         v2 := klines[i]
-        s := (v2.AvgPrice - v1.AvgPrice) / v1.AvgPrice
-        slope := int(s / maxSlope * 100)
+        slope := g.getSlope(v1.AvgPrice, v2.AvgPrice)
         in := &indicator{
             price:v2.AvgPrice,
             slope: slope,
@@ -230,6 +282,11 @@ func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
         indicators = append(indicators, in)
     }
     return indicators
+}
+
+func (g *Gamble) getSlope(p1, p2 float64) int {
+    s := (p2 - p1) / p1
+    return int(s / maxSlope * 100)
 }
 
 func (g *Gamble) guessLong(ins []*indicator) bool {
