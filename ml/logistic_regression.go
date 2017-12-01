@@ -9,6 +9,7 @@ import (
     "math/rand"
     "dw/poker/utils"
     "log"
+    "io/ioutil"
 )
 
 type LogisticRegression struct {
@@ -55,6 +56,14 @@ func (m *LogisticRegression) PredictWithRandWeight(vec *Vector,
         return 1.0 / (1.0 + math.Exp(-dotSum)), w
     }
     return 0, 0
+}
+
+func (m *LogisticRegression) LoadFromFile(file string) error {
+    raw, err := ioutil.ReadFile(file)
+    if err != nil {
+        return err
+    }
+    return m.newContent(raw)
 }
 
 func (m *LogisticRegression) newContent(bytes []byte) error {

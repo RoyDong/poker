@@ -36,6 +36,10 @@ func NewWsClient(wss string) *WsClient {
     return ws
 }
 
+func (ws *WsClient) SetReconnectGap(d time.Duration) {
+    ws.reconnectGap = d
+}
+
 func (ws *WsClient) Start() error {
     err := ws.connect()
     if err != nil {

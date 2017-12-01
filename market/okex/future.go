@@ -26,7 +26,6 @@ type Future struct {
     leverage float64
 
     tradePipe chan json.RawMessage
-    tradeSig chan struct{}
 }
 
 func NewFuture(httpHost, wss, apiKey, apiSecret, contractType, exname string) *Future {
@@ -40,7 +39,6 @@ func NewFuture(httpHost, wss, apiKey, apiSecret, contractType, exname string) *F
     this.Exname = exname
     this.TradeLogger = utils.NewLogger("exdata", exname + "-trade", "daily", false)
     this.tradePipe = make(chan json.RawMessage, 10)
-    this.tradeSig = make(chan struct{}, 1)
 
     this.ws = utils.NewWsClient(wss)
     this.ws.AddHandler("Connect", this.connected)
@@ -100,18 +98,10 @@ func (this *Future) MakeOrder(ta exsync.TradeAction, amount, price float64) (*ex
     if !mkr.Result || mkr.OrderId <= 0 {
         return order, errors.New("make order error")
     }
-    go this.sendTradeSig()
     order.Id = okidToOrderid(mkr.OrderId)
     this.SetOrder(order)
     this.syncOrder(order)
     return order, nil
-}
-
-func (this *Future) sendTradeSig() {
-    select {
-    case this.tradeSig <- struct{}{}:
-    case <-time.After(time.Millisecond):
-    }
 }
 
 type cancelOrderResp struct {
@@ -198,7 +188,7 @@ type getBalanceResp struct {
 }
 func (this *Future) syncBalance() {
     for {
-        time.Sleep(10 * time.Second)
+        time.Sleep(1 * time.Second)
         resp := getBalanceResp{}
         err := this.callHttpJson(&resp, "future_userinfo.do", nil, map[string]interface{}{})
         b := &exsync.Balance{}
@@ -248,6 +238,7 @@ type getPositionResp struct {
 }
 func (this *Future) syncPosition() {
     for {
+        time.Sleep(time.Second)
         p := map[string]interface{}{
             "symbol": this.symbol,
             "contract_type": this.contractType,
@@ -292,15 +283,9 @@ func (this *Future) syncPosition() {
         short.ForceClosePrice = fcp
         short.Leverage = this.leverage
         changed := this.SetPosition(long, short)
-
-        utils.DebugLog.Write(this.Exname + " position %v", long)
-        utils.DebugLog.Write(this.Exname + " position %v", short)
-
-        if !changed {
-            select {
-            case <-this.tradeSig:
-            case <-time.After(5 * time.Second):
-            }
+        if changed {
+            utils.DebugLog.Write(this.Exname + " position %v", long)
+            utils.DebugLog.Write(this.Exname + " position %v", short)
         }
     }
 }
@@ -403,7 +388,7 @@ func (this *Future) newMsg(args ...interface{}) {
             utils.DebugLog.Write(this.Exname + " index %f %.8f", v, i)
 
         case "ok_sub_futureusd_trades":
-            this.orderUpdate(r.Data)
+            //this.orderUpdate(r.Data)
 
         case "ok_futureusd_orderinfo":
             var resp syncOrderResp
@@ -537,7 +522,7 @@ func (this *Future) orderUpdate(d []byte) {
     this.SetOrder(order)
     this.Trigger("OrderUpdate", order)
     utils.DebugLog.Write(this.Exname + " order %v", order.String())
-    time.Sleep(time.Millisecond)
+    time.Sleep(100 * time.Millisecond)
     this.syncOrder(order)
 }
 
@@ -558,7 +543,7 @@ func (this *Future) syncOrder(order *exsync.Order) {
 
 func (this *Future) syncPendingOrders() {
     for {
-        time.Sleep(5 * time.Second)
+        time.Sleep(1 * time.Second)
         params := map[string]interface{} {
             "symbol": this.symbol,
             "order_id": -1,

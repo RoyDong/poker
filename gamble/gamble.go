@@ -37,7 +37,6 @@ func (g *Gamble) Init(conf *context.Config) error {
     n := 3
     g.test(market.OkexWeek, n)
     g.test(market.OkexQuarter, n)
-    g.test(market.BitmexXbtusd, n)
     go g.play(market.OkexWeek, n)
     go g.play(market.OkexQuarter, n)
     return nil
@@ -143,7 +142,7 @@ func (g *Gamble) play(exname string, num int) {
                 ex.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0, 10)
             }
             if long.Amount < amount {
-                ex.Trade(exsync.TradeAction_OpenLong, amount - long.Amount, 0, 10)
+                ex.Trade(exsync.TradeAction_OpenLong, amount - long.Amount, price, 10)
             }
 
         case exsync.PositionType_Short:
@@ -151,7 +150,7 @@ func (g *Gamble) play(exname string, num int) {
                 ex.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0, 10)
             }
             if short.Amount < amount {
-                ex.Trade(exsync.TradeAction_OpenShort, amount - short.Amount, 0, 10)
+                ex.Trade(exsync.TradeAction_OpenShort, amount - short.Amount, price, 10)
             }
 
         case exsync.PositionType_PositionNone:

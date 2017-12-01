@@ -302,7 +302,7 @@ func (ex *Exchange) OrderCompleteOrPriceChange(order *exsync.Order, spread float
                 utils.WarningLog.Write("cancel order error %s", err.Error())
             }
         }
-        time.Sleep(100 * time.Millisecond)
+        time.Sleep(500 * time.Millisecond)
     }
     return order, false
 }

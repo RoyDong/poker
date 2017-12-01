@@ -33,6 +33,7 @@ func NewFutureSync(apiKey, apiSecret, wss, exname string) (*FutureSync, error) {
     go this.syncTrade()
 
     this.ws = utils.NewWsClient(wss)
+    this.ws.SetReconnectGap(10 * time.Second)
     this.ws.AddHandler("Connect", this.connected)
     this.ws.AddHandler("Message", this.newMsg)
     err = this.ws.Start()

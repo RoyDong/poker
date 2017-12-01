@@ -75,6 +75,12 @@ func (this *RiskCtrl) baseCtrl(exname string) {
         rows := make([]string, 0, 3)
         rows = append(rows, fmt.Sprintf("P[%.2f %.1f%%]", usdprice, (usdprice - usdindex) / usdindex * 100))
 
+        balance, err := ok.GetBalance()
+        if err == nil {
+            utils.DebugLog.Write("balance %v", balance)
+        }
+
+
         msg := make([]string, 0, 2)
         hasPosition := false
         if long.Amount > 0 {
