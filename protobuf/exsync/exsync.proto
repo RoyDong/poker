@@ -165,26 +165,28 @@ message RespBalance {
     Balance balance = 1;
 }
 
-message TradePack {
+message Candle {
     string exname = 1;
 
     int64 openTime = 2;
     int64 closeTime = 3;
 
-    double amount = 4;
-    double avgPrice = 5;
-    double money = 6;
-    double tradeNum = 7;
+    double openPrice = 4;
+    double closePrice = 5;
 
-    double buyNum = 8;
-    double buyAmount = 9;
-    double buyAvgPrice = 10;
+    double highPrice = 6;
+    double lowPrice = 7;
 
-    double sellNum = 11;
-    double sellAmount = 12;
-    double sellAvgPrice = 13;
+    double amount = 8;
+    double avgPrice = 9;
+    double tradeNum = 10;
 
-    double topAvgPrice = 14;
-    double buttonAvgPrice = 15;
+    double buyNum = 11;
+    double buyAmount = 12;
+    double buyAvgPrice = 13;
+
+    double sellNum = 14;
+    double sellAmount = 15;
+    double sellAvgPrice = 16;
 }
 

@@ -191,3 +191,47 @@ func (k *Kline) AddTrade(t *exsync.Trade) int {
     return 1
 }
 
+type Candle exsync.Candle
+
+func NewCandle(exname string, trade *exsync.Trade, s int64) *Candle {
+    tt := time.Unix(trade.GetCreateTime().Seconds, 0)
+    sec := tt.Unix() - int64(tt.Second())
+    k := &Candle{}
+    k.Exname = exname
+    k.OpenTime = sec
+    k.CloseTime = sec + s
+    k.OpenPrice = trade.Price
+    k.HighPrice = trade.Price
+    k.LowPrice = trade.Price
+    k.AddTrade(trade)
+    return k
+}
+
+func (k *Candle) AddTrade(t *exsync.Trade) int {
+    if k.OpenTime - t.GetCreateTime().Seconds > 0 {
+        return -1
+    }
+    if k.CloseTime - t.GetCreateTime().Seconds > 0 {
+        money := k.Amount * k.AvgPrice + t.Amount * t.Price
+        k.Amount += t.Amount
+        k.AvgPrice = money / k.Amount
+        if t.Price > k.HighPrice {
+            k.HighPrice = t.Price
+        }
+        if t.Price < k.LowPrice {
+            k.LowPrice = t.Price
+        }
+        k.ClosePrice = t.Price
+        k.TradeNum += 1
+        if t.TAction == exsync.TradeAction_Buy {
+            k.BuyNum += 1
+            k.BuyAmount += t.Amount
+        } else {
+            k.SellNum += 1
+            k.SellAmount += t.Amount
+        }
+        return 0
+    }
+    return 1
+}
+

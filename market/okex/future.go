@@ -15,7 +15,7 @@ import (
 
 type Future struct {
     utils.Event
-    common.ExCache
+    *common.ExCache
     ws *utils.WsClient
 
     httpHost   string
@@ -30,14 +30,14 @@ type Future struct {
 
 func NewFuture(httpHost, wss, apiKey, apiSecret, contractType, exname string) *Future {
     this := &Future{}
+    this.ExCache = common.NewExCache(exname)
+
     this.httpHost = httpHost
     this.apiKey = apiKey
     this.apiSecret = apiSecret
     this.contractType = contractType
     this.symbol = "btc_usd"
     this.leverage = 20
-    this.Exname = exname
-    this.TradeLogger = utils.NewLogger("exdata", exname + "-trade", "daily", false)
     this.tradePipe = make(chan json.RawMessage, 10)
 
     this.ws = utils.NewWsClient(wss)
@@ -111,9 +111,26 @@ type cancelOrderResp struct {
     Error string `json:"error"`
 }
 func (this *Future) CancelOrder(id ...string) error {
+    if len(id) == 0 {
+        return nil
+    }
     okids := make([]string, 0, len(id))
-    for _, id := range id {
-        okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))
+    if id[0] == "-1" {
+        for _, o := range this.GetOrders([]string{}...) {
+            if o.Status == exsync.OrderStatus_Created ||
+                o.Status == exsync.OrderStatus_Partial ||
+                o.Status == exsync.OrderStatus_StatusUnkown {
+
+                okids = append(okids, fmt.Sprintf("%d", orderidToOkid(o.Id)))
+            }
+            if len(okids) == 0 {
+                return nil
+            }
+        }
+    } else {
+        for _, id := range id {
+            okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))
+        }
     }
     params := map[string]interface{} {
         "symbol": this.symbol,

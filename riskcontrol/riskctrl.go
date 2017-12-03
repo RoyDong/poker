@@ -42,7 +42,7 @@ func (this *RiskCtrl) baseCtrl(exname string) {
         time.Sleep(5 * time.Second)
         ticker, err := ok.Tick()
         if err != nil {
-            utils.WarningLog.Write(err.Error())
+            utils.WarningLog.Write("risk control error %s %s", exname, err.Error())
             continue
         }
 
@@ -77,9 +77,8 @@ func (this *RiskCtrl) baseCtrl(exname string) {
 
         balance, err := ok.GetBalance()
         if err == nil {
-            utils.DebugLog.Write("balance %v", balance)
+            utils.DebugLog.Write("balance %s %v", exname, balance)
         }
-
 
         msg := make([]string, 0, 2)
         hasPosition := false

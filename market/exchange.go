@@ -10,6 +10,12 @@ import (
     gctx "golang.org/x/net/context"
     "dw/poker/protobuf/exsync"
     "dw/poker/market/common"
+    "fmt"
+    "bufio"
+    "os"
+    "strings"
+    "strconv"
+    "log"
 )
 
 var RPCTimeout = 10 * time.Millisecond
@@ -90,6 +96,10 @@ func (ex *Exchange) MakeOrder(ta exsync.TradeAction, amount, price float64) (*ex
 func (ex *Exchange) CancelOrder(ids ...string) error {
     _, err := ex.getExsyncClient().CancelOrder(gctx.Background(), &exsync.ReqCancelOrder{Exname:ex.name,Ids:ids})
     return err
+}
+
+func (ex *Exchange) CancelAllOrders() error {
+    return ex.CancelOrder("-1")
 }
 
 func (ex *Exchange) GetTrades(n int32) ([]*exsync.Trade, error) {
@@ -364,4 +374,55 @@ func (ex *Exchange) Tick() (Ticker, error) {
     ticker.Price = ex.LastnAvgPrice(5)
     return ticker, nil
 }
+
+func (ex *Exchange) LoadCandles(days int, s int64) []*common.Candle {
+    day, err := time.ParseDuration("24h")
+    if err != nil {
+        utils.FatalLog.Write("get 24h time duration error %s", err.Error())
+    }
+    now := time.Now()
+    candles := make([]*common.Candle, 0, 10000)
+    var candle *common.Candle
+    for d := days; d >= 0; d-- {
+        var logfile string
+        if d == 0 {
+            logfile = fmt.Sprintf("/opt/poker/exdata/%s-trade.log", ex.Name())
+        } else {
+            date := now.Add(-time.Duration(d) * day).Format("20060102")
+            logfile = fmt.Sprintf("/opt/poker/exdata/%s-trade.log-%s", ex.Name(), date)
+        }
+        fp, err := os.Open(logfile)
+        if err != nil {
+            utils.WarningLog.Write("read trade log error %s", err.Error())
+            continue
+        }
+        log.Println(logfile)
+        scanner := bufio.NewScanner(fp)
+        for scanner.Scan() {
+            row := scanner.Text()
+            arr := strings.Split(row, " ")
+            if len(arr) == 9 {
+                trade := &exsync.Trade{}
+                trade.Id = arr[2]
+                trade.TAction = exsync.TradeAction(exsync.TradeAction_value[arr[3]])
+                trade.Amount, _ = strconv.ParseFloat(arr[4], 64)
+                trade.Price, _ = strconv.ParseFloat(arr[5], 64)
+                trade.Fee, _ = strconv.ParseFloat(arr[6], 64)
+                sec, _ := strconv.ParseInt(arr[7], 10, 64)
+                nanos, _ := strconv.ParseInt(arr[8], 10, 64)
+                trade.CreateTime = &exsync.Timestamp{sec, nanos}
+                if candle == nil {
+                    candle = common.NewCandle(ex.Name(), trade, s)
+                } else if candle.AddTrade(trade) == 1 {
+                    candles = append(candles, candle)
+                    candle = common.NewCandle(ex.Name(), trade, s)
+                }
+            }
+        }
+        fp.Close()
+
+    }
+    return candles
+}
+
 

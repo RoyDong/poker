@@ -11,7 +11,6 @@ type ExCache struct {
     Exname string
     mu sync.RWMutex
     trades []*exsync.Trade
-    tradePipe chan *exsync.Trade
 
     index float64
 
@@ -28,7 +27,19 @@ type ExCache struct {
     kline *Kline
     klines []*Kline
 
-    TradeLogger *utils.Logger
+    tradeLogger *utils.Logger
+}
+
+func NewExCache(exname string) *ExCache {
+    c := &ExCache{}
+    c.balance = &exsync.Balance{}
+    c.long = &exsync.Position{}
+    c.short = &exsync.Position{}
+    c.asks = make([]*exsync.Trade, 0)
+    c.bids = make([]*exsync.Trade, 0)
+    c.orders = make(map[string]*exsync.Order, 10)
+    c.tradeLogger = utils.NewLogger("exdata", exname + "-trade", "daily", false)
+    return c
 }
 
 func (c *ExCache) SetBalance(b *exsync.Balance) {
@@ -40,21 +51,12 @@ func (c *ExCache) SetBalance(b *exsync.Balance) {
 func (c *ExCache) GetBalance() *exsync.Balance {
     c.mu.RLock()
     defer c.mu.RUnlock()
-    if c.balance == nil {
-        c.balance = &exsync.Balance{}
-    }
     return c.balance
 }
 
 func (c *ExCache) SetPosition(long, short *exsync.Position) bool {
     changed := false
     c.mu.Lock()
-    if c.long == nil {
-        c.long = &exsync.Position{}
-    }
-    if c.short == nil {
-        c.short = &exsync.Position{}
-    }
     if c.long.Amount != long.Amount {
         c.long = long
         changed = true
@@ -70,26 +72,17 @@ func (c *ExCache) SetPosition(long, short *exsync.Position) bool {
 func (c *ExCache) GetLong() *exsync.Position {
     c.mu.RLock()
     defer c.mu.RUnlock()
-    if c.long == nil {
-        c.long = &exsync.Position{}
-    }
     return c.long
 }
 
 func (c *ExCache) GetShort() *exsync.Position {
     c.mu.RLock()
     defer c.mu.RUnlock()
-    if c.short == nil {
-        c.short = &exsync.Position{}
-    }
     return c.short
 }
 
 func (c *ExCache) SetOrder(order *exsync.Order) {
     c.mu.Lock()
-    if c.orders == nil {
-        c.orders = make(map[string]*exsync.Order, 10)
-    }
     c.orders[order.GetId()] = order
     c.mu.Unlock()
 }
@@ -163,7 +156,7 @@ func (c *ExCache) NewTrade(trades []*exsync.Trade) {
 
 func (c *ExCache) saveTrades(trades []*exsync.Trade) {
     for _, t := range trades {
-        c.TradeLogger.Write("%s %s %f %.16f %.16f %d %d",
+        c.tradeLogger.Write("%s %s %f %.16f %.16f %d %d",
             t.GetId(), t.GetTAction(), t.GetAmount(), t.GetPrice(),
             t.GetFee(), t.GetCreateTime().GetSeconds(), t.GetCreateTime().GetNanos())
     }
@@ -179,13 +172,6 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
         } else {
             rt := c.kline.AddTrade(t)
             if rt == 1 {
-                //save
-                var err error
-                err = utils.Save(c.kline, "kline", utils.MainDB)
-                if err != nil {
-                    utils.FatalLog.Write(err.Error())
-                }
-                utils.DebugLog.Write("kline: %v", c.kline)
                 c.mu.Lock()
                 if len(c.klines) > 11000 {
                     c.klines = append(c.klines[1000:], c.kline)
@@ -194,15 +180,16 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
                 }
                 c.kline = NewKline(c.Exname, t, time.Minute)
                 c.mu.Unlock()
+                //save
+                var err error
+                err = utils.Save(c.kline, "kline", utils.MainDB)
+                if err != nil {
+                    utils.FatalLog.Write(err.Error())
+                }
+                utils.DebugLog.Write("kline: %v", c.kline)
             }
         }
-        tt := time.Unix(t.GetCreateTime().Seconds, t.GetCreateTime().Nanos)
-        utils.DebugLog.Write("%s %s %v %v %v", c.Exname, t.TAction, t.Amount, t.Price, tt)
     }
-}
-
-func (c *ExCache) updateTradePack(trades []*exsync.Trade) {
-
 }
 
 func (c *ExCache) GetTrades(n int) []*exsync.Trade {

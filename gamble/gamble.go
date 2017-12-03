@@ -9,6 +9,7 @@ import (
     "dw/poker/protobuf/exsync"
     "time"
     "dw/poker/ml"
+    "math"
 )
 
 const (
@@ -29,16 +30,27 @@ type indicator struct {
     //buy - sell
     dealDelta float64
     slope int
+    highPrice float64
+    lowPrice float64
     price float64
+    amount float64
+    gradient float64
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
+    ok := market.GetExchange(market.OkexQuarter)
+    candles := ok.LoadCandles(2, 60)
+    log.Println(len(candles))
+    return nil
+
+
+
     //g.train(market.OkexQuarter)
-    n := 3
-    g.test(market.OkexWeek, n)
+    n := 2
+    //g.test(market.OkexWeek, n)
     g.test(market.OkexQuarter, n)
-    go g.play(market.OkexWeek, n)
-    go g.play(market.OkexQuarter, n)
+    //go g.play(market.OkexWeek, n)
+    //go g.play(market.OkexQuarter, n)
     return nil
 }
 
@@ -51,7 +63,7 @@ func (g *Gamble) Run(ctx *context.Context) error {
 
 func (g *Gamble) train(exname string) {
     //ex := market.GetExchange(exname)
-    klines := g.loadKlinesFromdb(exname, 50000)
+    klines := g.loadKlinesFromdb(exname, 100000)
     log.Println(len(klines))
     slopes := make([]int, 0, len(klines))
     //slopes = append(slopes, 0)
@@ -126,7 +138,6 @@ func (g *Gamble) play(exname string, num int) {
         klines := g.loadKlinesFromdb(exname, num)
         price := ex.LastnAvgPrice(10)
 
-
         guess = g.guess(append(klines, &common.Kline{AvgPrice:price}))
         utils.DebugLog.Write("guess %s", guess)
 
@@ -161,6 +172,7 @@ func (g *Gamble) play(exname string, num int) {
                 ex.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0, 10)
             }
         }
+        ex.CancelAllOrders()
     }
 }
 
@@ -180,17 +192,15 @@ func (g *Gamble) guess(klines []*common.Kline) exsync.PositionType {
     return exsync.PositionType_PositionNone
 }
 
+var fee = 0.0003
+
 func (g *Gamble) test(ex string, n int) {
-    all := g.loadKlinesFromdb(ex, 50000)
-    var maxs float64
-    var mins float64
+    all := g.loadKlinesFromdb(ex, 100000)
     var sum,nl, ns, ml, ms float64
     var lwin, swin float64
-    for i := 1; i < len(all) - n - 5; i++ {
+    for i := 1; i < len(all) - n - 20; {
         //time.Sleep(time.Second)
         klines := all[i - 1:i + n]
-        testk := all[i + n]
-        testk2 := all[i+ n + 1]
 
         prices := make([]float64, 0)
         for _, k := range klines {
@@ -207,36 +217,63 @@ func (g *Gamble) test(ex string, n int) {
         for _, in := range ins {
             slopes = append(slopes, in.slope)
         }
-        prices = append(prices, testk.AvgPrice)
-        prices = append(prices, testk2.AvgPrice)
+        prices = append(prices, all[i+n].AvgPrice)
+        prices = append(prices, all[i+n+1].AvgPrice)
+        prices = append(prices, all[i+n+2].AvgPrice)
+        prices = append(prices, all[i+n+3].AvgPrice)
+        prices = append(prices, all[i+n+4].AvgPrice)
+        prices = append(prices, all[i+n+5].AvgPrice)
+        prices = append(prices, all[i+n+6].AvgPrice)
+        prices = append(prices, all[i+n+7].AvgPrice)
+        prices = append(prices, all[i+n+8].AvgPrice)
+        prices = append(prices, all[i+n+9].AvgPrice)
 
         if g.guessLong(ins) {
             nl++
             //utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
-
-            w := prices[n+1] - prices[n]
-            if w > 0 {
-                ml ++
+            var round float64
+            for m := 0; m < 10; m ++ {
+                w := prices[n + m] - prices[n + m - 1]
+                round += w
+                i++
+                if w < 0 {
+                    break
+                }
             }
-            lwin += w
 
+            if round - fee > 0 {
+                ml++
+            }
+
+            lwin = lwin + round - fee
         } else if g.guessShort(ins) {
             ns ++
             //utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
-            w := prices[n+1] - prices[n]
-            if w < 0 {
-                ms ++
+            var round float64
+            for m := 0; m < 10; m ++ {
+                w := prices[n + m] - prices[n + m - 1]
+                round += w
+                i++
+                if w > 0 {
+                    break
+                }
             }
-            swin += w
-        }else {
+            if round + fee < 0 {
+                ms++
+            }
+            swin = swin + round + fee
+        } else {
+            i++
             sum ++
         }
     }
 
-    log.Println("max min", maxs, mins)
-    log.Println("all", n, len(all), sum, 1 - sum / float64(len(all)), len(all) - int(sum))
-    log.Println(nl, ml, ml/nl, ns, ms, ms/ns)
-    log.Println(lwin * 6000 / nl, lwin * 6000, swin * 6000 / ns, swin * 6000)
+    log.Println("grand conf", minGrad, burstGrad, len(all), n)
+    log.Println("recall", sum, 1 - sum / float64(len(all)), len(all) - int(sum))
+    log.Println("long", nl, ml, ml/nl)
+    log.Println(lwin  / nl, lwin )
+    log.Println("short", ns, ms, ms/ns)
+    log.Println(swin / ns, swin )
 }
 func (g *Gamble) loadKlinesFromdb(ex string, n int) []*common.Kline {
     stmt := "select * from kline where exname = ? order by open_time desc limit ?"
@@ -274,10 +311,15 @@ func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
         v1 := klines[i-1]
         v2 := klines[i]
         slope := g.getSlope(v1.AvgPrice, v2.AvgPrice)
+        grad := (v2.AvgPrice - v1.AvgPrice) / v1.AvgPrice
         in := &indicator{
+            highPrice:v2.HighPrice,
+            lowPrice:v2.LowPrice,
             price:v2.AvgPrice,
+            amount:v2.Amount,
             slope: slope,
             dealDelta:v2.BuyAmount - v2.SellAmount,
+            gradient: grad,
         }
         indicators = append(indicators, in)
     }
@@ -289,24 +331,70 @@ func (g *Gamble) getSlope(p1, p2 float64) int {
     return int(s / maxSlope * 100)
 }
 
+
+var minGrad = 0.001
+var burstGrad = 0.007
+
 func (g *Gamble) guessLong(ins []*indicator) bool {
-    for i := 1; i < len(ins); i++ {
-        if ins[i].slope <= ins[i-1].slope {
-            return false
+    var min, max, avg float64
+    min = math.Inf(1)
+    max = math.Inf(-1)
+    var sum float64
+    var n float64
+    for _, v := range ins[:len(ins) - 1] {
+        sum += v.price * v.amount
+        n += v.amount
+        if v.price < min {
+            min = v.price
+        }
+        if v.price > max {
+            max = v.price
         }
     }
-    slope := ins[len(ins) - 1].slope
-    return slope > 5 && slope < 14
+    avg = sum / n
+
+    if getGrad(min, avg) < -minGrad {
+        //return false
+    }
+
+    if getGrad(max, avg) < minGrad {
+        //return false
+    }
+
+    return getGrad(ins[len(ins) - 1].price, avg) > burstGrad
+}
+
+func getGrad(p1, p2 float64) float64 {
+    return (p1 - p2) / p2
 }
 
 func (g *Gamble) guessShort(ins []*indicator) bool {
-    for i := 1; i < len(ins); i++ {
-        if ins[i].slope >= ins[i-1].slope {
-            return false
+    var min, max, avg float64
+    min = math.Inf(1)
+    max = math.Inf(-1)
+    var sum float64
+    var n float64
+    for _, v := range ins[:len(ins) - 1] {
+        sum += v.price * v.amount
+        n += v.amount
+        if v.price < min {
+            min = v.price
+        }
+        if v.price > max {
+            max = v.price
         }
     }
-    slope := ins[len(ins) - 1].slope
-    return slope < -6 && slope > -14
+    avg = sum / n
+
+    if getGrad(max, avg) > minGrad {
+        //return false
+    }
+
+    if getGrad(min, avg) > -minGrad {
+        //return false
+    }
+
+    return getGrad(ins[len(ins) - 1].price, avg) < -burstGrad
 }
 
 
