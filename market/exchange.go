@@ -15,7 +15,6 @@ import (
     "os"
     "strings"
     "strconv"
-    "log"
 )
 
 var RPCTimeout = 10 * time.Millisecond
@@ -396,7 +395,6 @@ func (ex *Exchange) LoadCandles(days int, s int64) []*common.Candle {
             utils.WarningLog.Write("read trade log error %s", err.Error())
             continue
         }
-        log.Println(logfile)
         scanner := bufio.NewScanner(fp)
         for scanner.Scan() {
             row := scanner.Text()
@@ -411,11 +409,15 @@ func (ex *Exchange) LoadCandles(days int, s int64) []*common.Candle {
                 sec, _ := strconv.ParseInt(arr[7], 10, 64)
                 nanos, _ := strconv.ParseInt(arr[8], 10, 64)
                 trade.CreateTime = &exsync.Timestamp{sec, nanos}
-                if candle == nil {
-                    candle = common.NewCandle(ex.Name(), trade, s)
-                } else if candle.AddTrade(trade) == 1 {
-                    candles = append(candles, candle)
-                    candle = common.NewCandle(ex.Name(), trade, s)
+                if trade.Amount > 0 && trade.Price > 0 {
+                    if candle == nil {
+                        candle = common.NewCandle(ex.Name(), trade, s)
+                    } else if candle.AddTrade(trade) == 1 {
+                        if candle.Amount > 0 && candle.AvgPrice > 0 {
+                            candles = append(candles, candle)
+                        }
+                        candle = common.NewCandle(ex.Name(), trade, s)
+                    }
                 }
             }
         }

@@ -38,13 +38,6 @@ type indicator struct {
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
-    ok := market.GetExchange(market.OkexQuarter)
-    candles := ok.LoadCandles(2, 60)
-    log.Println(len(candles))
-    return nil
-
-
-
     //g.train(market.OkexQuarter)
     n := 2
     //g.test(market.OkexWeek, n)
@@ -135,10 +128,10 @@ func (g *Gamble) play(exname string, num int) {
     for {
         time.Sleep(5 * time.Second)
         amount := float64(10)
-        klines := g.loadKlinesFromdb(exname, num)
+        //klines := g.loadKlinesFromdb(exname, num)
         price := ex.LastnAvgPrice(10)
 
-        guess = g.guess(append(klines, &common.Kline{AvgPrice:price}))
+        guess = exsync.PositionType_PositionNone //g.guess(append(klines, &common.Kline{AvgPrice:price}))
         utils.DebugLog.Write("guess %s", guess)
 
         long, short, err := ex.GetPosition()
@@ -176,8 +169,8 @@ func (g *Gamble) play(exname string, num int) {
     }
 }
 
-func (g *Gamble) guess(klines []*common.Kline) exsync.PositionType {
-    ins := g.getIndicator(klines)
+func (g *Gamble) guess(candles []*common.Candle) exsync.PositionType {
+    ins := g.getIndicator(candles)
     var v []int
     for _, in := range ins {
         v = append(v, in.slope)
@@ -195,18 +188,20 @@ func (g *Gamble) guess(klines []*common.Kline) exsync.PositionType {
 var fee = 0.0003
 
 func (g *Gamble) test(ex string, n int) {
-    all := g.loadKlinesFromdb(ex, 100000)
+    //all := g.loadKlinesFromdb(ex, 100000)
+    ok := market.GetExchange(market.OkexQuarter)
+    all := ok.LoadCandles(5, 10)
     var sum,nl, ns, ml, ms float64
     var lwin, swin float64
     for i := 1; i < len(all) - n - 20; {
         //time.Sleep(time.Second)
-        klines := all[i - 1:i + n]
+        candles := all[i - 1:i + n]
 
         prices := make([]float64, 0)
-        for _, k := range klines {
+        for _, k := range candles {
             prices = append(prices, k.AvgPrice)
         }
-        ins := g.getIndicator(klines)
+        ins := g.getIndicator(candles)
 
         if len(ins) != n {
             log.Println("not ", i, n, len(ins))
@@ -228,7 +223,25 @@ func (g *Gamble) test(ex string, n int) {
         prices = append(prices, all[i+n+8].AvgPrice)
         prices = append(prices, all[i+n+9].AvgPrice)
 
-        if g.guessLong(ins) {
+        if g.guessShort(ins) {
+            ns ++
+            //utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
+            var round float64
+            for m := 0; m < 10; m ++ {
+                w := prices[n + m] - prices[n + m - 1]
+                round += w
+                i++
+                if w > 0 {
+                    break
+                }
+            }
+            if round + fee < 0 {
+                ms++
+            }
+            swin = swin + round + fee
+
+
+        } else if g.guessLong(ins) {
             nl++
             //utils.DebugLog.Write("gamble guess long %v nextAvg: %f", slopes,  prices)
             var round float64
@@ -246,22 +259,6 @@ func (g *Gamble) test(ex string, n int) {
             }
 
             lwin = lwin + round - fee
-        } else if g.guessShort(ins) {
-            ns ++
-            //utils.DebugLog.Write("gamble guess short %v nextAvg: %f", slopes, prices)
-            var round float64
-            for m := 0; m < 10; m ++ {
-                w := prices[n + m] - prices[n + m - 1]
-                round += w
-                i++
-                if w > 0 {
-                    break
-                }
-            }
-            if round + fee < 0 {
-                ms++
-            }
-            swin = swin + round + fee
         } else {
             i++
             sum ++
@@ -305,11 +302,11 @@ var maxSlope = 0.05
 斜率保持连续的增长或降低，并且在最近3分钟内都保持和趋势一致的方向， 代表了价格走势的动量
 同时斜率保持在一个绝对值较低的位置
  */
-func (g *Gamble) getIndicator(klines []*common.Kline) []*indicator {
-    indicators := make([]*indicator, 0, len(klines))
-    for i := 1; i < len(klines); i++ {
-        v1 := klines[i-1]
-        v2 := klines[i]
+func (g *Gamble) getIndicator(candles []*common.Candle) []*indicator {
+    indicators := make([]*indicator, 0, len(candles))
+    for i := 1; i < len(candles); i++ {
+        v1 := candles[i-1]
+        v2 := candles[i]
         slope := g.getSlope(v1.AvgPrice, v2.AvgPrice)
         grad := (v2.AvgPrice - v1.AvgPrice) / v1.AvgPrice
         in := &indicator{
@@ -332,8 +329,8 @@ func (g *Gamble) getSlope(p1, p2 float64) int {
 }
 
 
-var minGrad = 0.001
-var burstGrad = 0.007
+var minGrad = 0.003
+var burstGrad = 0.006
 
 func (g *Gamble) guessLong(ins []*indicator) bool {
     var min, max, avg float64
@@ -354,11 +351,11 @@ func (g *Gamble) guessLong(ins []*indicator) bool {
     avg = sum / n
 
     if getGrad(min, avg) < -minGrad {
-        //return false
+        return false
     }
 
-    if getGrad(max, avg) < minGrad {
-        //return false
+    if getGrad(max, avg) > minGrad {
+        return false
     }
 
     return getGrad(ins[len(ins) - 1].price, avg) > burstGrad
@@ -387,11 +384,11 @@ func (g *Gamble) guessShort(ins []*indicator) bool {
     avg = sum / n
 
     if getGrad(max, avg) > minGrad {
-        //return false
+        return false
     }
 
-    if getGrad(min, avg) > -minGrad {
-        //return false
+    if getGrad(min, avg) < -minGrad {
+        return false
     }
 
     return getGrad(ins[len(ins) - 1].price, avg) < -burstGrad

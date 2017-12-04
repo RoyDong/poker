@@ -199,7 +199,7 @@ func NewCandle(exname string, trade *exsync.Trade, s int64) *Candle {
     k := &Candle{}
     k.Exname = exname
     k.OpenTime = sec
-    k.CloseTime = sec + s
+    k.CloseTime = sec + s - 1
     k.OpenPrice = trade.Price
     k.HighPrice = trade.Price
     k.LowPrice = trade.Price
@@ -211,7 +211,7 @@ func (k *Candle) AddTrade(t *exsync.Trade) int {
     if k.OpenTime - t.GetCreateTime().Seconds > 0 {
         return -1
     }
-    if k.CloseTime - t.GetCreateTime().Seconds > 0 {
+    if k.CloseTime - t.GetCreateTime().Seconds >= 0 {
         money := k.Amount * k.AvgPrice + t.Amount * t.Price
         k.Amount += t.Amount
         k.AvgPrice = money / k.Amount
