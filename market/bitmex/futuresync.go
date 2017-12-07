@@ -11,7 +11,7 @@ import (
 
 type FutureSync struct {
     utils.Event
-    common.ExCache
+    *common.ExCache
 
     apiKey string
     apiSecret string
@@ -24,11 +24,11 @@ type FutureSync struct {
 func NewFutureSync(apiKey, apiSecret, wss, exname string) (*FutureSync, error) {
     var err error
     this := &FutureSync{}
+    this.ExCache = common.NewExCache(exname)
+
     this.apiKey = apiKey
     this.apiSecret = apiSecret
     this.symbol = "XBTUSD"
-    this.Exname = exname
-    this.TradeLogger = utils.NewLogger("exdata", exname + "-trade", "daily", false)
     this.tradePipe = make(chan json.RawMessage, 10)
     go this.syncTrade()
 

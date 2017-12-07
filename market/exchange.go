@@ -4,7 +4,6 @@ import (
     "sync"
     "time"
     "dw/poker/utils"
-    "math"
     "errors"
     "google.golang.org/grpc"
     gctx "golang.org/x/net/context"
@@ -92,13 +91,13 @@ func (ex *Exchange) MakeOrder(ta exsync.TradeAction, amount, price float64) (*ex
     return resp.Order, nil
 }
 
-func (ex *Exchange) CancelOrder(ids ...string) error {
-    _, err := ex.getExsyncClient().CancelOrder(gctx.Background(), &exsync.ReqCancelOrder{Exname:ex.name,Ids:ids})
+func (ex *Exchange) CancelOrders(ids ...string) error {
+    _, err := ex.getExsyncClient().CancelOrders(gctx.Background(), &exsync.ReqCancelOrder{Exname:ex.name,Ids:ids})
     return err
 }
 
 func (ex *Exchange) CancelAllOrders() error {
-    return ex.CancelOrder("-1")
+    return ex.CancelOrders("-1")
 }
 
 func (ex *Exchange) GetTrades(n int32) ([]*exsync.Trade, error) {
@@ -121,12 +120,17 @@ func (ex *Exchange) GetOrder(id string) (*exsync.Order, error) {
     return nil, errors.New("order not found " + id)
 }
 
-func (ex *Exchange) GetOrders() ([]*exsync.Order, error) {
-    resp, err := ex.getExsyncClient().GetOrders(ex.timeoutCtx(), &exsync.ReqOrders{Exname:ex.name})
+func (ex *Exchange) GetOrders(ids ...string) ([]*exsync.Order, error) {
+    resp, err := ex.getExsyncClient().GetOrders(ex.timeoutCtx(), &exsync.ReqOrders{Exname:ex.name, Ids:ids})
     if err != nil {
         return nil, err
     }
     return resp.GetOrders(), nil
+}
+
+func (ex *Exchange) WaitOrders(ids ...string) error {
+    _, err := ex.getExsyncClient().WaitOrders(gctx.Background(), &exsync.ReqOrders{Exname:ex.name,Ids:ids})
+    return err
 }
 
 func (ex *Exchange) GetDepth() ([]*exsync.Trade, []*exsync.Trade, error) {
@@ -200,7 +204,6 @@ func (ex *Exchange) loadKlines() {
             ex.klines = append(ex.klines, v)
             ex.mu.Unlock()
             ex.Trigger("KlineClose", v)
-            utils.DebugLog.Write(ex.name + " load kline from db %v", v)
             lastid = v.Id
         }
         time.Sleep(5 * time.Second)
@@ -294,43 +297,29 @@ func (ex *Exchange) TakeDepth(ta exsync.TradeAction, amount float64) (*exsync.Or
     return ex.MakeOrder(ta, amount, price)
 }
 
-func (ex *Exchange) OrderCompleteOrPriceChange(order *exsync.Order, spread float64) (*exsync.Order, bool) {
-    for i := 0; i < 20; i++ {
-        o, err := ex.GetOrder(order.Id)
-        if err == nil {
-            if o.Status == exsync.OrderStatus_Complete ||
-                o.Status == exsync.OrderStatus_Canceled {
-                return o, true
-            }
-            order = o
-        }
-        price := ex.LastnAvgPrice(5)
-        if math.Abs(price - order.Price) >= spread || i >= 15 {
-            err = ex.CancelOrder(order.Id)
-            if err != nil {
-                utils.WarningLog.Write("cancel order error %s", err.Error())
-            }
-        }
-        time.Sleep(500 * time.Millisecond)
-    }
-    return order, false
+func (ex *Exchange) OpenLong(amount, price float64) (*exsync.Order, error) {
+    return ex.Trade(exsync.TradeAction_OpenLong, amount, price)
 }
 
-func (ex *Exchange) Trade(ta exsync.TradeAction, amount, price, spread float64) (*exsync.Order, error) {
+func (ex *Exchange) CloseLong(amount, price float64) (*exsync.Order, error) {
+    return ex.Trade(exsync.TradeAction_CloseLong, amount, price)
+}
+
+func (ex *Exchange) OpenShort(amount, price float64) (*exsync.Order, error) {
+    return ex.Trade(exsync.TradeAction_OpenShort, amount, price)
+}
+
+func (ex *Exchange) CloseShort(amount, price float64) (*exsync.Order, error) {
+    return ex.Trade(exsync.TradeAction_CloseShort, amount, price)
+}
+
+func (ex *Exchange) Trade(ta exsync.TradeAction, amount, price float64) (*exsync.Order, error) {
     var order *exsync.Order
     var err error
     if price > 0 {
         order, err = ex.MakeOrder(ta, amount, price)
     } else {
         order, err = ex.TakeDepth(ta, amount)
-    }
-    if err != nil {
-        return order, err
-    }
-    var ok bool
-    order, ok = ex.OrderCompleteOrPriceChange(order, spread)
-    if !ok {
-        err = errors.New("exchange trade error Order not complete")
     }
     return order, err
 }
@@ -395,6 +384,7 @@ func (ex *Exchange) LoadCandles(days int, s int64) []*common.Candle {
             utils.WarningLog.Write("read trade log error %s", err.Error())
             continue
         }
+        utils.DebugLog.Write("read trade log %s", logfile)
         scanner := bufio.NewScanner(fp)
         for scanner.Scan() {
             row := scanner.Text()

@@ -9,6 +9,7 @@ import (
     "errors"
     "dw/poker/market/bitmex"
     "dw/poker/market/common"
+    "time"
 )
 
 type syncService struct {
@@ -61,13 +62,13 @@ func newSyncService(conf *context.Config) (*syncService, error) {
 func (s *syncService) getCache(exname string) *common.ExCache {
     switch exname {
     case market.OkexQuarter:
-        return &s.okexQuarter.ExCache
+        return s.okexQuarter.ExCache
 
     case market.OkexWeek:
-        return &s.okexWeek.ExCache
+        return s.okexWeek.ExCache
 
     case market.BitmexXbtusd:
-        //return &s.bitmexXbtusd.ExCache
+        //return s.bitmexXbtusd.ExCache
 
     }
     return nil
@@ -106,7 +107,7 @@ func (s *syncService) MakeOrder(ctx gctx.Context, in *exsync.ReqMakeOrder) (*exs
     return resp, nil
 }
 
-func (s *syncService) CancelOrder(ctx gctx.Context, in *exsync.ReqCancelOrder) (*exsync.Resp, error) {
+func (s *syncService) CancelOrders(ctx gctx.Context, in *exsync.ReqCancelOrder) (*exsync.Resp, error) {
     ex := s.getExTrade(in.GetExname())
     if ex == nil {
         return nil, errors.New("ex not found " + in.GetExname())
@@ -127,6 +128,27 @@ func (s *syncService) GetOrders(ctx gctx.Context, in *exsync.ReqOrders) (*exsync
     resp := &exsync.RespOrders{}
     resp.Orders = cache.GetOrders(in.GetIds()...)
     return resp, nil
+}
+
+func (s *syncService) WaitOrders(ctx gctx.Context, in *exsync.ReqOrders) (*exsync.Resp, error) {
+    cache := s.getCache(in.GetExname())
+    resp := &exsync.Resp{}
+    if cache == nil {
+        return nil, errors.New("ex not found " + in.GetExname())
+    }
+    ids := in.GetIds()
+    for i := 0; i < 100; i++ {
+        tmpids := make([]string, 0, len(ids))
+        for _, order := range cache.GetDoneOrders(ids...) {
+            tmpids = append(tmpids, order.GetId())
+        }
+        if len(tmpids) == 0 {
+            return resp, nil
+        }
+        ids = tmpids
+        time.Sleep(10 * time.Millisecond)
+    }
+    return nil, errors.New("timeout")
 }
 
 func (s *syncService) GetTrades(ctx gctx.Context, in *exsync.ReqTrades) (*exsync.RespTrades, error) {

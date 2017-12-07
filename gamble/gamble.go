@@ -9,7 +9,6 @@ import (
     "dw/poker/protobuf/exsync"
     "time"
     "dw/poker/ml"
-    "math"
 )
 
 const (
@@ -22,9 +21,7 @@ const (
     GuessNone = 5
 )
 
-type Gamble struct {
-
-}
+type Gamble struct { }
 
 type indicator struct {
     //buy - sell
@@ -38,8 +35,41 @@ type indicator struct {
 }
 
 func (g *Gamble) Init(conf *context.Config) error {
+    ok := market.GetExchange(market.OkexQuarter)
+    all := ok.LoadCandles(50, 60 * 10)
+    ins := g.getIndicator(all)
+
+    var pnum, nnum, num int
+    var ln, sn int
+    //var pwin, nwin float64
+    for i := 1; i < len(ins) - 1; i++ {
+        if ins[i].gradient > burstGrad {
+            pnum++
+            if ins[i + 1].gradient > 0 {
+                log.Println("long", ins[i + 1].gradient)
+                ln++
+            }
+        }
+        if ins[i].gradient < -burstGrad {
+            nnum++
+            log.Println("short", ins[i + 1].gradient)
+            if ins[i + 1].gradient < 0 {
+                log.Println("short", ins[i + 1].gradient)
+                sn++
+            }
+        }
+        num++
+    }
+
+    log.Println(pnum, ln, nnum, sn, num)
+
+    return nil
+
+
+
+
     //g.train(market.OkexQuarter)
-    n := 2
+    n := 10
     //g.test(market.OkexWeek, n)
     g.test(market.OkexQuarter, n)
     //go g.play(market.OkexWeek, n)
@@ -190,7 +220,7 @@ var fee = 0.0003
 func (g *Gamble) test(ex string, n int) {
     //all := g.loadKlinesFromdb(ex, 100000)
     ok := market.GetExchange(market.OkexQuarter)
-    all := ok.LoadCandles(5, 10)
+    all := ok.LoadCandles(5, 60)
     var sum,nl, ns, ml, ms float64
     var lwin, swin float64
     for i := 1; i < len(all) - n - 20; {
@@ -265,7 +295,7 @@ func (g *Gamble) test(ex string, n int) {
         }
     }
 
-    log.Println("grand conf", minGrad, burstGrad, len(all), n)
+    log.Println("grad conf", minGrad, burstGrad, len(all), n)
     log.Println("recall", sum, 1 - sum / float64(len(all)), len(all) - int(sum))
     log.Println("long", nl, ml, ml/nl)
     log.Println(lwin  / nl, lwin )
@@ -330,35 +360,21 @@ func (g *Gamble) getSlope(p1, p2 float64) int {
 
 
 var minGrad = 0.003
-var burstGrad = 0.006
+var burstGrad = 0.005
 
 func (g *Gamble) guessLong(ins []*indicator) bool {
-    var min, max, avg float64
-    min = math.Inf(1)
-    max = math.Inf(-1)
-    var sum float64
-    var n float64
-    for _, v := range ins[:len(ins) - 1] {
-        sum += v.price * v.amount
-        n += v.amount
-        if v.price < min {
-            min = v.price
+    for i := 1; i < len(ins); i++ {
+        if ins[i].gradient <= ins[i - 1].gradient {
+            return false
         }
-        if v.price > max {
-            max = v.price
+        if ins[i].amount <= ins[i - 1].amount {
+            return false
         }
     }
-    avg = sum / n
-
-    if getGrad(min, avg) < -minGrad {
-        return false
+    if ins[len(ins) - 1].gradient > burstGrad {
+        return true
     }
-
-    if getGrad(max, avg) > minGrad {
-        return false
-    }
-
-    return getGrad(ins[len(ins) - 1].price, avg) > burstGrad
+    return false
 }
 
 func getGrad(p1, p2 float64) float64 {
@@ -366,32 +382,18 @@ func getGrad(p1, p2 float64) float64 {
 }
 
 func (g *Gamble) guessShort(ins []*indicator) bool {
-    var min, max, avg float64
-    min = math.Inf(1)
-    max = math.Inf(-1)
-    var sum float64
-    var n float64
-    for _, v := range ins[:len(ins) - 1] {
-        sum += v.price * v.amount
-        n += v.amount
-        if v.price < min {
-            min = v.price
+    for i := 1; i < len(ins); i++ {
+        if ins[i].gradient >= ins[i - 1].gradient {
+            return false
         }
-        if v.price > max {
-            max = v.price
+        if ins[i].amount >= ins[i - 1].amount {
+            return false
         }
     }
-    avg = sum / n
-
-    if getGrad(max, avg) > minGrad {
-        return false
+    if ins[len(ins) - 1].gradient < -burstGrad {
+        return true
     }
-
-    if getGrad(min, avg) < -minGrad {
-        return false
-    }
-
-    return getGrad(ins[len(ins) - 1].price, avg) < -burstGrad
+    return false
 }
 
 

@@ -32,6 +32,7 @@ type ExCache struct {
 
 func NewExCache(exname string) *ExCache {
     c := &ExCache{}
+    c.Exname = exname
     c.balance = &exsync.Balance{}
     c.long = &exsync.Position{}
     c.short = &exsync.Position{}
@@ -90,7 +91,7 @@ func (c *ExCache) SetOrder(order *exsync.Order) {
 func (c *ExCache) GetOrders(ids ...string) []*exsync.Order {
     c.mu.RLock()
     defer c.mu.RUnlock()
-    orders := make([]*exsync.Order, 0, 10)
+    orders := make([]*exsync.Order, 0, len(c.orders))
     if len(ids) > 0 {
         for _, id := range ids {
             if o := c.orders[id]; o != nil {
@@ -105,10 +106,31 @@ func (c *ExCache) GetOrders(ids ...string) []*exsync.Order {
     return orders
 }
 
+func (c *ExCache) GetDoneOrders(ids ...string) []*exsync.Order {
+    if len(ids) == 0 {
+        return nil
+    }
+    all := c.GetOrders(ids...)
+    orders := make([]*exsync.Order, 0, len(all))
+    for _, o := range all {
+        if IsOrderDone(o) {
+            orders = append(orders, o)
+        }
+    }
+    return orders
+}
+
 func (c *ExCache) GetOrder(id string) *exsync.Order {
     c.mu.RLock()
     defer c.mu.RUnlock()
     return c.orders[id]
+}
+
+func IsOrderDone(order *exsync.Order) bool {
+    if order == nil {
+        return true
+    }
+    return order.GetStatus() == exsync.OrderStatus_Complete || order.GetStatus() == exsync.OrderStatus_Canceled
 }
 
 func (c *ExCache) SetDepth(asks, bids []*exsync.Trade) {
