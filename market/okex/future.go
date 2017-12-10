@@ -110,12 +110,12 @@ type cancelOrderResp struct {
     Success string `json:"success"`
     Error string `json:"error"`
 }
-func (this *Future) CancelOrder(id ...string) error {
-    if len(id) == 0 {
+func (this *Future) CancelOrders(ids ...string) error {
+    if len(ids) == 0 {
         return nil
     }
-    okids := make([]string, 0, len(id))
-    if id[0] == "-1" {
+    okids := make([]string, 0, len(ids))
+    if ids[0] == "-1" {
         for _, o := range this.GetOrders([]string{}...) {
             if o.Status == exsync.OrderStatus_Created ||
                 o.Status == exsync.OrderStatus_Partial ||
@@ -123,14 +123,14 @@ func (this *Future) CancelOrder(id ...string) error {
 
                 okids = append(okids, fmt.Sprintf("%d", orderidToOkid(o.Id)))
             }
-            if len(okids) == 0 {
-                return nil
-            }
         }
     } else {
-        for _, id := range id {
+        for _, id := range ids {
             okids = append(okids, fmt.Sprintf("%d", orderidToOkid(id)))
         }
+    }
+    if len(okids) == 0 {
+        return nil
     }
     params := map[string]interface{} {
         "symbol": this.symbol,
@@ -329,7 +329,7 @@ func (this *Future) GetCurrencyUnit() exsync.CurrencyUnit {
 func (this *Future) connected(args ...interface{}) {
     channels := []string{
         //最新深度订阅
-        fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 5),
+        fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 20),
         //最新交易单订阅
         fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType),
 
@@ -389,7 +389,7 @@ func (this *Future) newMsg(args ...interface{}) {
     }
     for _, r := range resp {
         switch r.Channel {
-        case fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 5):
+        case fmt.Sprintf("ok_sub_futureusd_btc_depth_%s_%d", this.contractType, 20):
             this.depthUpdate(r.Data)
 
         case fmt.Sprintf("ok_sub_futureusd_btc_trade_%s", this.contractType):
@@ -428,7 +428,7 @@ func (this *Future) newMsg(args ...interface{}) {
             utils.DebugLog.Write("event %s %s", r.Channel, r.Data)
 
         case "login", "addChannel":
-            utils.DebugLog.Write("event %s", r.Channel)
+            utils.DebugLog.Write("event %s %s", r.Channel, r.Data)
 
         default:
             utils.WarningLog.Write("okex channel not handled %s %s", r.Channel, r.Data)
@@ -446,7 +446,7 @@ func (this *Future) syncTrade() {
         }
         trades := make([]*exsync.Trade, 0, len(raw))
         for _, v := range raw {
-            if len(v) == 6 {
+            if len(v) >= 5 {
                 t := &exsync.Trade{}
                 t.Id = "okex/" + v[0]
                 usd, _ := strconv.ParseFloat(v[1], 64)

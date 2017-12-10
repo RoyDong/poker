@@ -20,7 +20,7 @@ var RPCTimeout = 10 * time.Millisecond
 
 type ITrade interface {
     MakeOrder(ta exsync.TradeAction, amount, price float64) (*exsync.Order, error)
-    CancelOrder(ids ...string) error
+    CancelOrders(ids ...string) error
 }
 
 type Exchange struct {

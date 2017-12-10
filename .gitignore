@@ -2,5 +2,6 @@
 .idea
 poker*
 log/
+exdata/
 config.conf
 config.yml

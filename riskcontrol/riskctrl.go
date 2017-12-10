@@ -100,12 +100,12 @@ func (this *RiskCtrl) baseCtrl(exname string) {
         }
 
         if long.AvailableAmount > 0 && lrop < -0.10 {
-            ok.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0, 10)
+            ok.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0)
             msg = append(msg, fmt.Sprintf("空单平仓 %v %.0f", exsync.TradeAction_CloseLong, long.AvailableAmount))
             stop = true
         }
         if short.AvailableAmount > 0 && srop < -0.10 {
-            ok.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0, 10)
+            ok.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0)
             msg = append(msg, fmt.Sprintf("多单平仓 %v %.0f", exsync.TradeAction_CloseShort, short.AvailableAmount))
             stop = true
         }

@@ -4,11 +4,11 @@ import (
     "dw/poker/market"
     "time"
     "dw/poker/utils"
+    "log"
 )
 
 
 type SpreadMargin struct {
-    maxAmount float64
     tradeAmount float64
     margin float64
 }
@@ -29,14 +29,21 @@ func (sm *SpreadMargin) Run(ex *market.Exchange) error {
         }
 
         asks, bids, err := ex.GetDepth()
+        log.Println(asks, bids)
         if err != nil {
             utils.DebugLog.Write(err.Error())
+            continue
+        }
+        if len(asks) == 0 || len(bids) == 0 {
             continue
         }
 
         long, short ,err := ex.GetPosition()
         sellPrice := asks[0].Price * (1 + sm.margin)
         buyPrice := bids[0].Price * (1 - sm.margin)
+        utils.DebugLog.Write("sellPrice %.6f buyPrice %.6f long %.0f short %.0f",
+            sellPrice, buyPrice, long.GetAmount(), short.GetAmount())
+
         if short.GetAmount() > 0 {
             ex.CloseShort(short.GetAvailableAmount(), buyPrice)
         } else {

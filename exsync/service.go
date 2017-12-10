@@ -112,7 +112,7 @@ func (s *syncService) CancelOrders(ctx gctx.Context, in *exsync.ReqCancelOrder) 
     if ex == nil {
         return nil, errors.New("ex not found " + in.GetExname())
     }
-    err := ex.CancelOrder(in.GetIds()...)
+    err := ex.CancelOrders(in.GetIds()...)
     if err != nil {
         return nil, err
     }

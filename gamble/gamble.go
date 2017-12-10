@@ -36,36 +36,10 @@ type indicator struct {
 
 func (g *Gamble) Init(conf *context.Config) error {
     ok := market.GetExchange(market.OkexQuarter)
-    all := ok.LoadCandles(50, 60 * 10)
-    ins := g.getIndicator(all)
-
-    var pnum, nnum, num int
-    var ln, sn int
-    //var pwin, nwin float64
-    for i := 1; i < len(ins) - 1; i++ {
-        if ins[i].gradient > burstGrad {
-            pnum++
-            if ins[i + 1].gradient > 0 {
-                log.Println("long", ins[i + 1].gradient)
-                ln++
-            }
-        }
-        if ins[i].gradient < -burstGrad {
-            nnum++
-            log.Println("short", ins[i + 1].gradient)
-            if ins[i + 1].gradient < 0 {
-                log.Println("short", ins[i + 1].gradient)
-                sn++
-            }
-        }
-        num++
-    }
-
-    log.Println(pnum, ln, nnum, sn, num)
-
-    return nil
-
-
+    sm := &SpreadMargin{}
+    sm.tradeAmount = 10
+    sm.margin = 0.0009
+    sm.Run(ok)
 
 
     //g.train(market.OkexQuarter)
@@ -173,26 +147,26 @@ func (g *Gamble) play(exname string, num int) {
         switch guess {
         case exsync.PositionType_Long:
             if short.Amount > 0 {
-                ex.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0, 10)
+                ex.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0)
             }
             if long.Amount < amount {
-                ex.Trade(exsync.TradeAction_OpenLong, amount - long.Amount, price, 10)
+                ex.Trade(exsync.TradeAction_OpenLong, amount - long.Amount, price)
             }
 
         case exsync.PositionType_Short:
             if long.Amount > 0 {
-                ex.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0, 10)
+                ex.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0)
             }
             if short.Amount < amount {
-                ex.Trade(exsync.TradeAction_OpenShort, amount - short.Amount, price, 10)
+                ex.Trade(exsync.TradeAction_OpenShort, amount - short.Amount, price)
             }
 
         case exsync.PositionType_PositionNone:
             if long.Amount > 0 {
-                ex.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0, 10)
+                ex.Trade(exsync.TradeAction_CloseLong, long.AvailableAmount, 0)
             }
             if short.Amount > 0 {
-                ex.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0, 10)
+                ex.Trade(exsync.TradeAction_CloseShort, short.AvailableAmount, 0)
             }
         }
         ex.CancelAllOrders()
