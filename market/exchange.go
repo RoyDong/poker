@@ -128,8 +128,8 @@ func (ex *Exchange) GetOrders(ids ...string) ([]*exsync.Order, error) {
     return resp.GetOrders(), nil
 }
 
-func (ex *Exchange) WaitOrders(ids ...string) error {
-    _, err := ex.getExsyncClient().WaitOrders(gctx.Background(), &exsync.ReqOrders{Exname:ex.name,Ids:ids})
+func (ex *Exchange) WaitOrdersDone(ids ...string) error {
+    _, err := ex.getExsyncClient().WaitOrdersDone(gctx.Background(), &exsync.ReqOrders{Exname:ex.name,Ids:ids})
     return err
 }
 

@@ -106,7 +106,7 @@ func (this *Future) MakeOrder(ta exsync.TradeAction, amount, price float64) (*ex
 
 type cancelOrderResp struct {
     Result bool `json:"result"`
-    OrderId int64 `json:"order_id"`
+    OrderId string `json:"order_id"`
     Success string `json:"success"`
     Error string `json:"error"`
 }
@@ -142,9 +142,6 @@ func (this *Future) CancelOrders(ids ...string) error {
     err := this.callHttpJson(&resp, "future_cancel.do", nil, params)
     if err != nil {
         return err
-    }
-    if !resp.Result || len(resp.Error) > 0 {
-        return errors.New("cancel order error")
     }
     return nil
 }
@@ -446,7 +443,7 @@ func (this *Future) syncTrade() {
         }
         trades := make([]*exsync.Trade, 0, len(raw))
         for _, v := range raw {
-            if len(v) >= 5 {
+            if len(v) > 0 {
                 t := &exsync.Trade{}
                 t.Id = "okex/" + v[0]
                 usd, _ := strconv.ParseFloat(v[1], 64)

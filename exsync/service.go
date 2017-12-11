@@ -130,7 +130,7 @@ func (s *syncService) GetOrders(ctx gctx.Context, in *exsync.ReqOrders) (*exsync
     return resp, nil
 }
 
-func (s *syncService) WaitOrders(ctx gctx.Context, in *exsync.ReqOrders) (*exsync.Resp, error) {
+func (s *syncService) WaitOrdersDone(ctx gctx.Context, in *exsync.ReqOrders) (*exsync.Resp, error) {
     cache := s.getCache(in.GetExname())
     resp := &exsync.Resp{}
     if cache == nil {

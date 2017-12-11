@@ -12,7 +12,7 @@ service SyncService {
 
     rpc GetOrders(ReqOrders) returns (RespOrders) {}
 
-    rpc WaitOrders(ReqOrders) returns (Resp) {}
+    rpc WaitOrdersDone(ReqOrders) returns (Resp) {}
 
     rpc GetTrades(ReqTrades) returns (RespTrades) {}
 

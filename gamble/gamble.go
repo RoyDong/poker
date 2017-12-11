@@ -36,10 +36,10 @@ type indicator struct {
 
 func (g *Gamble) Init(conf *context.Config) error {
     ok := market.GetExchange(market.OkexQuarter)
-    sm := &SpreadMargin{}
-    sm.tradeAmount = 10
-    sm.margin = 0.0009
-    sm.Run(ok)
+    m := &GapMargin{}
+    m.tradeAmount = 10
+    m.margin = 0.0009
+    m.Run(ok)
 
 
     //g.train(market.OkexQuarter)

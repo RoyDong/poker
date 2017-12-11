@@ -194,6 +194,14 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
         } else {
             rt := c.kline.AddTrade(t)
             if rt == 1 {
+                //save
+                var err error
+                err = utils.Save(c.kline, "kline", utils.MainDB)
+                if err != nil {
+                    utils.FatalLog.Write(err.Error())
+                }
+                utils.DebugLog.Write("kline: %v", c.kline)
+
                 c.mu.Lock()
                 if len(c.klines) > 11000 {
                     c.klines = append(c.klines[1000:], c.kline)
@@ -202,13 +210,6 @@ func (c *ExCache) updateKline(trades []*exsync.Trade) {
                 }
                 c.kline = NewKline(c.Exname, t, time.Minute)
                 c.mu.Unlock()
-                //save
-                var err error
-                err = utils.Save(c.kline, "kline", utils.MainDB)
-                if err != nil {
-                    utils.FatalLog.Write(err.Error())
-                }
-                utils.DebugLog.Write("kline: %v", c.kline)
             }
         }
     }
